@@ -1,6 +1,6 @@
-import type { ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { FiBell } from 'react-icons/fi'
-import { RiArrowLeftLine, } from 'react-icons/ri'
+import { RiArrowLeftLine } from 'react-icons/ri'
 import { useNavigate } from 'react-router-dom'
 
 type HeaderBarProps =
@@ -19,25 +19,70 @@ type HeaderBarProps =
 
 const HeaderBar = (props: HeaderBarProps) => {
   const navigate = useNavigate()
+  const [isScrolled, setIsScrolled] = useState(false)
+
+  useEffect(() => {
+    const handleScroll = () => {
+      // Check both window scroll and scrollable main elements
+      const windowScroll = window.scrollY || document.documentElement.scrollTop
+      const mainElements = document.querySelectorAll('main')
+      let maxScroll = windowScroll
+
+      mainElements.forEach((main) => {
+        if (main.scrollTop > maxScroll) {
+          maxScroll = main.scrollTop
+        }
+      })
+
+      setIsScrolled(maxScroll > 20)
+    }
+
+    // Listen to scroll on window
+    window.addEventListener('scroll', handleScroll, { passive: true })
+    
+    // Also listen to scroll on all main elements (for overflow-y-auto containers)
+    const mainElements = document.querySelectorAll('main')
+    mainElements.forEach((main) => {
+      main.addEventListener('scroll', handleScroll, { passive: true })
+    })
+
+    return () => {
+      window.removeEventListener('scroll', handleScroll)
+      mainElements.forEach((main) => {
+        main.removeEventListener('scroll', handleScroll)
+      })
+    }
+  }, [])
 
   if (props.variant === 'page') {
     const { title, onBack, showIcon } = props
     return (
-      <header className="fixed inset-x-0 top-0 z-40 px-4 py-3">
-        <div className="mx-auto flex w-full max-w-md items-center justify-between">
+      <header className="pointer-events-none relative z-40 flex-shrink-0 bg-[#F7F9FC]">
+      {isScrolled && (
+        <div className="absolute inset-0 bg-white" aria-hidden="true" />
+      )}
+      <div className="relative px-1 py-1">
+        <div
+          className={`pointer-events-auto mx-auto flex w-full max-w-md items-center justify-between px-4 py-2 transition-all duration-300 ${
+            isScrolled
+              ? 'bg-transparent'
+              : 'bg-transparent'
+          }`}
+        >
           <button
             type="button"
             onClick={onBack ?? (() => navigate(-1))}
-            className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-xl ring-1 ring-slate-100 ring-1 ring-slate-100"
+            className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100"
             aria-label="Quay lại"
           >
             <RiArrowLeftLine className="h-5 w-5" />
           </button>
-          <p className="flex-1 px-4 text-center text-base font-semibold uppercase tracking-[0.32em] text-black">
+          <p className="flex-1 px-4 text-center text-base font-semibold uppercase tracking-[0.2em] text-slate-800">
             {title}
           </p>
           <div className="flex h-11 w-11 items-center justify-center text-slate-500">
             {showIcon ?? null}
+          </div>
           </div>
         </div>
       </header>
@@ -47,8 +92,18 @@ const HeaderBar = (props: HeaderBarProps) => {
   const { userName, avatarText = userName.charAt(0).toUpperCase(), badgeColor = 'bg-sky-600' } = props
 
   return (
-    <header className="fixed inset-x-0 top-0 z-40 px-4 py-3">
-      <div className="mx-auto flex w-full max-w-md items-center justify-between">
+    <header className="pointer-events-none relative z-40 flex-shrink-0 bg-[#F7F9FC]">
+      {isScrolled && (
+        <div className="absolute inset-0 bg-white" aria-hidden="true" />
+      )}
+      <div className="relative px-1 py-1">
+        <div
+          className={`pointer-events-auto mx-auto flex w-full max-w-md items-center justify-between px-4 py-2 transition-all duration-300 ${
+            isScrolled
+              ? 'bg-transparent'
+              : 'bg-transparent'
+          }`}
+        >
         <div className="flex items-center gap-3">
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#89f7fe] to-[#66a6ff] text-lg font-semibold text-slate-800 shadow-[0_18px_35px_rgba(102,166,255,0.35)]">
             {avatarText}
@@ -62,6 +117,7 @@ const HeaderBar = (props: HeaderBarProps) => {
           <span className={`absolute right-1 top-1 h-2.5 w-2.5 rounded-full ${badgeColor}`} />
           <FiBell className="h-6 w-6 text-slate-500" />
         </button>
+        </div>
       </div>
     </header>
   )

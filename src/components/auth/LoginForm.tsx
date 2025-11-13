@@ -54,18 +54,15 @@ export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
   }
 
   return (
-    <div className="rounded-3xl bg-white/95 p-6 shadow-2xl backdrop-blur-sm sm:p-8">
+    <div className="rounded-3xl shadow-lg bg-white p-6 sm:p-8">
       {error && (
-        <div className="mb-5 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="mb-5 rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
           {error}
         </div>
       )}
 
       <form className="space-y-5" onSubmit={handleSubmit}>
         <div className="space-y-2">
-          <label className="text-sm font-medium text-slate-600" htmlFor="email">
-            Email hoặc số điện thoại
-          </label>
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
               <FiMail className="h-5 w-5 text-slate-400" />
@@ -75,7 +72,7 @@ export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
               name="email"
               type="email"
               required
-              className="block w-full rounded-xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-4 text-slate-900 placeholder:text-slate-400 transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="block w-full rounded-3xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-4 text-slate-900 placeholder:text-slate-400 transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
               placeholder="Email / Số điện thoại"
               value={formData.email}
               onChange={handleChange('email')}
@@ -84,9 +81,6 @@ export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
         </div>
 
         <div className="space-y-2">
-          <label className="text-sm font-medium text-slate-600" htmlFor="password">
-            Mật khẩu
-          </label>
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
               <FiLock className="h-5 w-5 text-slate-400" />
@@ -97,7 +91,7 @@ export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
               type={showPassword ? 'text' : 'password'}
               autoComplete="current-password"
               required
-              className="block w-full rounded-xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-12 text-slate-900 placeholder:text-slate-400 transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="block w-full rounded-3xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-12 text-slate-900 placeholder:text-slate-400 transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
               placeholder="Mật khẩu"
               value={formData.password}
               onChange={handleChange('password')}
@@ -125,7 +119,7 @@ export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
         <button
           type="submit"
           disabled={isSubmitting}
-          className="w-full transform rounded-xl bg-gradient-to-r from-blue-500 via-green-400 via-yellow-300 via-orange-400 to-pink-500 px-4 py-3.5 text-base font-semibold text-white shadow-lg transition duration-200 hover:scale-[1.02] hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
+          className="w-full transform rounded-3xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-3.5 text-base font-semibold text-white shadow-lg transition duration-200 hover:scale-[1.02] hover:shadow-xl hover:from-sky-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-sky-500 disabled:cursor-not-allowed disabled:opacity-60"
         >
           {isSubmitting ? 'Đang đăng nhập...' : 'Đăng nhập'}
         </button>

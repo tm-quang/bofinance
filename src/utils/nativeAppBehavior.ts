@@ -53,20 +53,35 @@ export const preventZoom = () => {
  */
 export const preventPullToRefresh = () => {
   let startY = 0
+  let startX = 0
   let isScrolling = false
+  let hasMoved = false
 
   document.addEventListener('touchstart', (e) => {
     startY = e.touches[0].pageY
-    isScrolling = window.scrollY > 0
+    startX = e.touches[0].pageX
+    isScrolling = window.scrollY > 0 || document.documentElement.scrollTop > 0
+    hasMoved = false
   }, { passive: true })
 
   document.addEventListener('touchmove', (e) => {
-    const currentY = e.touches[0].pageY
-    const deltaY = currentY - startY
-
-    // Prevent pull-to-refresh when at top and pulling down
-    if (!isScrolling && deltaY > 0 && window.scrollY === 0) {
-      e.preventDefault()
+    if (!hasMoved) {
+      const currentY = e.touches[0].pageY
+      const currentX = e.touches[0].pageX
+      const deltaY = currentY - startY
+      const deltaX = Math.abs(currentX - startX)
+      
+      // Only prevent if it's clearly a vertical pull down (not horizontal swipe)
+      // And only if we're at the very top of the page
+      const isAtTop = window.scrollY === 0 && document.documentElement.scrollTop === 0
+      const isVerticalPull = deltaY > 0 && deltaY > deltaX * 2
+      
+      if (!isScrolling && isAtTop && isVerticalPull && deltaY > 10) {
+        e.preventDefault()
+        hasMoved = true
+      } else {
+        hasMoved = true
+      }
     }
   }, { passive: false })
 }
@@ -118,10 +133,12 @@ export const preventOverscroll = () => {
  */
 export const lockOrientation = async (orientation: 'portrait' | 'landscape' = 'portrait') => {
   try {
-    if (screen.orientation && (screen.orientation as any).lock) {
-      await (screen.orientation as any).lock(orientation)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const orientationLock = (screen.orientation as any)?.lock
+    if (screen.orientation && orientationLock) {
+      await orientationLock(orientation)
     }
-  } catch (error) {
+  } catch {
     console.log('Orientation lock not supported')
   }
 }
@@ -159,9 +176,11 @@ export const initNativeAppBehavior = () => {
  * Check if running as installed PWA
  */
 export const isInstalledPWA = (): boolean => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const nav = window.navigator as any
   return (
     window.matchMedia('(display-mode: standalone)').matches ||
-    (window.navigator as any).standalone === true ||
+    nav.standalone === true ||
     document.referrer.includes('android-app://')
   )
 }
@@ -169,6 +188,7 @@ export const isInstalledPWA = (): boolean => {
 /**
  * Show install prompt for PWA
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let deferredPrompt: any = null
 
 export const setupInstallPrompt = () => {

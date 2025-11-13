@@ -11,10 +11,26 @@
   -webkit-tap-highlight-color: transparent;
 }
 
+html,
 body {
-  @apply min-h-screen bg-slate-950 text-slate-100 antialiased;
-  overscroll-behavior: none;
-  touch-action: manipulation;
+  height: 100%;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+body {
+  @apply bg-[#F7F9FC] text-slate-900 antialiased;
+  overscroll-behavior-y: none;
+  overscroll-behavior-x: none;
+  touch-action: pan-y pinch-zoom;
+}
+
+#root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
 }
 
 /* Smooth native-like scrolling */
@@ -54,4 +70,26 @@ button:active,
   .animation-delay-150 {
     animation-delay: 150ms;
   }
+}
+
+/* Skeleton shimmer animation */
+@keyframes shimmer {
+  0% {
+    background-position: -1000px 0;
+  }
+  100% {
+    background-position: 1000px 0;
+  }
+}
+
+.animate-\[shimmer_2s_infinite\] {
+  background: linear-gradient(
+    to right,
+    rgb(226 232 240) 0%,
+    rgb(241 245 249) 20%,
+    rgb(226 232 240) 40%,
+    rgb(226 232 240) 100%
+  );
+  background-size: 1000px 100%;
+  animation: shimmer 2s infinite;
 }

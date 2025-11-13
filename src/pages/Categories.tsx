@@ -10,6 +10,7 @@ import {
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
+import { TransactionModal } from '../components/transactions/TransactionModal'
 import {
     CATEGORY_ICON_GROUPS,
     CATEGORY_ICON_MAP,
@@ -73,7 +74,7 @@ const DEFAULT_CATEGORIES: Category[] = [
 export const CategoriesPage = () => {
     const [categories, setCategories] = useState<Category[]>([])
     const [searchTerm, setSearchTerm] = useState('')
-    const [typeFilter, setTypeFilter] = useState<CategoryType | 'Tất cả'>('Tất cả')
+    const [activeTab, setActiveTab] = useState<'all' | 'expense' | 'income'>('all')
     const [formState, setFormState] = useState<CategoryFormState>(createInitialFormState())
     const [isFormOpen, setIsFormOpen] = useState(false)
     const [editingId, setEditingId] = useState<string | null>(null)
@@ -86,22 +87,100 @@ export const CategoriesPage = () => {
     const [loadError, setLoadError] = useState<string | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [isRemoteEnabled, setIsRemoteEnabled] = useState(true)
+    const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
 
     const [searchParams, setSearchParams] = useSearchParams()
 
     const filteredCategories = useMemo(() => {
         const normalizedSearch = searchTerm.trim().toLowerCase()
         return categories.filter((category) => {
-            const matchesType =
-                typeFilter === 'Tất cả' ? true : category.type.toLowerCase() === typeFilter.toLowerCase()
-            const matchesSearch =
-                !normalizedSearch || category.name.toLowerCase().includes(normalizedSearch)
-            return matchesType && matchesSearch
+            if (!normalizedSearch) return true
+            return category.name.toLowerCase().includes(normalizedSearch)
         })
-    }, [categories, searchTerm, typeFilter])
+    }, [categories, searchTerm])
 
-    const expenseCategories = filteredCategories.filter((category) => category.type === 'Chi tiêu')
-    const incomeCategories = filteredCategories.filter((category) => category.type === 'Thu nhập')
+    const expenseCategories = useMemo(
+        () => filteredCategories.filter((category) => category.type === 'Chi tiêu'),
+        [filteredCategories]
+    )
+
+    const incomeCategories = useMemo(
+        () => filteredCategories.filter((category) => category.type === 'Thu nhập'),
+        [filteredCategories]
+    )
+
+    const tabSummaries = useMemo(
+        () => ({
+            all: {
+                label: 'Tất cả',
+                badge: filteredCategories.length,
+                helper: 'Toàn bộ danh mục của bạn',
+            },
+            expense: {
+                label: 'Chi tiêu',
+                badge: expenseCategories.length,
+                helper: 'Kiểm soát các khoản chi hàng ngày',
+            },
+            income: {
+                label: 'Thu nhập',
+                badge: incomeCategories.length,
+                helper: 'Những nguồn thu ổn định & thêm',
+            },
+        }) as const,
+        [expenseCategories.length, filteredCategories.length, incomeCategories.length]
+    )
+
+    const totalCategories = categories.length
+    const tabOrder: Array<typeof activeTab> = ['all', 'expense', 'income']
+
+    const renderCategorySections = () => {
+        switch (activeTab) {
+            case 'expense':
+                return (
+                    <div className="space-y-4 sm:space-y-5">
+                        <CategorySection
+                            title="Chi tiêu"
+                            description="Những khoản chi hàng ngày, hoá đơn, sinh hoạt."
+                            categories={expenseCategories}
+                            onEdit={openEditForm}
+                            onDelete={handleDelete}
+                        />
+                    </div>
+                )
+            case 'income':
+                return (
+                    <div className="space-y-4 sm:space-y-5">
+                        <CategorySection
+                            title="Thu nhập"
+                            description="Các nguồn thu cố định hoặc thu nhập thêm."
+                            categories={incomeCategories}
+                            onEdit={openEditForm}
+                            onDelete={handleDelete}
+                        />
+                    </div>
+                )
+            default:
+                return (
+                    <div className="space-y-4 sm:space-y-5">
+                        <CategorySection
+                            title="Chi tiêu"
+                            description="Những khoản chi hàng ngày, hoá đơn, sinh hoạt."
+                            categories={expenseCategories}
+                            onEdit={openEditForm}
+                            onDelete={handleDelete}
+                        />
+
+                        <CategorySection
+                            title="Thu nhập"
+                            description="Các nguồn thu cố định hoặc thu nhập thêm."
+                            categories={incomeCategories}
+                            onEdit={openEditForm}
+                            onDelete={handleDelete}
+                        />
+                    </div>
+                )
+        }
+    }
 
     const openCreateForm = useCallback(() => {
         setEditingId(null)
@@ -264,110 +343,168 @@ export const CategoriesPage = () => {
     }
 
     return (
-        <div className="min-h-screen bg-[#F7F9FC] text-slate-900">
+        <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
             <HeaderBar variant="page" title="Danh mục" />
-            <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 pb-44 pt-28">
-                <header className="space-y-4 rounded-3xl bg-white p-6 shadow-[0_25px_80px_rgba(15,40,80,0.08)] ring-1 ring-slate-100">
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Danh mục</p>
-                            <h1 className="text-2xl font-semibold text-slate-900">Quản lý thu & chi</h1>
-                        </div>
-                        <button
-                            type="button"
-                            onClick={openCreateForm}
-                            className="inline-flex items-center gap-2 rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(56,189,248,0.35)] transition hover:bg-sky-600"
-                        >
-                            <RiAddLine />
-                            Thêm danh mục
-                        </button>
-                    </div>
-
-                    <div className="flex flex-col gap-3 rounded-3xl bg-slate-50 p-4 shadow-[0_18px_45px_rgba(15,40,80,0.08)] ring-1 ring-slate-100">
-                        <div className="relative">
-                            <RiSearchLine className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                            <input
-                                value={searchTerm}
-                                onChange={(event) => setSearchTerm(event.target.value)}
-                                placeholder="Tìm kiếm danh mục..."
-                                className="h-11 w-full rounded-full bg-white pl-11 pr-4 text-sm text-slate-900 outline-none ring-2 ring-transparent transition focus:ring-sky-400"
-                            />
-                        </div>
-                        <div className="flex flex-wrap gap-2">
-                            {(['Tất cả', 'Chi tiêu', 'Thu nhập'] as const).map((type) => {
-                                const isActive = typeFilter === type
-                                return (
+            <main className="flex-1 overflow-y-auto overscroll-contain">
+                <div className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 py-6 sm:gap-8 sm:py-8 md:max-w-3xl lg:max-w-5xl xl:max-w-6xl">
+                    <header className="space-y-5">
+                        <div className="rounded-[28px] bg-gradient-to-br from-sky-500 via-sky-400 to-blue-500 p-6 text-white shadow-[0_30px_80px_rgba(56,189,248,0.35)] sm:p-8">
+                            <div className="flex flex-col gap-6 sm:flex-row sm:items-start sm:justify-between">
+                                <div className="space-y-3 sm:space-y-4">
+                                    <p className="text-xs uppercase tracking-[0.4em] text-white/80">Danh mục</p>
+                                    <h1 className="text-2xl font-semibold leading-tight sm:text-3xl">Quản lý thu & chi</h1>
+                                    <p className="max-w-lg text-sm text-white/85 sm:text-base">
+                                        Sắp xếp nguồn tiền của bạn theo nhóm trực quan, dễ dàng tìm và chỉnh sửa bất cứ lúc nào.
+                                    </p>
+                                </div>
+                                <div className="flex flex-col gap-2 sm:items-end">
                                     <button
-                                        key={type}
                                         type="button"
-                                        onClick={() => setTypeFilter(type)}
-                                        className={`rounded-full px-4 py-2 text-sm font-medium transition ${isActive
-                                            ? 'bg-sky-500 text-white shadow-lg'
-                                            : 'bg-white text-slate-500 ring-1 ring-slate-200 hover:bg-slate-100'
-                                            }`}
+                                        onClick={openCreateForm}
+                                        className="inline-flex items-center justify-center gap-2 rounded-full bg-white/15 px-4 py-2 text-sm font-semibold text-white shadow-[0_18px_40px_rgba(15,40,80,0.25)] backdrop-blur transition hover:bg-white/25 sm:px-5 sm:py-2.5"
                                     >
-                                        {type}
+                                        <RiAddLine className="h-4 w-4" />
+                                        <span>Thêm danh mục</span>
                                     </button>
-                                )
-                            })}
+                                    <span
+                                        className={`inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold ${
+                                            isRemoteEnabled
+                                                ? 'bg-white/15 text-white'
+                                                : 'bg-white/10 text-amber-100'
+                                        }`}
+                                    >
+                                        <span
+                                            className={`h-2 w-2 rounded-full ${
+                                                isRemoteEnabled ? 'bg-emerald-300' : 'bg-amber-300'
+                                            }`}
+                                        />
+                                        {isRemoteEnabled ? 'Đồng bộ Supabase' : 'Chế độ offline tạm thời'}
+                                    </span>
+                                </div>
+                            </div>
                         </div>
-                    </div>
-                </header>
 
-                {loadError && (
-                    <p className="rounded-3xl bg-amber-50 px-4 py-3 text-sm text-amber-700 shadow-[0_12px_30px_rgba(15,40,80,0.08)]">
-                        {loadError}
-                    </p>
-                )}
+                        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                            <div className="rounded-2xl bg-white px-4 py-3 shadow-[0_18px_45px_rgba(15,40,80,0.08)] ring-1 ring-white/60">
+                                <p className="text-[10px] uppercase tracking-[0.4em] text-slate-400">Tổng</p>
+                                <p className="mt-2 text-2xl font-semibold text-slate-900 sm:text-3xl">{totalCategories}</p>
+                                <p className="mt-1 text-xs text-slate-500">Danh mục đang quản lý</p>
+                            </div>
+                            <div className="rounded-2xl bg-gradient-to-br from-rose-50 via-white to-white px-4 py-3 shadow-[0_18px_45px_rgba(244,114,182,0.18)] ring-1 ring-rose-100">
+                                <p className="text-[10px] uppercase tracking-[0.4em] text-rose-400">Chi tiêu</p>
+                                <p className="mt-2 text-2xl font-semibold text-rose-500 sm:text-3xl">{expenseCategories.length}</p>
+                                <p className="mt-1 text-xs text-rose-400/80">Nhóm chi phí được phân loại</p>
+                            </div>
+                            <div className="rounded-2xl bg-gradient-to-br from-emerald-50 via-white to-white px-4 py-3 shadow-[0_18px_45px_rgba(16,185,129,0.18)] ring-1 ring-emerald-100">
+                                <p className="text-[10px] uppercase tracking-[0.4em] text-emerald-500">Thu nhập</p>
+                                <p className="mt-2 text-2xl font-semibold text-emerald-600 sm:text-3xl">{incomeCategories.length}</p>
+                                <p className="mt-1 text-xs text-emerald-500/80">Nguồn thu được ghi nhận</p>
+                            </div>
+                        </div>
+                    </header>
 
-                {isLoading ? (
-                    <div className="rounded-3xl bg-white/10 p-6 text-center text-sm text-slate-200 shadow-xl backdrop-blur">
-                        Đang tải danh mục...
-                    </div>
-                ) : (
-                    <section className="space-y-5">
-                        <CategorySection
-                            title="Chi tiêu"
-                            description="Những khoản chi hàng ngày, hoá đơn, sinh hoạt."
-                            categories={expenseCategories}
-                            onEdit={openEditForm}
-                            onDelete={handleDelete}
-                        />
+                    <section className="rounded-3xl bg-white/90 p-4 shadow-[0_25px_80px_rgba(15,40,80,0.08)] ring-1 ring-slate-100 backdrop-blur sm:p-6">
+                        <div className="space-y-5">
+                            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                                <div className="relative w-full sm:max-w-sm">
+                                    <RiSearchLine className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 sm:left-4" />
+                                    <input
+                                        value={searchTerm}
+                                        onChange={(event) => setSearchTerm(event.target.value)}
+                                        placeholder="Tìm kiếm danh mục theo tên..."
+                                        className="h-10 w-full rounded-full border border-slate-200 bg-white pl-10 pr-4 text-sm text-slate-900 outline-none ring-2 ring-transparent transition focus:border-sky-400 focus:ring-sky-100 sm:h-11 sm:pl-12"
+                                    />
+                                </div>
+                                <button
+                                    type="button"
+                                    onClick={openCreateForm}
+                                    className="inline-flex items-center justify-center gap-2 rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-[0_12px_30px_rgba(56,189,248,0.35)] transition hover:bg-sky-600 sm:hidden"
+                                >
+                                    <RiAddLine className="h-4 w-4" />
+                                    Tạo mới
+                                </button>
+                            </div>
 
-                        <CategorySection
-                            title="Thu nhập"
-                            description="Các nguồn thu cố định hoặc thu nhập thêm."
-                            categories={incomeCategories}
-                            onEdit={openEditForm}
-                            onDelete={handleDelete}
-                        />
+                            <nav className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                {tabOrder.map((tab) => {
+                                    const summary = tabSummaries[tab]
+                                    const isActive = activeTab === tab
+                                    return (
+                                        <button
+                                            key={tab}
+                                            type="button"
+                                            onClick={() => setActiveTab(tab)}
+                                            className={`group rounded-2xl border px-4 py-3 text-left transition sm:px-5 ${
+                                                isActive
+                                                    ? 'border-transparent bg-gradient-to-br from-sky-500 to-blue-500 text-white shadow-[0_18px_45px_rgba(56,189,248,0.25)]'
+                                                    : 'border-slate-200 bg-white text-slate-600 hover:border-sky-200 hover:shadow-md'
+                                            }`}
+                                        >
+                                            <div className="flex items-center justify-between gap-3">
+                                                <span className="text-sm font-semibold sm:text-base">{summary.label}</span>
+                                                <span
+                                                    className={`inline-flex h-7 min-w-[2.5rem] items-center justify-center rounded-full border px-3 text-xs font-semibold ${
+                                                        isActive
+                                                            ? 'border-white/40 bg-white/20 text-white'
+                                                            : 'border-sky-100 bg-sky-50 text-sky-600'
+                                                    }`}
+                                                >
+                                                    {summary.badge}
+                                                </span>
+                                            </div>
+                                            <p
+                                                className={`mt-2 text-xs leading-snug ${
+                                                    isActive
+                                                        ? 'text-white/80'
+                                                        : 'text-slate-400 transition group-hover:text-slate-500'
+                                                }`}
+                                            >
+                                                {summary.helper}
+                                            </p>
+                                        </button>
+                                    )
+                                })}
+                            </nav>
+
+                            {loadError && (
+                                <p className="rounded-2xl bg-amber-50 px-4 py-3 text-sm text-amber-700 shadow-[0_12px_30px_rgba(15,40,80,0.08)]">
+                                    {loadError}
+                                </p>
+                            )}
+
+                            {isLoading ? (
+                                <CategoryCardSkeleton count={8} />
+                            ) : (
+                                renderCategorySections()
+                            )}
+                        </div>
                     </section>
-                )}
+                </div>
             </main>
 
-            <FooterNav onAddClick={openCreateForm} />
+            <FooterNav onAddClick={() => setIsTransactionModalOpen(true)} />
 
             {isFormOpen && (
-                <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/70 px-4 pb-24 pt-12 sm:items-center">
-                    <div className="w-full max-w-lg rounded-3xl bg-white p-6 shadow-2xl">
-                        <div className="flex items-start justify-between">
-                            <div>
+                <div className="fixed inset-0 z-50 flex items-end backdrop-blur-md bg-slate-950/50">
+                    <div className="w-full h-[85%] overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl sm:p-8">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
                                 <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Danh mục</p>
-                                <h2 className="text-xl font-semibold text-slate-900">
+                                <h2 className="text-lg font-semibold text-slate-900 sm:text-xl">
                                     {editingId ? 'Cập nhật danh mục' : 'Thêm danh mục mới'}
                                 </h2>
                             </div>
                             <button
                                 type="button"
-                                className="rounded-full bg-slate-100 p-2 text-slate-500 transition hover:bg-slate-200"
+                                className="shrink-0 rounded-full bg-slate-100 p-2 text-slate-500 transition hover:bg-slate-200"
                                 onClick={closeForm}
                             >
                                 <RiCloseLine className="h-5 w-5" />
                             </button>
                         </div>
 
-                        <form className="mt-6 space-y-4" onSubmit={handleSubmit}>
-                            <label className="block space-y-2 text-sm font-medium text-slate-700">
+                        <form className="mt-4 space-y-3 sm:mt-6 sm:space-y-4" onSubmit={handleSubmit}>
+                            <label className="block space-y-1.5 text-sm font-medium text-slate-700 sm:space-y-2">
                                 Tên danh mục
                                 <input
                                     autoFocus
@@ -377,55 +514,55 @@ export const CategoriesPage = () => {
                                         setFormState((prev) => ({ ...prev, name: event.target.value }))
                                     }
                                     placeholder="Ví dụ: Ăn sáng, Tiền điện..."
-                                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-slate-900 outline-none ring-2 ring-transparent transition focus:border-sky-400 focus:ring-sky-200"
+                                    className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-2 ring-transparent transition focus:border-sky-400 focus:ring-sky-200 sm:h-11 sm:rounded-2xl sm:px-4"
                                 />
                             </label>
 
-                            <label className="block space-y-2 text-sm font-medium text-slate-700">
+                            <label className="block space-y-1.5 text-sm font-medium text-slate-700 sm:space-y-2">
                                 Loại danh mục
                                 <select
                                     value={formState.type}
                                     onChange={(event) =>
                                         setFormState((prev) => ({ ...prev, type: event.target.value as CategoryType }))
                                     }
-                                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white px-4 text-slate-900 outline-none ring-2 ring-transparent transition focus:border-sky-400 focus:ring-sky-200"
+                                    className="h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none ring-2 ring-transparent transition focus:border-sky-400 focus:ring-sky-200 sm:h-11 sm:rounded-2xl sm:px-4"
                                 >
                                     <option value="Chi tiêu">Chi tiêu</option>
                                     <option value="Thu nhập">Thu nhập</option>
                                 </select>
                             </label>
 
-                            <div className="space-y-3 text-sm font-medium text-slate-700">
+                            <div className="space-y-2 text-sm font-medium text-slate-700 sm:space-y-3">
                                 <span>Biểu tượng hiển thị</span>
                                 <button
                                     type="button"
                                     onClick={() => setIsIconPickerOpen(true)}
-                                    className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white px-4 py-3 transition hover:border-sky-400 hover:bg-sky-50"
+                                    className="flex w-full items-center justify-between rounded-xl border border-slate-200 bg-white px-3 py-2.5 transition hover:border-sky-400 hover:bg-sky-50 sm:rounded-2xl sm:px-4 sm:py-3"
                                 >
-                                    <span className="flex items-center gap-3 text-slate-900">
-                                        <IconPreview iconId={formState.iconId} className="h-10 w-10" />
-                                        <span>{CATEGORY_ICON_MAP[formState.iconId]?.label ?? 'Chưa chọn'}</span>
+                                    <span className="flex items-center gap-2 text-slate-900 sm:gap-3">
+                                        <IconPreview iconId={formState.iconId} className="h-8 w-8 sm:h-10 sm:w-10" />
+                                        <span className="text-sm sm:text-base">{CATEGORY_ICON_MAP[formState.iconId]?.label ?? 'Chưa chọn'}</span>
                                     </span>
-                                    <span className="text-sm font-semibold text-sky-500">Thay đổi</span>
+                                    <span className="text-xs font-semibold text-sky-500 sm:text-sm">Thay đổi</span>
                                 </button>
                             </div>
 
                             {formError && (
-                                <p className="rounded-2xl bg-rose-50 px-4 py-3 text-sm text-rose-600">{formError}</p>
+                                <p className="rounded-xl bg-rose-50 px-3 py-2 text-xs text-rose-600 sm:rounded-2xl sm:px-4 sm:py-3 sm:text-sm">{formError}</p>
                             )}
 
-                            <div className="flex justify-end gap-3 pt-2">
+                            <div className="flex flex-col-reverse gap-2 pt-2 sm:flex-row sm:justify-end sm:gap-3">
                                 <button
                                     type="button"
                                     onClick={closeForm}
-                                    className="rounded-full px-5 py-2 text-sm font-semibold text-slate-500 transition hover:bg-slate-100"
+                                    className="rounded-full px-4 py-2 text-sm font-semibold text-slate-500 transition hover:bg-slate-100 sm:px-5"
                                 >
                                     Hủy
                                 </button>
                                 <button
                                     type="submit"
                                     disabled={isSubmitting}
-                                    className="rounded-full bg-sky-500 px-5 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-70"
+                                    className="rounded-full bg-sky-500 px-4 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-70 sm:px-5"
                                 >
                                     {isSubmitting
                                         ? 'Đang lưu...'
@@ -440,26 +577,26 @@ export const CategoriesPage = () => {
             )}
 
             {isIconPickerOpen && (
-                <div className="fixed inset-0 z-[60] flex items-end justify-center bg-slate-950/70 px-4 pb-10 pt-16 sm:items-center">
-                    <div className="flex w-full max-w-2xl flex-col gap-4 rounded-3xl bg-white p-6 shadow-2xl">
-                        <div className="flex items-start justify-between">
-                            <div>
+                <div className="fixed inset-0 z-[60] flex items-end backdrop-blur-md bg-slate-950/50">
+                    <div className="flex w-full h-[90%] flex-col gap-4 overflow-y-auto rounded-t-3xl bg-white p-6 shadow-2xl sm:gap-5 sm:p-8">
+                        <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
                                 <p className="text-xs uppercase tracking-[0.3em] text-slate-400">Biểu tượng</p>
-                                <h3 className="text-lg font-semibold text-slate-900">Chọn biểu tượng phù hợp</h3>
-                                <p className="text-sm text-slate-500">
+                                <h3 className="text-base font-semibold text-slate-900 sm:text-lg">Chọn biểu tượng phù hợp</h3>
+                                <p className="text-xs text-slate-500 sm:text-sm">
                                     Sắp xếp theo nhóm nội dung phổ biến để bạn chọn nhanh hơn.
                                 </p>
                             </div>
                             <button
                                 type="button"
                                 onClick={() => setIsIconPickerOpen(false)}
-                                className="rounded-full bg-slate-100 p-2 text-slate-500 transition hover:bg-slate-200"
+                                className="shrink-0 rounded-full bg-slate-100 p-2 text-slate-500 transition hover:bg-slate-200"
                             >
                                 <RiCloseLine className="h-5 w-5" />
                             </button>
                         </div>
 
-                        <div className="flex flex-wrap gap-2">
+                        <div className="flex flex-wrap gap-1.5 sm:gap-2">
                             {CATEGORY_ICON_GROUPS.map((group) => {
                                 const isActive = activeIconGroup === group.id
                                 return (
@@ -478,7 +615,7 @@ export const CategoriesPage = () => {
                             })}
                         </div>
 
-                        <div className="grid grid-cols-3 gap-3 sm:grid-cols-4 md:grid-cols-5">
+                        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4 sm:gap-3 md:grid-cols-5 lg:grid-cols-6">
                             {CATEGORY_ICON_GROUPS.find((group) => group.id === activeIconGroup)?.icons.map(
                                 (icon) => {
                                     const IconComponent = icon.icon
@@ -488,18 +625,18 @@ export const CategoriesPage = () => {
                                             key={icon.id}
                                             type="button"
                                             onClick={() => handleIconSelect(icon)}
-                                            className={`flex flex-col items-center gap-2 rounded-2xl border px-3 py-4 text-xs font-medium transition ${isSelected
+                                            className={`flex flex-col items-center gap-1.5 rounded-xl border px-2 py-2.5 text-xs font-medium transition sm:gap-2 sm:rounded-2xl sm:px-3 sm:py-4 ${isSelected
                                                 ? 'border-sky-400 bg-sky-50 text-sky-600'
                                                 : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50'
                                                 }`}
                                         >
                                             <span
-                                                className={`flex h-12 w-12 items-center justify-center rounded-full text-lg ${isSelected ? 'bg-sky-100 text-sky-600' : 'bg-slate-100 text-slate-500'
+                                                className={`flex h-10 w-10 items-center justify-center rounded-full text-base sm:h-12 sm:w-12 sm:text-lg ${isSelected ? 'bg-sky-100 text-sky-600' : 'bg-slate-100 text-slate-500'
                                                     }`}
                                             >
                                                 <IconComponent />
                                             </span>
-                                            <span className="text-center leading-tight">{icon.label}</span>
+                                            <span className="text-center text-[10px] leading-tight sm:text-xs">{icon.label}</span>
                                         </button>
                                     )
                                 }
@@ -508,6 +645,14 @@ export const CategoriesPage = () => {
                     </div>
                 </div>
             )}
+
+            <TransactionModal
+                isOpen={isTransactionModalOpen}
+                onClose={() => setIsTransactionModalOpen(false)}
+                onSuccess={() => {
+                    // Có thể reload hoặc show notification
+                }}
+            />
         </div>
     )
 }
@@ -529,10 +674,10 @@ const CategorySection = ({
 }: CategorySectionProps) => {
     if (!categories.length) {
         return (
-            <section className="rounded-3xl bg-white/5 p-6 text-sm text-slate-300 backdrop-blur">
-                <h2 className="text-lg font-semibold text-white">{title}</h2>
-                <p className="mt-1 text-slate-400">{description}</p>
-                <p className="mt-4 rounded-2xl bg-white/5 px-4 py-3 text-slate-300">
+            <section className="rounded-3xl border border-dashed border-slate-200 bg-slate-50 p-5 text-sm text-slate-500 sm:p-6">
+                <h2 className="text-base font-semibold text-slate-700 sm:text-lg">{title}</h2>
+                <p className="mt-1 text-xs text-slate-400 sm:text-sm">{description}</p>
+                <p className="mt-4 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-slate-500">
                     Chưa có danh mục nào. Hãy tạo mới để dễ dàng theo dõi.
                 </p>
             </section>
@@ -540,12 +685,12 @@ const CategorySection = ({
     }
 
     return (
-        <section className="rounded-3xl bg-white/10 p-6 shadow-xl backdrop-blur">
-            <div className="mb-4">
-                <h2 className="text-lg font-semibold text-white">{title}</h2>
-                <p className="text-sm text-slate-300">{description}</p>
+        <section className="rounded-3xl border border-slate-200/70 bg-white p-4 shadow-[0_18px_45px_rgba(15,40,80,0.05)] sm:p-6">
+            <div className="mb-3 sm:mb-4">
+                <h2 className="text-base font-semibold text-slate-800 sm:text-lg">{title}</h2>
+                <p className="text-xs text-slate-500 sm:text-sm">{description}</p>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 md:grid-cols-3 lg:grid-cols-4">
                 {categories.map((category) => (
                     <CategoryCard
                         key={category.id}
@@ -568,41 +713,50 @@ type CategoryCardProps = {
 const CategoryCard = ({ category, onEdit, onDelete }: CategoryCardProps) => {
     const iconOption = CATEGORY_ICON_MAP[category.iconId]
     const IconComponent = iconOption?.icon
+    const isExpense = category.type === 'Chi tiêu'
+    const accentBg = isExpense ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-600'
+    const accentPill = isExpense ? 'bg-rose-100 text-rose-600' : 'bg-emerald-100 text-emerald-600'
 
     return (
-        <div className="flex flex-col gap-4 rounded-3xl bg-white/10 p-4 shadow-lg transition hover:bg-white/15">
-            <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                    <span className="flex h-12 w-12 items-center justify-center rounded-2xl bg-white/15 text-lg text-white">
+        <div className="group flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-3 shadow-sm transition hover:-translate-y-1 hover:shadow-lg sm:rounded-3xl sm:gap-4 sm:p-4">
+            <div className="flex items-start justify-between gap-2">
+                <div className="flex items-center gap-2 sm:gap-3">
+                    <span
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base sm:h-12 sm:w-12 sm:rounded-2xl sm:text-lg ${accentBg}`}
+                    >
                         {IconComponent ? <IconComponent /> : category.name[0]?.toUpperCase()}
                     </span>
-                    <div>
-                        <p className="text-sm font-semibold text-white">{category.name}</p>
-                        <p className="text-xs uppercase tracking-wider text-slate-300">{category.type}</p>
+                    <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-semibold text-slate-900 sm:text-base">{category.name}</p>
+                        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[10px] font-semibold sm:text-xs ${accentPill}`}>
+                            <span className={`h-1.5 w-1.5 rounded-full ${isExpense ? 'bg-rose-400' : 'bg-emerald-400'}`} />
+                            {category.type}
+                        </span>
                     </div>
                 </div>
-                <div className="flex gap-2">
+                <div className="flex shrink-0 gap-1.5 sm:gap-2">
                     <button
                         type="button"
                         onClick={onEdit}
-                        className="rounded-full bg-white/10 p-2 text-sm text-slate-200 transition hover:bg-white/20"
+                        className="rounded-full border border-slate-200 p-1.5 text-slate-400 transition hover:border-sky-200 hover:text-sky-500 sm:p-2"
                         aria-label={`Chỉnh sửa ${category.name}`}
                     >
-                        <RiEdit2Line className="h-4 w-4" />
+                        <RiEdit2Line className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </button>
                     <button
                         type="button"
                         onClick={onDelete}
-                        className="rounded-full bg-rose-500/10 p-2 text-sm text-rose-200 transition hover:bg-rose-500/20"
+                        className="rounded-full border border-rose-200/60 p-1.5 text-rose-400 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-500 sm:p-2"
                         aria-label={`Xoá ${category.name}`}
                     >
-                        <RiDeleteBin6Line className="h-4 w-4" />
+                        <RiDeleteBin6Line className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
                     </button>
                 </div>
             </div>
             {iconOption?.label && (
-                <p className="rounded-2xl bg-white/10 px-3 py-2 text-xs text-slate-200">
-                    Biểu tượng: {iconOption.label}
+                <p className="rounded-xl bg-slate-50 px-2.5 py-1.5 text-xs text-slate-500 sm:rounded-2xl sm:px-3 sm:py-2">
+                    <span className="hidden sm:inline">Biểu tượng: </span>
+                    {iconOption.label}
                 </p>
             )}
         </div>

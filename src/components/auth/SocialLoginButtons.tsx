@@ -3,19 +3,19 @@ export const SocialLoginButtons = () => (
     <button
       type="button"
       aria-label="Đăng nhập với Facebook"
-      className="flex flex-1 transform items-center justify-center rounded-full bg-[#1877F2] px-4 py-3 text-sm font-medium text-white shadow-md transition hover:bg-[#166FE5] active:scale-[0.98]"
+      className="flex flex-1 transform items-center justify-center rounded-full bg-[#1877F2] px-4 py-3 text-sm font-medium text-white shadow-lg transition hover:bg-[#166FE5] active:scale-[0.98]"
     >
-      <svg className="h-6 w-6 rounded-full" viewBox="0 0 24 24" aria-hidden="true">
+      <svg className="h-6 w-6" viewBox="0 0 24 24" fill="none" aria-hidden="true">
         <path
+          d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"
           fill="currentColor"
-          d="M22.675 0H1.325C.593 0 0 .593 0 1.326v21.348C0 23.407.593 24 1.325 24h11.495V14.708H9.691v-3.62h3.129V8.413c0-3.1 1.895-4.788 4.661-4.788 1.325 0 2.463.099 2.794.143v3.24l-1.918.001c-1.504 0-1.796.715-1.796 1.763v2.313h3.587l-.468 3.62h-3.12V24h6.116C23.407 24 24 23.407 24 22.674V1.326C24 .593 23.407 0 22.675 0z"
         />
       </svg>
     </button>
     <button
       type="button"
       aria-label="Đăng nhập với Google"
-      className="flex flex-1 transform items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-md transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
+      className="flex flex-1 transform items-center justify-center rounded-full border border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 shadow-lg transition hover:border-slate-300 hover:bg-slate-50 active:scale-[0.98]"
     >
       <svg className="h-6 w-6" viewBox="0 0 24 24" aria-hidden="true">
         <path

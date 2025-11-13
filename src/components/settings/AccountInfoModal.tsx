@@ -1,0 +1,303 @@
+import { useEffect, useRef, useState } from 'react'
+import { RiCameraLine, RiCloseLine, RiMailLine, RiPhoneLine, RiUser3Line } from 'react-icons/ri'
+
+import { deleteAvatar, getCurrentProfile, updateProfile, uploadAvatar, type ProfileRecord } from '../../lib/profileService'
+import { getSupabaseClient } from '../../lib/supabaseClient'
+
+type AccountInfoModalProps = {
+  isOpen: boolean
+  onClose: () => void
+  onUpdate: () => void
+}
+
+export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModalProps) => {
+  const [profile, setProfile] = useState<ProfileRecord | null>(null)
+  const [isLoading, setIsLoading] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [userEmail, setUserEmail] = useState<string>('')
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const [formData, setFormData] = useState({
+    full_name: '',
+    phone: '',
+    date_of_birth: '',
+  })
+
+  // Load profile data
+  useEffect(() => {
+    if (!isOpen) return
+
+    const loadProfile = async () => {
+      setIsLoading(true)
+      setError(null)
+      try {
+        const supabase = getSupabaseClient()
+        const {
+          data: { user },
+        } = await supabase.auth.getUser()
+
+        if (user) {
+          setUserEmail(user.email || '')
+        }
+
+        const profileData = await getCurrentProfile()
+        if (profileData) {
+          setProfile(profileData)
+          setFormData({
+            full_name: profileData.full_name || '',
+            phone: profileData.phone || '',
+            date_of_birth: profileData.date_of_birth || '',
+          })
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Không thể tải thông tin')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadProfile()
+  }, [isOpen])
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    if (!file.type.startsWith('image/')) {
+      setError('Vui lòng chọn file ảnh')
+      return
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      setError('Kích thước ảnh không được vượt quá 5MB')
+      return
+    }
+
+    setIsSubmitting(true)
+    setError(null)
+    try {
+      const avatarUrl = await uploadAvatar(file)
+      const updatedProfile = await getCurrentProfile()
+      if (updatedProfile) {
+        setProfile(updatedProfile)
+        onUpdate()
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không thể upload avatar')
+    } finally {
+      setIsSubmitting(false)
+      if (fileInputRef.current) {
+        fileInputRef.current.value = ''
+      }
+    }
+  }
+
+  const handleRemoveAvatar = async () => {
+    setIsSubmitting(true)
+    setError(null)
+    try {
+      await deleteAvatar()
+      const updatedProfile = await getCurrentProfile()
+      if (updatedProfile) {
+        setProfile(updatedProfile)
+        onUpdate()
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không thể xóa avatar')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setIsSubmitting(true)
+
+    try {
+      await updateProfile({
+        full_name: formData.full_name || undefined,
+        phone: formData.phone || undefined,
+        date_of_birth: formData.date_of_birth || undefined,
+      })
+      const updatedProfile = await getCurrentProfile()
+      if (updatedProfile) {
+        setProfile(updatedProfile)
+        onUpdate()
+      }
+      onClose()
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Không thể cập nhật thông tin')
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  if (!isOpen) return null
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end backdrop-blur-md bg-slate-950/50">
+      <div className="flex w-full max-h-[85vh] flex-col rounded-t-3xl bg-white shadow-2xl">
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50 px-4 py-4 sm:px-6 sm:py-5">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 sm:text-xl">Thông tin tài khoản</h2>
+            <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">Cập nhật thông tin cá nhân của bạn</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-all hover:bg-slate-200 hover:scale-110 active:scale-95 sm:h-10 sm:w-10"
+          >
+            <RiCloseLine className="h-4 w-4 sm:h-5 sm:w-5" />
+          </button>
+        </div>
+
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
+          {error && (
+            <div className="mb-4 rounded-lg bg-rose-50 border border-rose-200 p-3 text-sm text-rose-600">
+              {error}
+            </div>
+          )}
+
+          {isLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <p className="text-sm text-slate-500">Đang tải thông tin...</p>
+            </div>
+          ) : (
+            <form onSubmit={handleSubmit} id="account-form" className="space-y-4">
+              {/* Avatar */}
+              <div className="flex flex-col items-center gap-4">
+                <div className="relative">
+                  {profile?.avatar_url ? (
+                    <img
+                      src={profile.avatar_url}
+                      alt="Avatar"
+                      className="h-24 w-24 rounded-full object-cover ring-4 ring-slate-100 sm:h-28 sm:w-28"
+                    />
+                  ) : (
+                    <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-blue-600 text-white ring-4 ring-slate-100 sm:h-28 sm:w-28">
+                      <RiUser3Line className="h-12 w-12 sm:h-14 sm:w-14" />
+                    </div>
+                  )}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={isSubmitting}
+                    className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-sky-500 text-white shadow-lg transition hover:bg-sky-600 disabled:opacity-50 sm:h-10 sm:w-10"
+                  >
+                    <RiCameraLine className="h-4 w-4 sm:h-5 sm:w-5" />
+                  </button>
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleFileChange}
+                    className="hidden"
+                  />
+                </div>
+                {profile?.avatar_url && (
+                  <button
+                    type="button"
+                    onClick={handleRemoveAvatar}
+                    disabled={isSubmitting}
+                    className="text-xs font-medium text-rose-600 hover:text-rose-700 disabled:opacity-50"
+                  >
+                    Xóa ảnh đại diện
+                  </button>
+                )}
+              </div>
+
+              {/* Full Name */}
+              <div>
+                <label htmlFor="full_name" className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
+                  <RiUser3Line className="mr-1.5 inline h-4 w-4" />
+                  Họ và tên
+                </label>
+                <input
+                  type="text"
+                  id="full_name"
+                  value={formData.full_name}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, full_name: e.target.value }))}
+                  placeholder="Nhập họ và tên"
+                  className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
+                />
+              </div>
+
+              {/* Email (read-only) */}
+              <div>
+                <label htmlFor="email" className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
+                  <RiMailLine className="mr-1.5 inline h-4 w-4" />
+                  Email
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  value={userEmail}
+                  disabled
+                  className="w-full rounded-xl border-2 border-slate-200 bg-slate-50 p-3.5 text-sm text-slate-500 sm:p-4"
+                />
+                <p className="mt-1 text-xs text-slate-400">Email không thể thay đổi</p>
+              </div>
+
+              {/* Phone */}
+              <div>
+                <label htmlFor="phone" className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
+                  <RiPhoneLine className="mr-1.5 inline h-4 w-4" />
+                  Số điện thoại
+                </label>
+                <input
+                  type="tel"
+                  id="phone"
+                  value={formData.phone}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, phone: e.target.value }))}
+                  placeholder="Nhập số điện thoại"
+                  className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
+                />
+              </div>
+
+              {/* Date of Birth */}
+              <div>
+                <label htmlFor="date_of_birth" className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
+                  Ngày sinh
+                </label>
+                <input
+                  type="date"
+                  id="date_of_birth"
+                  value={formData.date_of_birth}
+                  onChange={(e) => setFormData((prev) => ({ ...prev, date_of_birth: e.target.value }))}
+                  className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
+                />
+              </div>
+            </form>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 sm:px-6">
+          <div className="flex gap-2 sm:gap-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex-1 rounded-lg border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 sm:py-3 sm:text-base"
+              disabled={isSubmitting}
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              form="account-form"
+              className="flex-1 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-blue-700 disabled:opacity-50 sm:py-3 sm:text-base"
+              disabled={isSubmitting || isLoading}
+            >
+              {isSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+

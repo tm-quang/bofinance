@@ -1,4 +1,3 @@
-import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 
 import { AuthFooter } from '../components/auth/AuthFooter'
@@ -6,47 +5,40 @@ import { BrandBadge } from '../components/auth/BrandBadge'
 import { LoginForm } from '../components/auth/LoginForm'
 import { SocialLoginButtons } from '../components/auth/SocialLoginButtons'
 import { AuroraBackground } from '../components/layout/AuroraBackground'
-import { useSupabaseHealth, type ConnectionState } from '../hooks/useSupabaseHealth'
+import { useSupabaseHealth } from '../hooks/useSupabaseHealth'
 
 export const LoginPage = () => {
-  const { status, message, refresh } = useSupabaseHealth()
-  const [userMessage, setUserMessage] = useState<string | null>(null)
+  const { refresh } = useSupabaseHealth()
   const navigate = useNavigate()
-
-  const statusMessageCopy: Record<ConnectionState, string> = {
-    idle: 'Chưa kiểm tra kết nối Supabase.',
-    connecting: 'Đang kiểm tra kết nối Supabase...',
-    connected: 'Mọi thứ đã sẵn sàng chờ bạn khám phá',
-    error: 'Không thể kết nối Supabase.',
-  }
-
-  const displayMessage = userMessage ?? message ?? statusMessageCopy[status]
 
   return (
     <AuroraBackground>
-      <div className="space-y-4">
+      <div className="flex h-full w-full flex-col items-center justify-between gap-2 py-8 sm:gap-3 sm:py-4">
+        <div className="flex w-full flex-shrink-0 flex-col items-center gap-2 sm:gap-3">
+          <BrandBadge />
 
-        <BrandBadge />
-
-        <div className="space-y-3 text-center">
-          <h1 className="text-2xl font-bold text-white drop-shadow-lg sm:text-4xl">Chào mừng trở lại!</h1>
-          {displayMessage && <p className="text-sm text-slate-200/80">{displayMessage}</p>}
+          <div className="text-center">
+            <h1 className="text-xl font-bold text-slate-800 drop-shadow-sm sm:text-2xl md:text-3xl">Chào mừng trở lại!</h1>
+          </div>
         </div>
 
-        <LoginForm
-          onSuccess={(email) => {
-            setUserMessage(`Đăng nhập thành công cho ${email}`)
-            void refresh()
-            navigate('/dashboard', { replace: true })
-          }}
-          onError={(errorMessage) => {
-            setUserMessage(errorMessage)
-          }}
-        />
+        <div className="flex w-full flex-1 flex-col items-center justify-center gap-2 overflow-y-auto sm:gap-3">
+          <LoginForm
+            onSuccess={() => {
+              void refresh()
+              navigate('/dashboard', { replace: true })
+            }}
+            onError={() => {
+              // Error handling is done in LoginForm component
+            }}
+          />
 
-        <SocialLoginButtons />
+          <SocialLoginButtons />
+        </div>
 
-        <AuthFooter prompt="Chưa có tài khoản?" linkTo="/register" linkLabel="Đăng ký ngay" />
+        <div className="flex w-full flex-shrink-0 items-center justify-center">
+          <AuthFooter prompt="Chưa có tài khoản?" linkTo="/register" linkLabel="Đăng ký ngay" />
+        </div>
       </div>
     </AuroraBackground>
   )

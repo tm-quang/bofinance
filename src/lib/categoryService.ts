@@ -1,5 +1,6 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 
+import { cacheManager, invalidateCache } from './cache'
 import { getSupabaseClient } from './supabaseClient'
 
 export type CategoryType = 'Chi tiêu' | 'Thu nhập'
@@ -34,6 +35,15 @@ const throwIfError = (error: PostgrestError | null, fallbackMessage: string): vo
 }
 
 export const fetchCategories = async (): Promise<CategoryRecord[]> => {
+  // Generate cache key
+  const cacheKey = cacheManager.generateKey('fetchCategories')
+  
+  // Check cache
+  const cached = cacheManager.get<CategoryRecord[]>(cacheKey)
+  if (cached !== null) {
+    return cached
+  }
+
   const supabase = getSupabaseClient()
   const { data, error } = await supabase
     .from(TABLE_NAME)
@@ -42,7 +52,12 @@ export const fetchCategories = async (): Promise<CategoryRecord[]> => {
 
   throwIfError(error, 'Không thể tải danh mục.')
 
-  return data ?? []
+  const result = data ?? []
+  
+  // Cache result (10 minutes for categories as they change rarely)
+  cacheManager.set(cacheKey, result, 10 * 60 * 1000)
+
+  return result
 }
 
 export const createCategory = async (payload: CategoryInsert): Promise<CategoryRecord> => {
@@ -58,6 +73,9 @@ export const createCategory = async (payload: CategoryInsert): Promise<CategoryR
   if (!data) {
     throw new Error('Không nhận được dữ liệu danh mục sau khi tạo.')
   }
+
+  // Invalidate category cache
+  invalidateCache('fetchCategories')
 
   return data
 }
@@ -80,6 +98,9 @@ export const updateCategory = async (
     throw new Error('Không nhận được dữ liệu danh mục sau khi cập nhật.')
   }
 
+  // Invalidate category cache
+  invalidateCache('fetchCategories')
+
   return data
 }
 
@@ -88,6 +109,9 @@ export const deleteCategory = async (id: string): Promise<void> => {
   const { error } = await supabase.from(TABLE_NAME).delete().eq('id', id)
 
   throwIfError(error, 'Không thể xoá danh mục.')
+
+  // Invalidate category cache
+  invalidateCache('fetchCategories')
 }
 
 

@@ -4,9 +4,11 @@
  * Check if app is running as PWA (installed)
  */
 export const isPWA = (): boolean => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const nav = window.navigator as any
   return (
     window.matchMedia('(display-mode: standalone)').matches ||
-    (window.navigator as any).standalone === true ||
+    nav.standalone === true ||
     document.referrer.includes('android-app://')
   )
 }

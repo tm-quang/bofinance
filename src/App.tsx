@@ -5,6 +5,7 @@ import DashboardPage from './pages/Dashboard'
 import CategoriesPage from './pages/Categories'
 import ReportsPage from './pages/Reports'
 import SettingsPage from './pages/Settings'
+import WalletsPage from './pages/Wallets'
 import LoginPage from './pages/Login'
 import RegisterPage from './pages/Register'
 
@@ -21,6 +22,7 @@ function AppContent() {
       <Route path="/categories" element={<CategoriesPage />} />
       <Route path="/reports" element={<ReportsPage />} />
       <Route path="/settings" element={<SettingsPage />} />
+      <Route path="/wallets" element={<WalletsPage />} />
       <Route path="*" element={<Navigate to="/login" replace />} />
     </Routes>
   )
