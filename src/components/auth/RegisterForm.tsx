@@ -2,6 +2,7 @@ import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { FiEye, FiEyeOff, FiLock, FiMail, FiUser } from 'react-icons/fi'
 
 import { getSupabaseClient } from '../../lib/supabaseClient'
+import { useNotification } from '../../contexts/NotificationContext'
 
 type RegisterFormProps = {
   onSuccess?: (email: string) => void
@@ -9,6 +10,7 @@ type RegisterFormProps = {
 }
 
 export const RegisterForm = ({ onSuccess, onError }: RegisterFormProps) => {
+  const { success, error: showError } = useNotification()
   const [formData, setFormData] = useState({
     name: '',
     email: '',
@@ -36,6 +38,7 @@ export const RegisterForm = ({ onSuccess, onError }: RegisterFormProps) => {
     if (formData.password !== formData.confirmPassword) {
       const message = 'Mật khẩu xác nhận không khớp.'
       setError(message)
+      showError(message)
       onError?.(message)
       return
     }
@@ -59,6 +62,7 @@ export const RegisterForm = ({ onSuccess, onError }: RegisterFormProps) => {
         throw authError
       }
 
+      success('Đăng ký thành công! Vui lòng kiểm tra email để xác nhận tài khoản.')
       onSuccess?.(formData.email)
     } catch (error) {
       const message =
@@ -66,6 +70,7 @@ export const RegisterForm = ({ onSuccess, onError }: RegisterFormProps) => {
           ? error.message
           : 'Đăng ký thất bại. Vui lòng kiểm tra lại thông tin và thử lại.'
       setError(message)
+      showError(message)
       onError?.(message)
     } finally {
       setIsSubmitting(false)

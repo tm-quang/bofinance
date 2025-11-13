@@ -7,6 +7,7 @@ import { TagSuggestions } from '../ui/TagSuggestions'
 import { fetchCategories, type CategoryRecord, type CategoryType } from '../../lib/categoryService'
 import { createTransaction, type TransactionType } from '../../lib/transactionService'
 import { fetchWallets, type WalletRecord } from '../../lib/walletService'
+import { useNotification } from '../../contexts/NotificationContext'
 
 type TransactionModalProps = {
   isOpen: boolean
@@ -33,6 +34,7 @@ const formatCurrency = (value: number) =>
   }).format(value)
 
 export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Chi' }: TransactionModalProps) => {
+  const { success, error: showError } = useNotification()
   const [formState, setFormState] = useState<TransactionFormState>({
     type: defaultType,
     wallet_id: '',
@@ -103,16 +105,22 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
 
     // Validation
     if (!formState.wallet_id) {
-      setError('Vui lòng chọn ví')
+      const message = 'Vui lòng chọn ví'
+      setError(message)
+      showError(message)
       return
     }
     if (!formState.category_id) {
-      setError('Vui lòng chọn danh mục')
+      const message = 'Vui lòng chọn danh mục'
+      setError(message)
+      showError(message)
       return
     }
     const amount = parseFloat(formState.amount.replace(/[^\d]/g, ''))
     if (!amount || amount <= 0) {
-      setError('Vui lòng nhập số tiền hợp lệ')
+      const message = 'Vui lòng nhập số tiền hợp lệ'
+      setError(message)
+      showError(message)
       return
     }
 
@@ -141,10 +149,13 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
       setTagInput('')
       setUploadedFiles([])
 
+      success(`Đã thêm ${formState.type === 'Thu' ? 'thu nhập' : 'chi tiêu'} thành công!`)
       onSuccess?.()
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không thể tạo giao dịch')
+      const message = err instanceof Error ? err.message : 'Không thể tạo giao dịch'
+      setError(message)
+      showError(message)
     } finally {
       setIsSubmitting(false)
     }

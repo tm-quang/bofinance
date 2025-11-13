@@ -1,5 +1,7 @@
 import { useState } from 'react'
-import { RiCloseLine, RiBugLine, RiFeedbackLine } from 'react-icons/ri'
+import { RiCloseLine } from 'react-icons/ri'
+
+import { useNotification } from '../../contexts/NotificationContext'
 
 type SupportModalProps = {
   isOpen: boolean
@@ -8,6 +10,7 @@ type SupportModalProps = {
 }
 
 export const SupportModal = ({ isOpen, onClose, type }: SupportModalProps) => {
+  const { error: showError, notification } = useNotification()
   const [formData, setFormData] = useState({
     subject: '',
     message: '',
@@ -22,7 +25,9 @@ export const SupportModal = ({ isOpen, onClose, type }: SupportModalProps) => {
     setSuccess(false)
 
     if (!formData.subject || !formData.message) {
-      setError('Vui lòng điền đầy đủ thông tin')
+      const message = 'Vui lòng điền đầy đủ thông tin'
+      setError(message)
+      showError(message)
       return
     }
 
@@ -31,13 +36,16 @@ export const SupportModal = ({ isOpen, onClose, type }: SupportModalProps) => {
       // TODO: Implement API call to send feedback/bug report
       await new Promise((resolve) => setTimeout(resolve, 1000))
       setSuccess(true)
+      notification(type === 'feedback' ? 'Cảm ơn bạn đã gửi góp ý! Chúng tôi sẽ xem xét và cải thiện ứng dụng.' : 'Cảm ơn bạn đã báo lỗi! Chúng tôi sẽ xử lý sớm nhất có thể.')
       setFormData({ subject: '', message: '' })
       setTimeout(() => {
         onClose()
         setSuccess(false)
       }, 2000)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không thể gửi phản hồi')
+      const message = err instanceof Error ? err.message : 'Không thể gửi phản hồi'
+      setError(message)
+      showError(message)
     } finally {
       setIsSubmitting(false)
     }

@@ -138,7 +138,19 @@ export const DashboardPage = () => {
           fetchTransactions({ limit: 10 }),
           fetchCategories(),
         ])
-        setTransactions(transactionsData)
+        // Sort by date: newest first (transaction_date desc, then created_at desc)
+        const sortedTransactions = [...transactionsData].sort((a, b) => {
+          const dateA = new Date(a.transaction_date).getTime()
+          const dateB = new Date(b.transaction_date).getTime()
+          if (dateB !== dateA) {
+            return dateB - dateA // Newest first
+          }
+          // If same date, sort by created_at
+          const createdA = new Date(a.created_at).getTime()
+          const createdB = new Date(b.created_at).getTime()
+          return createdB - createdA // Newest first
+        })
+        setTransactions(sortedTransactions)
         setCategories(categoriesData)
       } catch (error) {
         console.error('Error loading transactions:', error)
@@ -155,7 +167,19 @@ export const DashboardPage = () => {
     const loadTransactions = async () => {
       try {
         const transactionsData = await fetchTransactions({ limit: 10 })
-        setTransactions(transactionsData)
+        // Sort by date: newest first (transaction_date desc, then created_at desc)
+        const sortedTransactions = [...transactionsData].sort((a, b) => {
+          const dateA = new Date(a.transaction_date).getTime()
+          const dateB = new Date(b.transaction_date).getTime()
+          if (dateB !== dateA) {
+            return dateB - dateA // Newest first
+          }
+          // If same date, sort by created_at
+          const createdA = new Date(a.created_at).getTime()
+          const createdB = new Date(b.created_at).getTime()
+          return createdB - createdA // Newest first
+        })
+        setTransactions(sortedTransactions)
       } catch (error) {
         console.error('Error reloading transactions:', error)
       }
@@ -248,7 +272,12 @@ export const DashboardPage = () => {
               </p>
               <p className="text-sm text-slate-500">Theo dõi lịch sử thu chi mới nhất.</p>
             </div>
-            <button className="text-sm font-semibold text-sky-500">Xem thêm</button>
+            <button 
+              onClick={() => navigate('/reports')}
+              className="text-sm font-semibold text-sky-500 transition hover:text-sky-600 hover:underline"
+            >
+              Xem thêm
+            </button>
           </header>
           <div className="space-y-3">
             {isLoadingTransactions ? (
@@ -303,6 +332,15 @@ export const DashboardPage = () => {
                             month: '2-digit',
                             year: 'numeric',
                           })}
+                          {transaction.created_at && (
+                            <>
+                              {' '}
+                              {new Date(transaction.created_at).toLocaleTimeString('vi-VN', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })}
+                            </>
+                          )}
                           <span>• {categoryInfo.name}</span>
                         </div>
                       </div>

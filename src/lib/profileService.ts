@@ -1,4 +1,4 @@
-import type { PostgrestError } from '@supabase/supabase-js'
+import type { PostgrestError, AuthError } from '@supabase/supabase-js'
 
 import { getSupabaseClient } from './supabaseClient'
 
@@ -15,14 +15,14 @@ export type ProfileRecord = {
 
 export type ProfileUpdate = {
   full_name?: string
-  avatar_url?: string
+  avatar_url?: string | null
   phone?: string
   date_of_birth?: string
 }
 
 const TABLE_NAME = 'profiles'
 
-const throwIfError = (error: PostgrestError | null, fallbackMessage: string): void => {
+const throwIfError = (error: PostgrestError | AuthError | null, fallbackMessage: string): void => {
   if (error) {
     throw new Error(error.message || fallbackMessage)
   }

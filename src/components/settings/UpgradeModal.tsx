@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { RiCheckLine, RiCloseLine, RiSparkling2Line, RiTrophyLine, RiVipCrownLine } from 'react-icons/ri'
+import { RiCheckLine, RiCloseLine, RiSparkling2Line, RiVipCrownLine } from 'react-icons/ri'
 
 type UpgradeModalProps = {
   isOpen: boolean

@@ -1,0 +1,76 @@
+import { RiCloseLine } from 'react-icons/ri'
+import type { CategoryRecord } from '../../lib/categoryService'
+import { CATEGORY_ICON_MAP } from '../../constants/categoryIcons'
+
+type CategoryFilterProps = {
+  categories: CategoryRecord[]
+  selectedCategoryIds: string[]
+  onCategoryToggle: (categoryId: string) => void
+  onClearAll: () => void
+  type?: 'Thu' | 'Chi' | 'all'
+}
+
+export const CategoryFilter = ({
+  categories,
+  selectedCategoryIds,
+  onCategoryToggle,
+  onClearAll,
+  type = 'all',
+}: CategoryFilterProps) => {
+  const filteredCategories = categories.filter((cat) => {
+    if (type === 'all') return true
+    return type === 'Thu' ? cat.type === 'Thu nhập' : cat.type === 'Chi tiêu'
+  })
+
+  if (filteredCategories.length === 0) {
+    return (
+      <div className="rounded-xl bg-slate-50 p-4 text-center text-sm text-slate-500">
+        Chưa có danh mục {type !== 'all' ? (type === 'Thu' ? 'thu nhập' : 'chi tiêu') : ''}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      {selectedCategoryIds.length > 0 && (
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-medium text-slate-600 sm:text-sm">
+            Đã chọn: {selectedCategoryIds.length} danh mục
+          </span>
+          <button
+            type="button"
+            onClick={onClearAll}
+            className="text-xs font-semibold text-sky-600 hover:text-sky-700 sm:text-sm"
+          >
+            Xóa tất cả
+          </button>
+        </div>
+      )}
+      <div className="flex flex-wrap gap-2">
+        {filteredCategories.map((category) => {
+          const isSelected = selectedCategoryIds.includes(category.id)
+          const iconData = CATEGORY_ICON_MAP[category.icon_id]
+          const IconComponent = iconData?.icon
+
+          return (
+            <button
+              key={category.id}
+              type="button"
+              onClick={() => onCategoryToggle(category.id)}
+              className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition sm:px-4 sm:py-2.5 sm:text-sm ${
+                isSelected
+                  ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md shadow-sky-500/30'
+                  : 'bg-white text-slate-700 border border-slate-200 hover:border-sky-300 hover:bg-sky-50'
+              }`}
+            >
+              {IconComponent && <IconComponent className="h-4 w-4" />}
+              <span>{category.name}</span>
+              {isSelected && <RiCloseLine className="h-3.5 w-3.5" />}
+            </button>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+

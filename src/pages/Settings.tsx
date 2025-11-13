@@ -106,33 +106,35 @@ const themeOptions = [
   },
 ]
 
-const accountShortcuts = [
-  {
-    title: 'Thông tin cá nhân',
-    icon: <RiUser3Line className="h-5 w-5 text-sky-500" />,
-  },
-  {
-    title: 'Bảo mật & xác thực',
-    icon: <RiLock2Line className="h-5 w-5 text-emerald-500" />,
-  },
-  {
-    title: 'Xuất dữ liệu',
-    icon: <RiDownloadLine className="h-5 w-5 text-indigo-500" />,
-  },
-]
+// Reserved for future use
+// const accountShortcuts = [
+//   {
+//     title: 'Thông tin cá nhân',
+//     icon: <RiUser3Line className="h-5 w-5 text-sky-500" />,
+//   },
+//   {
+//     title: 'Bảo mật & xác thực',
+//     icon: <RiLock2Line className="h-5 w-5 text-emerald-500" />,
+//   },
+//   {
+//     title: 'Xuất dữ liệu',
+//     icon: <RiDownloadLine className="h-5 w-5 text-indigo-500" />,
+//   },
+// ]
 
-const supportLinks = [
-  {
-    title: 'Chính sách cảnh báo nợ xấu',
-    description: 'Thiết lập ngưỡng cảnh báo, kịch bản khi vượt hạn mức.',
-    icon: <RiAlertLine className="h-5 w-5 text-rose-500" />,
-  },
-  {
-    title: 'Gói thành viên BoFin+',
-    description: 'Tăng giới hạn ngân sách, báo cáo chuyên sâu và AI gợi ý.',
-    icon: <RiTrophyLine className="h-5 w-5 text-amber-500" />,
-  },
-]
+// Reserved for future use
+// const supportLinks = [
+//   {
+//     title: 'Chính sách cảnh báo nợ xấu',
+//     description: 'Thiết lập ngưỡng cảnh báo, kịch bản khi vượt hạn mức.',
+//     icon: <RiAlertLine className="h-5 w-5 text-rose-500" />,
+//   },
+//   {
+//     title: 'Gói thành viên BoFin+',
+//     description: 'Tăng giới hạn ngân sách, báo cáo chuyên sâu và AI gợi ý.',
+//     icon: <RiTrophyLine className="h-5 w-5 text-amber-500" />,
+//   },
+// ]
 
 const SettingsPage = () => {
   const navigate = useNavigate()
@@ -290,13 +292,13 @@ const SettingsPage = () => {
           <div className="space-y-3">
             {notificationToggleSettings.map((item) => (
               <div
-                key={item.id}
+                  key={item.id}
                 className="flex items-start justify-between gap-3 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-100"
-              >
+                >
                 <div className="flex min-w-0 flex-1 items-start gap-3">
                   <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-slate-600">
-                    {item.icon}
-                  </span>
+                      {item.icon}
+                    </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-slate-800">{item.title}</p>
                     <p className="mt-0.5 text-xs text-slate-500">{item.description}</p>
@@ -319,7 +321,7 @@ const SettingsPage = () => {
                 </label>
               </div>
             ))}
-          </div>
+                    </div>
         </section>
 
         {/* Finance Settings */}
@@ -344,22 +346,22 @@ const SettingsPage = () => {
                   </div>
                 </div>
                 <label className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center">
-                  <input
-                    type="checkbox"
+                    <input
+                      type="checkbox"
                     checked={financeToggles[item.id]}
-                    onChange={() =>
+                      onChange={() =>
                       setFinanceToggles((prev) => ({
-                        ...prev,
-                        [item.id]: !prev[item.id],
-                      }))
-                    }
-                    className="peer sr-only"
-                  />
-                  <span className="absolute h-full w-full rounded-full bg-slate-200 transition peer-checked:bg-sky-500" />
+                          ...prev,
+                          [item.id]: !prev[item.id],
+                        }))
+                      }
+                      className="peer sr-only"
+                    />
+                    <span className="absolute h-full w-full rounded-full bg-slate-200 transition peer-checked:bg-sky-500" />
                   <span className="absolute left-1/2 h-4 w-4 -translate-x-1/2 rounded-full bg-white transition peer-checked:left-[calc(100%-1.25rem)] peer-checked:-translate-x-0" />
-                </label>
+                  </label>
               </div>
-            ))}
+              ))}
           </div>
         </section>
 
@@ -417,20 +419,20 @@ const SettingsPage = () => {
                   Sáng
                 </span>
               </button>
-              <button
-                type="button"
+                <button
+                  type="button"
                 onClick={() => setDarkMode(true)}
                 className={`flex flex-1 items-center justify-center gap-2 rounded-xl p-4 transition ${
                   darkMode
                     ? 'bg-slate-800 ring-2 ring-slate-600 shadow-md'
                     : 'bg-slate-50 ring-1 ring-slate-100 hover:ring-slate-200'
                 }`}
-              >
+                >
                 <RiMoonLine className={`h-5 w-5 ${darkMode ? 'text-slate-300' : 'text-slate-400'}`} />
                 <span className={`text-sm font-semibold ${darkMode ? 'text-slate-200' : 'text-slate-600'}`}>
                   Tối
-                </span>
-              </button>
+                  </span>
+                </button>
             </div>
           </div>
         </section>
@@ -444,11 +446,11 @@ const SettingsPage = () => {
                 type="button"
                 onClick={() => handleOpenSupport('feedback')}
                 className="flex w-full items-center gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md ring-1 ring-slate-100"
-              >
+                >
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
                   <RiFeedbackLine className="h-5 w-5" />
-                </span>
-                <div>
+                  </span>
+                  <div>
                   <p className="text-sm font-semibold text-slate-800">Gửi góp ý</p>
                   <p className="text-xs text-slate-500">Chia sẻ ý kiến của bạn</p>
                 </div>

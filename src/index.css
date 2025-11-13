@@ -93,3 +93,74 @@ button:active,
   background-size: 1000px 100%;
   animation: shimmer 2s infinite;
 }
+
+/* Toast Custom Styling */
+.react-hot-toast {
+  border-radius: 12px !important;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04) !important;
+  padding: 0 !important;
+  font-family: inherit !important;
+}
+
+.react-hot-toast > div {
+  border-radius: 12px !important;
+  padding: 14px 16px !important;
+  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%) !important;
+  border: 1px solid rgba(148, 163, 184, 0.2) !important;
+}
+
+.react-hot-toast[data-type='success'] > div {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  color: white !important;
+  border: 1px solid rgba(16, 185, 129, 0.3) !important;
+}
+
+.react-hot-toast[data-type='error'] > div {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%) !important;
+  color: white !important;
+  border: 1px solid rgba(239, 68, 68, 0.3) !important;
+}
+
+.react-hot-toast[data-type='loading'] > div {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%) !important;
+  color: white !important;
+  border: 1px solid rgba(59, 130, 246, 0.3) !important;
+}
+
+.react-hot-toast[aria-label*='notification'] > div,
+.react-hot-toast[aria-label*='🔔'] > div {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%) !important;
+  color: white !important;
+  border: 1px solid rgba(139, 92, 246, 0.3) !important;
+}
+
+/* Toast animations */
+@keyframes toast-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.9) translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes toast-exit {
+  from {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  to {
+    opacity: 0;
+    transform: scale(0.9) translateY(-10px);
+  }
+}
+
+.react-hot-toast {
+  animation: toast-enter 0.3s ease-out !important;
+}
+
+.react-hot-toast[data-removed='true'] {
+  animation: toast-exit 0.2s ease-in !important;
+}

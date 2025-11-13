@@ -12,6 +12,7 @@ import {
   type WalletRecord,
   type WalletType,
 } from '../lib/walletService'
+import { useNotification } from '../contexts/NotificationContext'
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('vi-VN', {
@@ -23,6 +24,7 @@ const formatCurrency = (value: number) =>
 const WALLET_TYPES: WalletType[] = ['Tiền mặt', 'Ngân hàng', 'Tiết kiệm', 'Tín dụng', 'Đầu tư', 'Khác']
 
 export const WalletsPage = () => {
+  const { success, error: showError } = useNotification()
   const [wallets, setWallets] = useState<WalletRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -90,6 +92,7 @@ export const WalletsPage = () => {
           currency: formData.currency,
           description: formData.description || undefined,
         })
+        success('Đã cập nhật ví thành công!')
       } else {
         await createWallet({
           name: formData.name,
@@ -98,12 +101,13 @@ export const WalletsPage = () => {
           currency: formData.currency,
           description: formData.description || undefined,
         })
+        success('Đã tạo ví mới thành công!')
       }
       await loadWallets()
       handleCloseForm()
     } catch (error) {
       console.error('Error saving wallet:', error)
-      alert('Không thể lưu ví. Vui lòng thử lại.')
+      showError('Không thể lưu ví. Vui lòng thử lại.')
     }
   }
 
@@ -111,19 +115,22 @@ export const WalletsPage = () => {
     if (!confirm('Bạn có chắc muốn xóa ví này?')) return
     try {
       await deleteWallet(id, false) // Soft delete
+      success('Đã xóa ví thành công!')
       await loadWallets()
     } catch (error) {
       console.error('Error deleting wallet:', error)
-      alert('Không thể xóa ví. Vui lòng thử lại.')
+      showError('Không thể xóa ví. Vui lòng thử lại.')
     }
   }
 
   const handleToggleActive = async (wallet: WalletRecord) => {
     try {
       await updateWallet(wallet.id, { is_active: !wallet.is_active })
+      success(wallet.is_active ? 'Đã vô hiệu hóa ví' : 'Đã kích hoạt ví')
       await loadWallets()
     } catch (error) {
       console.error('Error toggling wallet:', error)
+      showError('Không thể thay đổi trạng thái ví')
     }
   }
 

@@ -11,6 +11,13 @@ class CacheManager {
   private defaultTTL: number = 5 * 60 * 1000 // 5 minutes default
 
   /**
+   * Get default TTL
+   */
+  getDefaultTTL(): number {
+    return this.defaultTTL
+  }
+
+  /**
    * Generate cache key from function name and parameters
    */
   generateKey(functionName: string, params?: Record<string, unknown>): CacheKey {
@@ -104,7 +111,7 @@ export function withCache<T extends (...args: unknown[]) => Promise<unknown>>(
   }
 ): T {
   const functionName = fn.name || 'anonymous'
-  const ttl = options?.ttl || cacheManager.defaultTTL
+  const ttl = options?.ttl || cacheManager.getDefaultTTL()
 
   return (async (...args: Parameters<T>) => {
     const keyGenerator = options?.keyGenerator || ((args: Parameters<T>) => {

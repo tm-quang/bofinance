@@ -2,10 +2,10 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import type { IconType } from 'react-icons'
 import {
   RiAddLine,
-  RiBarChartLine,
-  RiHomeSmileLine,
-  RiSettings3Line,
-  RiWallet3Line,
+  RiBarChart2Line,
+  RiHome2Line,
+  RiSettings4Line,
+  RiFolder2Line,
 } from 'react-icons/ri'
 
 type FooterNavProps = {
@@ -21,11 +21,11 @@ type TabItem = {
 }
 
 const tabs: TabItem[] = [
-  { id: 'home', label: 'Trang chủ', icon: RiHomeSmileLine, path: '/dashboard' },
-  { id: 'wallet', label: 'Danh mục', icon: RiWallet3Line, path: '/categories' },
-  { id: 'add', label: '', icon: RiAddLine, prominent: true, path: '/categories?mode=create' },
-  { id: 'reports', label: 'Báo cáo', icon: RiBarChartLine, path: '/reports' },
-  { id: 'settings', label: 'Cài đặt', icon: RiSettings3Line, path: '/settings' },
+  { id: 'home', label: 'Trang chủ', icon: RiHome2Line, path: '/dashboard' },
+  { id: 'wallet', label: 'Danh mục', icon: RiFolder2Line, path: '/categories' },
+  { id: 'add', label: '', icon: RiAddLine, prominent: true },
+  { id: 'reports', label: 'Báo cáo', icon: RiBarChart2Line, path: '/reports' },
+  { id: 'settings', label: 'Cài đặt', icon: RiSettings4Line, path: '/settings' },
 ]
 
 export const FooterNav = ({ onAddClick }: FooterNavProps) => {
@@ -56,45 +56,60 @@ export const FooterNav = ({ onAddClick }: FooterNavProps) => {
   }
 
   return (
-    <div className="relative z-50 flex flex-shrink-0 justify-center">
+    <div className="relative z-50 flex flex-shrink-0 justify-center bg-transparent">
       <div className="relative w-full max-w-md">
-        {/* Icon "Thêm" nổi lên ở giữa */}
-        <div className="absolute left-1/2 top-0 z-30 -translate-x-1/2 -translate-y-8">
+        {/* Central Add Button - Floating above with Logo */}
+        <div className="absolute left-1/2 top-0 z-30 -translate-x-1/2 -translate-y-4">
           <button
             type="button"
             onClick={() => handleClick(tabs[2])}
-            className="flex h-16 w-16 items-center justify-center rounded-full border-4 border-blue-500 bg-white text-4xl text-blue-500 transition-transform hover:scale-105 active:scale-95"
+            className="group flex h-16 w-16 items-center justify-center rounded-full bg-white border-2 border-blue-500 shadow-2xl shadow-blue-500/40 transition-all hover:scale-110 hover:shadow-blue-500/60 active:scale-95"
           >
-            <RiAddLine />
+            <img
+              src="/logo-nontext.png"
+              alt="BoFin Logo"
+              className="relative z-10 h-16 w-16 object-contain"
+            />
+            {/* Subtle glow effect */}
+            <div className="absolute inset-0 rounded-full bg-gradient-to-br from-blue-400 to-indigo-500 opacity-50 blur-xl" />
           </button>
         </div>
 
-        {/* Nền footer với notch lõm xuống dưới icon giữa */}
-        <div className="relative h-20 overflow-visible">
+        {/* Navigation Bar with Notch */}
+        <div className="relative h-20 overflow-visible ">
+          {/* Background Bar with Notch Cutout */}
           <svg
-            className="pointer-events-none absolute inset-0 h-full w-full"
+            className="pointer-events-none absolute inset-0 h-full w-full "
             viewBox="0 0 375 80"
             preserveAspectRatio="none"
             xmlns="http://www.w3.org/2000/svg"
           >
+            <defs>
+              <linearGradient id="navGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                <stop offset="0%" stopColor="#1e293b" />
+                <stop offset="100%" stopColor="#0f172a" />
+              </linearGradient>
+            </defs>
+            {/* Main bar with deeper notch cutout for spacing with icon */}
             <path
-              d="M 0,15 
-                 Q 0,0 16,0 
+              d="M 0,0 
                  L 145,0 
-                 Q 155,0 160,8
-                 C 165,15 170,25 187.5,50
-                 C 205,25 210,15 215,8
+                 Q 155,0 160,18
+                 Q 165,30 170,35
+                 Q 175,40 187.5,45
+                 Q 200,40 205,35
+                 Q 210,30 215,18
                  Q 220,0 230,0
-                 L 359,0 
-                 Q 375,0 375,16 
+                 L 375,0 
                  L 375,80 
-                 L 0,80 Z"
-              fill="black"
+                 L 0,80 
+                 Z"
+              fill="url(#navGradient)"
             />
           </svg>
 
-          {/* Content các icon */}
-          <div className="relative z-10 flex items-end justify-between pt-3">
+          {/* Navigation Items */}
+          <div className="relative z-10 flex items-end justify-between px-0 pb-1 pt-3">
             {tabs.map((tab) => {
               if (tab.prominent) {
                 return <div key={tab.id} className="flex flex-1" />
@@ -109,18 +124,20 @@ export const FooterNav = ({ onAddClick }: FooterNavProps) => {
                   type="button"
                   onClick={() => handleClick(tab)}
                   aria-current={active ? 'page' : undefined}
-                  className={`relative z-20 flex flex-1 flex-col items-center gap-1 text-[11px] font-medium transition ${
-                    active ? 'text-slate-900' : 'text-slate-500'
+                  className={`relative z-20 flex flex-1 flex-col items-center gap-1 text-[10px] font-medium transition-colors ${
+                    active ? 'text-white' : 'text-slate-400'
                   }`}
                 >
                   <span
-                    className={`flex h-11 w-11 items-center justify-center rounded-full text-xl shadow-md transition ${
-                      active ? 'bg-slate-900 text-white' : 'bg-white text-slate-600'
+                    className={`flex h-10 w-10 items-center justify-center rounded-full text-lg transition-all ${
+                      active
+                        ? 'bg-white text-slate-900 shadow-lg'
+                        : 'bg-slate-700/50 text-slate-300'
                     }`}
                   >
                     <Icon />
                   </span>
-                  <span className="mt-0.5">{label}</span>
+                  <span className="mt-0.5 leading-tight">{label}</span>
                 </button>
               )
             })}

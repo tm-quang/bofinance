@@ -3,6 +3,7 @@ import { RiCameraLine, RiCloseLine, RiMailLine, RiPhoneLine, RiUser3Line } from 
 
 import { deleteAvatar, getCurrentProfile, updateProfile, uploadAvatar, type ProfileRecord } from '../../lib/profileService'
 import { getSupabaseClient } from '../../lib/supabaseClient'
+import { useNotification } from '../../contexts/NotificationContext'
 
 type AccountInfoModalProps = {
   isOpen: boolean
@@ -11,6 +12,7 @@ type AccountInfoModalProps = {
 }
 
 export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModalProps) => {
+  const { success, error: showError } = useNotification()
   const [profile, setProfile] = useState<ProfileRecord | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -77,14 +79,17 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
     setIsSubmitting(true)
     setError(null)
     try {
-      const avatarUrl = await uploadAvatar(file)
+      await uploadAvatar(file)
       const updatedProfile = await getCurrentProfile()
       if (updatedProfile) {
         setProfile(updatedProfile)
+        success('Đã cập nhật ảnh đại diện thành công!')
         onUpdate()
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không thể upload avatar')
+      const message = err instanceof Error ? err.message : 'Không thể upload avatar'
+      setError(message)
+      showError(message)
     } finally {
       setIsSubmitting(false)
       if (fileInputRef.current) {
@@ -101,10 +106,13 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
       const updatedProfile = await getCurrentProfile()
       if (updatedProfile) {
         setProfile(updatedProfile)
+        success('Đã xóa ảnh đại diện thành công!')
         onUpdate()
       }
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không thể xóa avatar')
+      const message = err instanceof Error ? err.message : 'Không thể xóa avatar'
+      setError(message)
+      showError(message)
     } finally {
       setIsSubmitting(false)
     }
@@ -124,11 +132,14 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
       const updatedProfile = await getCurrentProfile()
       if (updatedProfile) {
         setProfile(updatedProfile)
+        success('Đã cập nhật thông tin thành công!')
         onUpdate()
       }
       onClose()
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không thể cập nhật thông tin')
+      const message = err instanceof Error ? err.message : 'Không thể cập nhật thông tin'
+      setError(message)
+      showError(message)
     } finally {
       setIsSubmitting(false)
     }

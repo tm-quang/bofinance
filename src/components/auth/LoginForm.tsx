@@ -2,6 +2,7 @@ import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { FiEye, FiEyeOff, FiLock, FiMail } from 'react-icons/fi'
 
 import { getSupabaseClient } from '../../lib/supabaseClient'
+import { useNotification } from '../../contexts/NotificationContext'
 
 type LoginFormProps = {
   onSuccess?: (email: string) => void
@@ -9,6 +10,7 @@ type LoginFormProps = {
 }
 
 export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
+  const { success, error: showError } = useNotification()
   const [formData, setFormData] = useState({ email: '', password: '' })
   const [error, setError] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -40,6 +42,7 @@ export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
         throw authError
       }
 
+      success('Đăng nhập thành công!')
       onSuccess?.(formData.email)
     } catch (error) {
       const message =
@@ -47,6 +50,7 @@ export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
           ? error.message
           : 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin và thử lại.'
       setError(message)
+      showError(message)
       onError?.(message)
     } finally {
       setIsSubmitting(false)

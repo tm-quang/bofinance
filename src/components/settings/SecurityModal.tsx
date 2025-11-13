@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { RiCloseLine, RiEyeLine, RiEyeOffLine, RiLock2Line } from 'react-icons/ri'
 
 import { changePassword } from '../../lib/profileService'
+import { useNotification } from '../../contexts/NotificationContext'
 
 type SecurityModalProps = {
   isOpen: boolean
@@ -9,6 +10,7 @@ type SecurityModalProps = {
 }
 
 export const SecurityModal = ({ isOpen, onClose }: SecurityModalProps) => {
+  const { success: showSuccess, error: showError } = useNotification()
   const [formData, setFormData] = useState({
     currentPassword: '',
     newPassword: '',
@@ -30,22 +32,30 @@ export const SecurityModal = ({ isOpen, onClose }: SecurityModalProps) => {
 
     // Validation
     if (!formData.currentPassword || !formData.newPassword || !formData.confirmPassword) {
-      setError('Vui lòng điền đầy đủ thông tin')
+      const message = 'Vui lòng điền đầy đủ thông tin'
+      setError(message)
+      showError(message)
       return
     }
 
     if (formData.newPassword.length < 6) {
-      setError('Mật khẩu mới phải có ít nhất 6 ký tự')
+      const message = 'Mật khẩu mới phải có ít nhất 6 ký tự'
+      setError(message)
+      showError(message)
       return
     }
 
     if (formData.newPassword !== formData.confirmPassword) {
-      setError('Mật khẩu xác nhận không khớp')
+      const message = 'Mật khẩu xác nhận không khớp'
+      setError(message)
+      showError(message)
       return
     }
 
     if (formData.currentPassword === formData.newPassword) {
-      setError('Mật khẩu mới phải khác mật khẩu hiện tại')
+      const message = 'Mật khẩu mới phải khác mật khẩu hiện tại'
+      setError(message)
+      showError(message)
       return
     }
 
@@ -53,6 +63,7 @@ export const SecurityModal = ({ isOpen, onClose }: SecurityModalProps) => {
     try {
       await changePassword(formData.currentPassword, formData.newPassword)
       setSuccess(true)
+      showSuccess('Đã đổi mật khẩu thành công!')
       setFormData({
         currentPassword: '',
         newPassword: '',
@@ -63,7 +74,9 @@ export const SecurityModal = ({ isOpen, onClose }: SecurityModalProps) => {
         setSuccess(false)
       }, 2000)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Không thể đổi mật khẩu')
+      const message = err instanceof Error ? err.message : 'Không thể đổi mật khẩu'
+      setError(message)
+      showError(message)
     } finally {
       setIsSubmitting(false)
     }

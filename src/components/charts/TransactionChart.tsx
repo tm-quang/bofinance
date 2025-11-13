@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { fetchTransactions, type TransactionRecord } from '../../lib/transactionService'
 import { fetchCategories, type CategoryRecord } from '../../lib/categoryService'
-import { ChartSkeleton } from '../skeletons'
 import { DonutChart } from './DonutChart'
 
 type TransactionChartProps = {
@@ -115,17 +114,13 @@ export const TransactionChart = ({ date, walletId }: TransactionChartProps) => {
         </div>
       </div>
 
-      {/* Chart - Show skeleton when loading */}
-      {isLoading ? (
-        <ChartSkeleton />
-      ) : (
-        <DonutChart
-          transactions={filteredTransactions}
-          categories={categories}
-          type={selectedType}
-          totalAmount={totalAmount}
-        />
-      )}
+      {/* Chart */}
+      <DonutChart
+        transactions={filteredTransactions}
+        categories={categories}
+        type={selectedType}
+        totalAmount={totalAmount}
+      />
     </section>
   )
 }

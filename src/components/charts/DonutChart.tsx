@@ -1,5 +1,4 @@
 import { useMemo } from 'react'
-import type React from 'react'
 import type { TransactionRecord } from '../../lib/transactionService'
 import type { CategoryRecord } from '../../lib/categoryService'
 
@@ -133,7 +132,7 @@ export const DonutChart = ({ transactions, categories, type, totalAmount }: Donu
   }
 
   return (
-    <div className="space-y-4">
+    <div>
       {/* Chart */}
       <div className="relative flex items-center justify-center" style={{ minHeight: '256px' }}>
         <svg 
@@ -213,28 +212,6 @@ export const DonutChart = ({ transactions, categories, type, totalAmount }: Donu
             </p>
           )}
         </div>
-      </div>
-
-      {/* Legend */}
-      <div className="space-y-2">
-        {chartData.map((item, index) => {
-          const color = item.color || COLORS[index % COLORS.length]
-          return (
-            <div key={`${item.category_id}-legend`} className="flex items-center justify-between rounded-lg bg-slate-50 p-2.5 sm:p-3">
-              <div className="flex items-center gap-2.5 sm:gap-3">
-                <div
-                  className="h-3 w-3 rounded-full sm:h-4 sm:w-4"
-                  style={{ backgroundColor: color }}
-                />
-                <span className="text-xs font-medium text-slate-700 sm:text-sm">{item.category_name}</span>
-              </div>
-              <div className="text-right">
-                <p className="text-xs font-semibold text-slate-900 sm:text-sm">{formatCurrency(item.amount)}</p>
-                <p className="text-[10px] text-slate-500 sm:text-xs">{item.percentage.toFixed(1)}%</p>
-              </div>
-            </div>
-          )
-        })}
       </div>
     </div>
   )
