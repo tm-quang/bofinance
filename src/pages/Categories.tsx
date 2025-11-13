@@ -16,8 +16,14 @@ import {
     type IconGroup,
     type IconOption,
 } from '../constants/categoryIcons'
-
-type CategoryType = 'Chi tiêu' | 'Thu nhập'
+import {
+    createCategory,
+    deleteCategory as deleteCategoryFromDb,
+    fetchCategories,
+    updateCategory,
+    type CategoryRecord,
+    type CategoryType,
+} from '../lib/categoryService'
 
 type Category = {
     id: string
@@ -45,6 +51,16 @@ const createInitialFormState = (): CategoryFormState => ({
     iconId: CATEGORY_ICON_GROUPS[0]?.icons[0]?.id ?? 'other',
 })
 
+const mapRecordToCategory = (record: CategoryRecord): Category => ({
+    id: record.id,
+    name: record.name,
+    type: record.type,
+    iconId: record.icon_id,
+})
+
+const sortCategories = (items: Category[]) =>
+    [...items].sort((a, b) => a.name.localeCompare(b.name, 'vi', { sensitivity: 'base' }))
+
 const DEFAULT_CATEGORIES: Category[] = [
     { id: createId(), name: 'Ăn uống', type: 'Chi tiêu', iconId: 'food' },
     { id: createId(), name: 'Đi lại', type: 'Chi tiêu', iconId: 'transport' },
@@ -55,7 +71,7 @@ const DEFAULT_CATEGORIES: Category[] = [
 ]
 
 export const CategoriesPage = () => {
-    const [categories, setCategories] = useState<Category[]>(DEFAULT_CATEGORIES)
+    const [categories, setCategories] = useState<Category[]>([])
     const [searchTerm, setSearchTerm] = useState('')
     const [typeFilter, setTypeFilter] = useState<CategoryType | 'Tất cả'>('Tất cả')
     const [formState, setFormState] = useState<CategoryFormState>(createInitialFormState())
@@ -66,6 +82,10 @@ export const CategoriesPage = () => {
     const [activeIconGroup, setActiveIconGroup] = useState<IconGroup['id']>(
         CATEGORY_ICON_GROUPS[0]?.id ?? 'life'
     )
+    const [isLoading, setIsLoading] = useState(true)
+    const [loadError, setLoadError] = useState<string | null>(null)
+    const [isSubmitting, setIsSubmitting] = useState(false)
+    const [isRemoteEnabled, setIsRemoteEnabled] = useState(true)
 
     const [searchParams, setSearchParams] = useSearchParams()
 
@@ -101,6 +121,31 @@ export const CategoriesPage = () => {
         }
     }, [openCreateForm, searchParams, setSearchParams])
 
+    useEffect(() => {
+        const loadCategories = async () => {
+            setIsLoading(true)
+            try {
+                const data = await fetchCategories()
+                setCategories(sortCategories(data.map(mapRecordToCategory)))
+                setLoadError(null)
+                setIsRemoteEnabled(true)
+            } catch (error) {
+                console.error('Không thể tải danh mục từ Supabase:', error)
+                setCategories(sortCategories([...DEFAULT_CATEGORIES]))
+                setLoadError(
+                    error instanceof Error
+                        ? `Không thể kết nối Supabase: ${error.message}. Đang dùng dữ liệu tạm thời.`
+                        : 'Không thể kết nối Supabase. Đang dùng dữ liệu tạm thời.'
+                )
+                setIsRemoteEnabled(false)
+            } finally {
+                setIsLoading(false)
+            }
+        }
+
+        void loadCategories()
+    }, [])
+
     const openEditForm = (category: Category) => {
         setEditingId(category.id)
         setFormState({
@@ -122,7 +167,7 @@ export const CategoriesPage = () => {
         setIsIconPickerOpen(false)
     }
 
-    const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+    const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
         event.preventDefault()
         const trimmedName = formState.name.trim()
 
@@ -137,31 +182,85 @@ export const CategoriesPage = () => {
             return
         }
 
-        if (editingId) {
-            setCategories((prev) =>
-                prev.map((category) =>
-                    category.id === editingId
-                        ? { ...category, name: trimmedName, type: formState.type, iconId: formState.iconId }
-                        : category
-                )
-            )
-        } else {
-            setCategories((prev) => [
-                ...prev,
-                { id: createId(), name: trimmedName, type: formState.type, iconId: formState.iconId },
-            ])
-        }
+        setFormError(null)
+        setIsSubmitting(true)
 
-        closeForm()
+        try {
+            if (isRemoteEnabled) {
+                if (editingId) {
+                    const updated = await updateCategory(editingId, {
+                        name: trimmedName,
+                        type: formState.type,
+                        icon_id: formState.iconId,
+                    })
+                    setCategories((prev) =>
+                        sortCategories(
+                            prev.map((category) =>
+                                category.id === editingId ? mapRecordToCategory(updated) : category
+                            )
+                        )
+                    )
+                } else {
+                    const created = await createCategory({
+                        name: trimmedName,
+                        type: formState.type,
+                        icon_id: formState.iconId,
+                    })
+                    setCategories((prev) => sortCategories([...prev, mapRecordToCategory(created)]))
+                }
+            } else {
+                if (editingId) {
+                    setCategories((prev) =>
+                        sortCategories(
+                            prev.map((category) =>
+                                category.id === editingId
+                                    ? { ...category, name: trimmedName, type: formState.type, iconId: formState.iconId }
+                                    : category
+                            )
+                        )
+                    )
+                } else {
+                    setCategories((prev) =>
+                        sortCategories([
+                            ...prev,
+                            { id: createId(), name: trimmedName, type: formState.type, iconId: formState.iconId },
+                        ])
+                    )
+                }
+            }
+
+            closeForm()
+        } catch (error) {
+            setFormError(
+                error instanceof Error
+                    ? error.message
+                    : 'Đã xảy ra lỗi khi lưu danh mục. Vui lòng thử lại sau.'
+            )
+        } finally {
+            setIsSubmitting(false)
+        }
     }
 
-    const handleDelete = (id: string) => {
+    const handleDelete = async (id: string) => {
         const target = categories.find((category) => category.id === id)
         if (!target) return
         const confirmed = window.confirm(`Bạn có chắc muốn xoá danh mục "${target.name}"?`)
         if (!confirmed) return
 
-        setCategories((prev) => prev.filter((category) => category.id !== id))
+        if (isRemoteEnabled) {
+            try {
+                await deleteCategoryFromDb(id)
+                setCategories((prev) => prev.filter((category) => category.id !== id))
+            } catch (error) {
+                window.alert(
+                    error instanceof Error
+                        ? `Không thể xoá danh mục: ${error.message}`
+                        : 'Không thể xoá danh mục. Vui lòng thử lại sau.'
+                )
+            }
+        } else {
+            setCategories((prev) => prev.filter((category) => category.id !== id))
+        }
     }
 
     return (
@@ -215,23 +314,35 @@ export const CategoriesPage = () => {
                     </div>
                 </header>
 
-                <section className="space-y-5">
-                    <CategorySection
-                        title="Chi tiêu"
-                        description="Những khoản chi hàng ngày, hoá đơn, sinh hoạt."
-                        categories={expenseCategories}
-                        onEdit={openEditForm}
-                        onDelete={handleDelete}
-                    />
+                {loadError && (
+                    <p className="rounded-3xl bg-amber-50 px-4 py-3 text-sm text-amber-700 shadow-[0_12px_30px_rgba(15,40,80,0.08)]">
+                        {loadError}
+                    </p>
+                )}
 
-                    <CategorySection
-                        title="Thu nhập"
-                        description="Các nguồn thu cố định hoặc thu nhập thêm."
-                        categories={incomeCategories}
-                        onEdit={openEditForm}
-                        onDelete={handleDelete}
-                    />
-                </section>
+                {isLoading ? (
+                    <div className="rounded-3xl bg-white/10 p-6 text-center text-sm text-slate-200 shadow-xl backdrop-blur">
+                        Đang tải danh mục...
+                    </div>
+                ) : (
+                    <section className="space-y-5">
+                        <CategorySection
+                            title="Chi tiêu"
+                            description="Những khoản chi hàng ngày, hoá đơn, sinh hoạt."
+                            categories={expenseCategories}
+                            onEdit={openEditForm}
+                            onDelete={handleDelete}
+                        />
+
+                        <CategorySection
+                            title="Thu nhập"
+                            description="Các nguồn thu cố định hoặc thu nhập thêm."
+                            categories={incomeCategories}
+                            onEdit={openEditForm}
+                            onDelete={handleDelete}
+                        />
+                    </section>
+                )}
             </main>
 
             <FooterNav onAddClick={openCreateForm} />
@@ -313,9 +424,14 @@ export const CategoriesPage = () => {
                                 </button>
                                 <button
                                     type="submit"
-                                    className="rounded-full bg-sky-500 px-5 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-sky-600"
+                                    disabled={isSubmitting}
+                                    className="rounded-full bg-sky-500 px-5 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-sky-600 disabled:cursor-not-allowed disabled:opacity-70"
                                 >
-                                    {editingId ? 'Lưu thay đổi' : 'Thêm danh mục'}
+                                    {isSubmitting
+                                        ? 'Đang lưu...'
+                                        : editingId
+                                            ? 'Lưu thay đổi'
+                                            : 'Thêm danh mục'}
                                 </button>
                             </div>
                         </form>
