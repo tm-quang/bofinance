@@ -6,8 +6,42 @@
   color-scheme: light;
 }
 
+/* Native app styles */
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
 body {
   @apply min-h-screen bg-slate-950 text-slate-100 antialiased;
+  overscroll-behavior: none;
+  touch-action: manipulation;
+}
+
+/* Smooth native-like scrolling */
+.native-scroll {
+  -webkit-overflow-scrolling: touch;
+  scroll-behavior: smooth;
+}
+
+/* Prevent zoom on input focus */
+input,
+textarea,
+select {
+  font-size: 16px !important;
+}
+
+/* Native button feel */
+button {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+/* Active state for better feedback */
+button:active,
+.clickable:active {
+  opacity: 0.7;
+  transform: scale(0.98);
+  transition: all 0.1s ease;
 }
 
 @layer utilities {

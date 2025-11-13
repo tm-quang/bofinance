@@ -13,27 +13,43 @@ export default defineConfig({
         name: 'BOfin App',
         short_name: 'BOfin',
         description: 'BOfin Financial Application',
-        theme_color: '#ffffff',
-        background_color: '#ffffff',
+        theme_color: '#10b981',
+        background_color: '#10b981',
         display: 'standalone',
         orientation: 'portrait',
         start_url: '/login',
+        scope: '/',
+        display_override: ['window-controls-overlay', 'standalone'],
+        categories: ['finance', 'productivity'],
+        lang: 'vi',
+        dir: 'ltr',
         icons: [
           {
             src: '/icon-192x192.png',
             sizes: '192x192',
-            type: 'image/png'
-          },
-          {
-            src: '/icon-512x512.png',
-            sizes: '512x512',
-            type: 'image/png'
+            type: 'image/png',
+            purpose: 'any'
           },
           {
             src: '/icon-512x512.png',
             sizes: '512x512',
             type: 'image/png',
-            purpose: 'any maskable'
+            purpose: 'any'
+          },
+          {
+            src: '/icon-512x512.png',
+            sizes: '512x512',
+            type: 'image/png',
+            purpose: 'maskable'
+          }
+        ],
+        shortcuts: [
+          {
+            name: 'Đăng nhập',
+            short_name: 'Login',
+            description: 'Đăng nhập vào BOfin',
+            url: '/login',
+            icons: [{ src: '/icon-192x192.png', sizes: '192x192' }]
           }
         ]
       },
