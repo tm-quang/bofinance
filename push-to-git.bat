@@ -12,17 +12,8 @@ setlocal EnableDelayedExpansion
 REM Change to the directory where the script lives (project root)
 cd /d "%~dp0"
 
-if "%~1"=="" (
-    set "COMMIT_MESSAGE=chore: update project snapshot"
-) else (
-    set "COMMIT_MESSAGE=%~1"
-    shift
-    :collectArgs
-    if "%~1"=="" goto messageReady
-    set "COMMIT_MESSAGE=!COMMIT_MESSAGE! %~1"
-    shift
-    goto collectArgs
-)
+set "COMMIT_MESSAGE=%*"
+if "%COMMIT_MESSAGE%"=="" set "COMMIT_MESSAGE=chore: update project snapshot"
 
 :messageReady
 echo.
@@ -35,6 +26,20 @@ echo.
 REM Show current status before committing
 git status
 if errorlevel 1 goto gitError
+
+REM Check if there is anything to commit
+set "HAS_CHANGES="
+for /f "delims=" %%S in ('git status --porcelain') do (
+    set "HAS_CHANGES=1"
+    goto hasChanges
+)
+
+if not defined HAS_CHANGES (
+    echo Nothing to commit. Working tree is clean.
+    goto end
+)
+
+:hasChanges
 
 REM Stage changes
 git add -A
