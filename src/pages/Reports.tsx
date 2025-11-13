@@ -1,0 +1,364 @@
+import { useMemo, useState } from 'react'
+import { RiBarChartFill, RiCalendarLine, RiDownloadLine, RiFilter3Line, RiSearchLine } from 'react-icons/ri'
+
+import FooterNav from '../components/layout/FooterNav'
+import HeaderBar from '../components/layout/HeaderBar'
+import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
+import {
+  MOCK_CATEGORY_SUMMARY,
+  MOCK_TRANSACTION_HISTORY,
+  MOCK_TREND_DATA,
+  type TimeRange,
+} from '../constants/reportData'
+
+const TIME_RANGE_OPTIONS: { value: TimeRange; label: string }[] = [
+  { value: 'week', label: 'Tuần này' },
+  { value: 'month', label: 'Tháng này' },
+  { value: 'quarter', label: 'Quý này' },
+  { value: 'year', label: 'Năm nay' },
+]
+
+const ReportPage = () => {
+  const [range, setRange] = useState<TimeRange>('month')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [typeFilter, setTypeFilter] = useState<'Tất cả' | 'Thu' | 'Chi'>('Tất cả')
+
+  const trendData = MOCK_TREND_DATA[range]
+
+  const filteredTransactions = useMemo(() => {
+    const normalizedSearch = searchTerm.trim().toLowerCase()
+    return MOCK_TRANSACTION_HISTORY.filter((item) => {
+      const matchesType = typeFilter === 'Tất cả' ? true : item.type === typeFilter
+      const matchesSearch =
+        !normalizedSearch ||
+        item.name.toLowerCase().includes(normalizedSearch) ||
+        item.category.toLowerCase().includes(normalizedSearch) ||
+        item.date.includes(normalizedSearch)
+      return matchesType && matchesSearch
+    })
+  }, [searchTerm, typeFilter])
+
+  const topIncome = MOCK_CATEGORY_SUMMARY.filter((category) => category.income > 0)
+    .sort((a, b) => b.income - a.income)
+    .slice(0, 3)
+  const topExpense = MOCK_CATEGORY_SUMMARY.filter((category) => category.expense > 0)
+    .sort((a, b) => b.expense - a.expense)
+    .slice(0, 3)
+
+  const totalIncome = MOCK_CATEGORY_SUMMARY.reduce((acc, item) => acc + item.income, 0)
+  const totalExpense = MOCK_CATEGORY_SUMMARY.reduce((acc, item) => acc + item.expense, 0)
+
+  return (
+    <div className="min-h-screen bg-[#F7F9FC] text-slate-900">
+      <HeaderBar variant="page" title="Báo cáo thống kê" />
+      <main className="mx-auto flex w-full max-w-4xl flex-col gap-6 px-4 pb-44 pt-28">
+        <header className="rounded-3xl bg-white p-6 shadow-[0_25px_80px_rgba(15,40,80,0.08)] ring-1 ring-slate-100">
+          <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+            <div>
+              <p className="text-sm uppercase tracking-[0.3em] text-slate-400">Báo cáo</p>
+              <h1 className="mt-1 text-3xl font-semibold text-slate-900">Tổng quan thu & chi</h1>
+              <p className="text-sm text-slate-500">
+                Theo dõi hiệu quả tài chính của bạn theo thời gian, danh mục và mức độ chi tiêu.
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {TIME_RANGE_OPTIONS.map(({ value, label }) => {
+                const isActive = range === value
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setRange(value)}
+                    className={`rounded-full px-4 py-2 text-sm font-medium transition ${
+                      isActive
+                        ? 'bg-sky-500 text-white shadow-[0_18px_40px_rgba(56,189,248,0.35)]'
+                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                    }`}
+                  >
+                    {label}
+                  </button>
+                )
+              })}
+            </div>
+          </div>
+        </header>
+
+        <section className="grid gap-6 md:grid-cols-[1.5fr_1fr]">
+          <div className="rounded-3xl bg-white p-6 shadow-[0_25px_80px_rgba(15,40,80,0.08)] ring-1 ring-slate-100">
+            <div className="mb-6 flex items-center justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900">Diễn biến thu & chi</h2>
+                <p className="text-sm text-slate-500">
+                  Thống kê theo {TIME_RANGE_OPTIONS.find((opt) => opt.value === range)?.label.toLowerCase()}
+                </p>
+              </div>
+              <button
+                type="button"
+                className="inline-flex items-center gap-2 rounded-full border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-600 transition hover:border-slate-300 hover:bg-slate-100"
+              >
+                <RiDownloadLine />
+                Xuất báo cáo
+              </button>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <SummaryCard
+                title="Tổng thu nhập"
+                amount={totalIncome}
+                trend="+12.5%"
+                description="So với kỳ trước"
+                gradient="from-emerald-400 to-emerald-600"
+              />
+              <SummaryCard
+                title="Tổng chi tiêu"
+                amount={totalExpense}
+                trend="-6.8%"
+                description="So với kỳ trước"
+                gradient="from-rose-400 to-rose-600"
+              />
+            </div>
+
+            <TrendChart data={trendData} />
+          </div>
+
+          <div className="space-y-6">
+            <TopCategoryCard title="Danh mục thu nổi bật" data={topIncome} type="income" />
+            <TopCategoryCard title="Danh mục chi nổi bật" data={topExpense} type="expense" />
+          </div>
+        </section>
+
+        <section className="rounded-3xl bg-white p-6 shadow-[0_25px_80px_rgba(15,40,80,0.08)] ring-1 ring-slate-100">
+          <div className="mb-4 flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-lg font-semibold text-slate-900">Lịch sử thu chi</h2>
+              <p className="text-sm text-slate-500">
+                Lọc và tìm kiếm theo loại giao dịch, danh mục hoặc ghi chú.
+              </p>
+            </div>
+            <div className="flex flex-col gap-3 md:flex-row md:items-center">
+              <div className="relative">
+                <RiSearchLine className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={searchTerm}
+                  onChange={(event) => setSearchTerm(event.target.value)}
+                  placeholder="Tìm kiếm giao dịch..."
+                  className="h-10 w-full rounded-full border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none ring-2 ring-transparent transition focus:border-sky-400 focus:ring-sky-200"
+                />
+              </div>
+              <div className="flex gap-2">
+                {(['Tất cả', 'Thu', 'Chi'] as const).map((type) => {
+                  const isActive = typeFilter === type
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setTypeFilter(type)}
+                      className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition ${
+                        isActive
+                          ? 'bg-sky-500 text-white shadow-[0_18px_40px_rgba(56,189,248,0.35)]'
+                          : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      }`}
+                    >
+                      {type === 'Thu' && <RiBarChartFill />}
+                      {type === 'Chi' && <RiFilter3Line />}
+                      {type}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-3xl border border-slate-200">
+            <table className="min-w-full divide-y divide-slate-200 text-sm">
+              <thead className="bg-slate-50 text-xs uppercase tracking-wider text-slate-500">
+                <tr>
+                  <th className="px-4 py-3 text-left font-semibold">Thời gian</th>
+                  <th className="px-4 py-3 text-left font-semibold">Giao dịch</th>
+                  <th className="px-4 py-3 text-left font-semibold">Danh mục</th>
+                  <th className="px-4 py-3 text-right font-semibold">Số tiền</th>
+                  <th className="px-4 py-3 text-left font-semibold">Ghi chú</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 bg-white">
+                {filteredTransactions.map((item) => (
+                  <tr key={item.id} className="hover:bg-slate-50">
+                    <td className="px-4 py-3 text-slate-500">
+                      <span className="flex items-center gap-2">
+                        <RiCalendarLine className="h-4 w-4 text-slate-400" />
+                        {new Date(item.date).toLocaleDateString('vi-VN', {
+                          day: '2-digit',
+                          month: '2-digit',
+                          year: 'numeric',
+                        })}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3 font-medium text-slate-800">{item.name}</td>
+                    <td className="px-4 py-3 text-slate-500">{item.category}</td>
+                    <td
+                      className={`px-4 py-3 text-right font-semibold ${
+                        item.type === 'Thu' ? 'text-emerald-500' : 'text-rose-500'
+                      }`}
+                    >
+                      {item.type === 'Thu' ? '+' : '-'}
+                      {Intl.NumberFormat('vi-VN', {
+                        style: 'currency',
+                        currency: 'VND',
+                        maximumFractionDigits: 0,
+                      }).format(item.amount)}
+                    </td>
+                    <td className="px-4 py-3 text-slate-500">{item.note ?? '—'}</td>
+                  </tr>
+                ))}
+                {!filteredTransactions.length && (
+                  <tr>
+                    <td
+                      colSpan={5}
+                      className="px-4 py-10 text-center text-sm text-slate-500"
+                    >
+                      Không có giao dịch phù hợp với bộ lọc hiện tại.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+
+      <FooterNav />
+    </div>
+  )
+}
+
+type SummaryCardProps = {
+  title: string
+  amount: number
+  trend: string
+  description: string
+  gradient: string
+}
+
+const SummaryCard = ({ title, amount, trend, description, gradient }: SummaryCardProps) => {
+  return (
+    <div className="rounded-3xl bg-white p-4 shadow-[0_22px_65px_rgba(15,40,80,0.12)] ring-1 ring-slate-100">
+      <p className="text-sm text-slate-500">{title}</p>
+      <p className="mt-2 text-2xl font-semibold text-slate-900">
+        {Intl.NumberFormat('vi-VN', {
+          style: 'currency',
+          currency: 'VND',
+          maximumFractionDigits: 0,
+        }).format(amount)}
+      </p>
+      <p className="mt-2 inline-flex items-center gap-2 text-xs font-medium text-slate-500">
+        <span className={`rounded-full bg-gradient-to-r ${gradient} px-2 py-0.5 text-white`}>{trend}</span>
+        {description}
+      </p>
+    </div>
+  )
+}
+
+type TrendChartProps = {
+  data: {
+    label: string
+    income: number
+    expense: number
+  }[]
+}
+
+const TrendChart = ({ data }: TrendChartProps) => {
+  const maxValue = Math.max(...data.flatMap((item) => [item.income, item.expense]))
+
+  return (
+    <div className="mt-6 rounded-3xl bg-slate-50 p-4 shadow-[0_18px_45px_rgba(15,40,80,0.08)] ring-1 ring-slate-100">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-700">Biểu đồ cột so sánh</h3>
+          <p className="text-xs text-slate-500">Các cột thể hiện thu nhập và chi tiêu theo mốc.</p>
+        </div>
+        <div className="flex items-center gap-4 text-xs font-medium">
+          <span className="flex items-center gap-2 text-emerald-500">
+            <span className="h-2 w-8 rounded-full bg-emerald-500" /> Thu nhập
+          </span>
+          <span className="flex items-center gap-2 text-rose-500">
+            <span className="h-2 w-8 rounded-full bg-rose-500" /> Chi tiêu
+          </span>
+        </div>
+      </div>
+      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {data.map((item) => (
+          <div key={item.label} className="flex flex-col items-center gap-3 rounded-2xl bg-white p-4 shadow-[0_12px_30px_rgba(15,40,80,0.08)] ring-1 ring-slate-100">
+            <p className="text-sm font-semibold text-slate-700">{item.label}</p>
+            <div className="flex w-full items-end gap-3">
+              <div className="flex-1 rounded-full bg-slate-200">
+                <div
+                  className="flex h-24 items-end justify-center rounded-full bg-emerald-400"
+                  style={{ height: `${(item.income / maxValue) * 96}px` }}
+                />
+              </div>
+              <div className="flex-1 rounded-full bg-slate-200">
+                <div
+                  className="flex h-24 items-end justify-center rounded-full bg-rose-400"
+                  style={{ height: `${(item.expense / maxValue) * 96}px` }}
+                />
+              </div>
+            </div>
+            <div className="w-full text-xs text-slate-600">
+              <div>Thu: {Intl.NumberFormat('vi-VN').format(item.income)}đ</div>
+              <div>Chi: {Intl.NumberFormat('vi-VN').format(item.expense)}đ</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+type TopCategoryCardProps = {
+  title: string
+  data: typeof MOCK_CATEGORY_SUMMARY
+  type: 'income' | 'expense'
+}
+
+const TopCategoryCard = ({ title, data, type }: TopCategoryCardProps) => {
+  return (
+    <div className="rounded-3xl bg-white p-6 shadow-[0_25px_80px_rgba(15,40,80,0.08)] ring-1 ring-slate-100">
+      <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+      <p className="text-sm text-slate-500">Sắp xếp theo giá trị {type === 'income' ? 'thu' : 'chi'}.</p>
+      <div className="mt-4 space-y-3">
+        {data.map((item) => {
+          const Icon = CATEGORY_ICON_MAP[item.iconId]?.icon
+          const value = type === 'income' ? item.income : item.expense
+          const formatValue = Intl.NumberFormat('vi-VN', {
+            style: 'currency',
+            currency: 'VND',
+            maximumFractionDigits: 0,
+          }).format(value)
+          return (
+            <div
+              key={item.id}
+              className="flex items-center justify-between rounded-2xl bg-slate-50 p-3 shadow-[0_12px_30px_rgba(15,40,80,0.08)] ring-1 ring-slate-100"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-white text-lg text-slate-600">
+                  {Icon ? <Icon /> : item.name[0]}
+                </span>
+                <div>
+                  <p className="font-semibold text-slate-700">{item.name}</p>
+                  <p className="text-xs text-slate-500">{item.percentage}% tổng {type === 'income' ? 'thu' : 'chi'}</p>
+                </div>
+              </div>
+              <span className={`text-sm font-semibold ${type === 'income' ? 'text-emerald-500' : 'text-rose-500'}`}>
+                {type === 'income' ? '+' : '-'}
+                {formatValue}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
+export default ReportPage
+
