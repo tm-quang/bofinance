@@ -36,7 +36,7 @@ const throwIfError = (error: PostgrestError | null, fallbackMessage: string): vo
 export const fetchCategories = async (): Promise<CategoryRecord[]> => {
   const supabase = getSupabaseClient()
   const { data, error } = await supabase
-    .from<CategoryRecord>(TABLE_NAME)
+    .from(TABLE_NAME)
     .select('*')
     .order('name', { ascending: true })
 
@@ -48,7 +48,7 @@ export const fetchCategories = async (): Promise<CategoryRecord[]> => {
 export const createCategory = async (payload: CategoryInsert): Promise<CategoryRecord> => {
   const supabase = getSupabaseClient()
   const { data, error } = await supabase
-    .from<CategoryRecord>(TABLE_NAME)
+    .from(TABLE_NAME)
     .insert(payload)
     .select()
     .single()
@@ -68,7 +68,7 @@ export const updateCategory = async (
 ): Promise<CategoryRecord> => {
   const supabase = getSupabaseClient()
   const { data, error } = await supabase
-    .from<CategoryRecord>(TABLE_NAME)
+    .from(TABLE_NAME)
     .update(updates)
     .eq('id', id)
     .select()
@@ -85,7 +85,7 @@ export const updateCategory = async (
 
 export const deleteCategory = async (id: string): Promise<void> => {
   const supabase = getSupabaseClient()
-  const { error } = await supabase.from<CategoryRecord>(TABLE_NAME).delete().eq('id', id)
+  const { error } = await supabase.from(TABLE_NAME).delete().eq('id', id)
 
   throwIfError(error, 'Không thể xoá danh mục.')
 }
