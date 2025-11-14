@@ -35,6 +35,7 @@ build
 
 # Development tools and scripts (not needed for production)
 Tool/
+tool/
 supabase/
 # Android build artifacts
 *.keystore
