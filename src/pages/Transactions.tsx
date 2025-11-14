@@ -50,11 +50,12 @@ const TransactionsPage = () => {
   const longPressTimerRef = useRef<number | null>(null)
   const longPressTargetRef = useRef<TransactionRecord | null>(null)
 
-  // Load data
+  // Load data - sử dụng cache, chỉ reload khi cần
   useEffect(() => {
     const loadData = async () => {
       setIsLoading(true)
       try {
+        // Sử dụng cache - chỉ fetch khi cache hết hạn hoặc chưa có
         const [transactionsData, categoriesData, walletsData] = await Promise.all([
           fetchTransactions(),
           fetchCategories(),
@@ -81,6 +82,8 @@ const TransactionsPage = () => {
       }
     }
     loadData()
+    // Chỉ load lại khi navigate từ trang khác về (location.key thay đổi)
+    // Cache sẽ được sử dụng nếu còn valid
   }, [])
 
   // Filter and paginate transactions

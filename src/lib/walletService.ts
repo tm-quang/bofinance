@@ -1,7 +1,7 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 
 import { getSupabaseClient } from './supabaseClient'
-import { invalidateCache } from './cache'
+import { invalidateCache, cacheFirstWithRefresh, cacheManager } from './cache'
 
 export type WalletType = 'Tiền mặt' | 'Ngân hàng' | 'Tiết kiệm' | 'Tín dụng' | 'Đầu tư' | 'Khác'
 
@@ -55,21 +55,31 @@ export const fetchWallets = async (includeInactive = false): Promise<WalletRecor
     throw new Error('Bạn cần đăng nhập để xem ví.')
   }
 
-  let query = supabase
-    .from(TABLE_NAME)
-    .select('*')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
+  const cacheKey = cacheManager.generateKey('fetchWallets', {
+    userId: user.id,
+    includeInactive,
+  })
 
-  if (!includeInactive) {
-    query = query.eq('is_active', true)
+  const fetchFromSupabase = async (): Promise<WalletRecord[]> => {
+    let query = supabase
+      .from(TABLE_NAME)
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false })
+
+    if (!includeInactive) {
+      query = query.eq('is_active', true)
+    }
+
+    const { data, error } = await query
+
+    throwIfError(error, 'Không thể tải danh sách ví.')
+
+    return data ?? []
   }
 
-  const { data, error } = await query
-
-  throwIfError(error, 'Không thể tải danh sách ví.')
-
-  return data ?? []
+  // Cache với TTL 10 phút, stale threshold 5 phút (refresh trong background sau 5 phút)
+  return cacheFirstWithRefresh(cacheKey, fetchFromSupabase, 10 * 60 * 1000, 5 * 60 * 1000)
 }
 
 // Lấy một ví theo ID
@@ -125,6 +135,8 @@ export const createWallet = async (payload: WalletInsert): Promise<WalletRecord>
     throw new Error('Không nhận được dữ liệu ví sau khi tạo.')
   }
 
+  // Invalidate cache để đảm bảo danh sách ví được cập nhật
+  invalidateCache('fetchWallets')
 
   return data
 }
@@ -154,6 +166,8 @@ export const updateWallet = async (id: string, updates: WalletUpdate): Promise<W
     throw new Error('Không nhận được dữ liệu ví sau khi cập nhật.')
   }
 
+  // Invalidate cache để đảm bảo danh sách ví được cập nhật
+  invalidateCache('fetchWallets')
 
   return data
 }
@@ -183,6 +197,9 @@ export const deleteWallet = async (id: string, hardDelete = false): Promise<void
 
   // Invalidate cache để đảm bảo danh sách ví được cập nhật
   invalidateCache('fetchWallets')
+  
+  // Also invalidate transaction stats since wallet balance changed
+  invalidateCache('getTransactionStats')
 }
 
 // Cập nhật số dư ví
@@ -241,6 +258,9 @@ export const setDefaultWallet = async (walletId: string): Promise<void> => {
     // Invalidate cache để đảm bảo dữ liệu mới nhất
     invalidateCache('fetchWallets')
   }
+  
+  // Also invalidate related caches
+  invalidateCache('getDefaultWallet')
 }
 
 // Lấy ví mặc định từ database

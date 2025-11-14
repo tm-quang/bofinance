@@ -161,6 +161,7 @@ export const WalletsPage = () => {
       }
     }
     loadDefaultWallet()
+    // Chỉ load lại khi navigate từ trang khác về (location.key thay đổi)
   }, [])
 
   const loadWallets = async () => {

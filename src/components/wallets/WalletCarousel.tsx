@@ -49,7 +49,7 @@ export const WalletCarousel = ({ onWalletChange, onAddWallet }: WalletCarouselPr
           setCurrentIndex(selectedIndex)
           
           if (onWalletChange) {
-            onWalletChange(activeWallets[selectedIndex])
+            onWalletChange(data[selectedIndex])
           }
         }
       } catch (error) {

@@ -222,7 +222,7 @@ export const DashboardPage = () => {
     }
   }, [defaultWalletId, selectedWallet, showDefaultWalletModal])
 
-  // Load profile
+  // Load profile - sử dụng cache, chỉ reload khi cần
   useEffect(() => {
     const loadProfile = async () => {
       try {
@@ -233,7 +233,8 @@ export const DashboardPage = () => {
       }
     }
     loadProfile()
-  }, [location.key]) // Reload when navigating back to dashboard
+    // Chỉ reload khi location.key thay đổi (navigate từ trang khác về)
+  }, [location.key])
 
   // Check for welcome modal flag from login
   useEffect(() => {
@@ -261,11 +262,12 @@ export const DashboardPage = () => {
     navigate('/wallets')
   }
 
-  // Load transactions and categories
+  // Load transactions and categories - chỉ load khi cần thiết, sử dụng cache
   useEffect(() => {
     const loadData = async () => {
       setIsLoadingTransactions(true)
       try {
+        // Sử dụng cache - chỉ fetch khi cache hết hạn hoặc chưa có
         const [transactionsData, categoriesData, walletsData] = await Promise.all([
           fetchTransactions({ limit: 5 }),
           fetchCategories(),
@@ -294,7 +296,9 @@ export const DashboardPage = () => {
     }
 
     loadData()
-  }, [])
+    // Chỉ load lại khi location.key thay đổi (navigate từ trang khác về)
+    // Không load lại khi chỉ re-render
+  }, [location.key])
 
   // Reload transactions when a new transaction is added/updated/deleted
   const handleTransactionSuccess = () => {

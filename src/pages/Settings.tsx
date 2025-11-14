@@ -13,6 +13,7 @@ import {
   RiLock2Line,
   RiMoonLine,
   RiPaletteLine,
+  RiRefreshLine,
   RiSmartphoneLine,
   RiSunLine,
   RiTrophyLine,
@@ -29,6 +30,8 @@ import { UpgradeModal } from '../components/settings/UpgradeModal'
 import { getCurrentProfile, type ProfileRecord } from '../lib/profileService'
 import { useDialog } from '../contexts/dialogContext.helpers'
 import { getSupabaseClient } from '../lib/supabaseClient'
+import { clearAllCache } from '../lib/cache'
+import { useNotification } from '../contexts/notificationContext.helpers'
 
 type ToggleSetting = {
   id: string
@@ -139,6 +142,7 @@ const themeOptions = [
 const SettingsPage = () => {
   const navigate = useNavigate()
   const { showConfirm } = useDialog()
+  const { success } = useNotification()
   const [profile, setProfile] = useState<ProfileRecord | null>(null)
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false)
@@ -202,6 +206,19 @@ const SettingsPage = () => {
     })
   }
 
+  const handleReloadCache = async () => {
+    await showConfirm('Bạn có muốn xóa toàn bộ cache và tải lại dữ liệu?', async () => {
+      try {
+        clearAllCache()
+        success('Đã xóa cache thành công! Dữ liệu sẽ được tải lại khi bạn quay lại các trang.')
+        // Reload page để tải lại dữ liệu
+        window.location.reload()
+      } catch (error) {
+        console.error('Error clearing cache:', error)
+      }
+    })
+  }
+
   const handleOpenSupport = (type: 'feedback' | 'bug') => {
     setSupportModalType(type)
     setIsSupportModalOpen(true)
@@ -246,6 +263,16 @@ const SettingsPage = () => {
                 className="rounded-xl border-2 border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 sm:px-5 sm:py-2.5 sm:text-sm"
               >
                 Chỉnh sửa
+              </button>
+              <button
+                type="button"
+                onClick={handleReloadCache}
+                className="rounded-xl border-2 border-amber-200 bg-white px-4 py-2 text-xs font-semibold text-amber-600 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 sm:px-5 sm:py-2.5 sm:text-sm"
+              >
+                <span className="flex items-center justify-center gap-1.5">
+                  <RiRefreshLine className="h-4 w-4" />
+                  Làm mới cache
+                </span>
               </button>
               <button
                 type="button"
