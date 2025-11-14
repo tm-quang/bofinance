@@ -8,7 +8,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['vite.svg'],
+      includeAssets: ['vite.svg', 'icon-192x192.png', 'icon-512x512.png', 'bogin-logo.png', 'logo-nontext.png'],
       manifest: {
         name: 'BOfin App',
         short_name: 'BOfin',

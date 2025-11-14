@@ -27,7 +27,7 @@ build
 !.env.example
 
 # Development tools and scripts (not needed for production)
-TOOL- HỆ THỐNG/
+Tool/
 
 # Android build artifacts
 *.keystore
