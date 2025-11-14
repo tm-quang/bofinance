@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { RiCloseLine, RiEyeLine, RiEyeOffLine, RiLock2Line } from 'react-icons/ri'
+import { FaTimes, FaEye, FaEyeSlash, FaLock } from 'react-icons/fa'
 
 import { changePassword } from '../../lib/profileService'
 import { useNotification } from '../../contexts/notificationContext.helpers'
@@ -98,7 +98,7 @@ export const SecurityModal = ({ isOpen, onClose }: SecurityModalProps) => {
             onClick={onClose}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-all hover:bg-slate-200 hover:scale-110 active:scale-95 sm:h-10 sm:w-10"
           >
-            <RiCloseLine className="h-4 w-4 sm:h-5 sm:w-5" />
+            <FaTimes className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
         </div>
 
@@ -120,7 +120,7 @@ export const SecurityModal = ({ isOpen, onClose }: SecurityModalProps) => {
             {/* Current Password */}
             <div>
               <label htmlFor="currentPassword" className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
-                <RiLock2Line className="mr-1.5 inline h-4 w-4" />
+                <FaLock className="mr-1.5 inline h-4 w-4" />
                 Mật khẩu hiện tại
               </label>
               <div className="relative">
@@ -138,7 +138,7 @@ export const SecurityModal = ({ isOpen, onClose }: SecurityModalProps) => {
                   onClick={() => setShowPasswords((prev) => ({ ...prev, current: !prev.current }))}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
-                  {showPasswords.current ? <RiEyeOffLine className="h-5 w-5" /> : <RiEyeLine className="h-5 w-5" />}
+                  {showPasswords.current ? <FaEyeSlash className="h-5 w-5" /> : <FaEye className="h-5 w-5" />}
                 </button>
               </div>
             </div>
@@ -164,7 +164,7 @@ export const SecurityModal = ({ isOpen, onClose }: SecurityModalProps) => {
                   onClick={() => setShowPasswords((prev) => ({ ...prev, new: !prev.new }))}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
-                  {showPasswords.new ? <RiEyeOffLine className="h-5 w-5" /> : <RiEyeLine className="h-5 w-5" />}
+                  {showPasswords.new ? <FaEyeSlash className="h-5 w-5" /> : <FaEye className="h-5 w-5" />}
                 </button>
               </div>
             </div>
@@ -190,7 +190,7 @@ export const SecurityModal = ({ isOpen, onClose }: SecurityModalProps) => {
                   onClick={() => setShowPasswords((prev) => ({ ...prev, confirm: !prev.confirm }))}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
                 >
-                  {showPasswords.confirm ? <RiEyeOffLine className="h-5 w-5" /> : <RiEyeLine className="h-5 w-5" />}
+                  {showPasswords.confirm ? <FaEyeSlash className="h-5 w-5" /> : <FaEye className="h-5 w-5" />}
                 </button>
               </div>
             </div>

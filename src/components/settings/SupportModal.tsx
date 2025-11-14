@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { RiCloseLine } from 'react-icons/ri'
+import { FaTimes } from 'react-icons/fa'
 
 import { useNotification } from '../../contexts/notificationContext.helpers'
 
@@ -73,7 +73,7 @@ export const SupportModal = ({ isOpen, onClose, type }: SupportModalProps) => {
             onClick={onClose}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-all hover:bg-slate-200 hover:scale-110 active:scale-95 sm:h-10 sm:w-10"
           >
-            <RiCloseLine className="h-4 w-4 sm:h-5 sm:w-5" />
+            <FaTimes className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
         </div>
 

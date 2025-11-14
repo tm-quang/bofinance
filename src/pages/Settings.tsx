@@ -1,25 +1,27 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  RiAlertLine,
-  RiArrowRightSLine,
-  RiBellLine,
-  RiBugLine,
-  RiCloudLine,
-  RiColorFilterLine,
-  RiDownloadLine,
-  RiEmotionLine,
-  RiFeedbackLine,
-  RiLock2Line,
-  RiMoonLine,
-  RiPaletteLine,
-  RiRefreshLine,
-  RiSmartphoneLine,
-  RiSunLine,
-  RiTrophyLine,
-  RiUser3Line,
-  RiWallet3Line,
-} from 'react-icons/ri'
+  FaExclamationCircle,
+  FaChevronRight,
+  FaBell,
+  FaBug,
+  FaCloud,
+  FaFilter,
+  FaDownload,
+  FaSmile,
+  FaCommentAlt,
+  FaLock,
+  FaMoon,
+  FaPalette,
+  FaRedo,
+  FaMobileAlt,
+  FaSun,
+  FaTrophy,
+  FaUser,
+  FaWallet,
+  FaDollarSign,
+  FaImage,
+} from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
@@ -27,6 +29,7 @@ import { AccountInfoModal } from '../components/settings/AccountInfoModal'
 import { SecurityModal } from '../components/settings/SecurityModal'
 import { SupportModal } from '../components/settings/SupportModal'
 import { UpgradeModal } from '../components/settings/UpgradeModal'
+import { IconManagementModal } from '../components/settings/IconManagementModal'
 import { getCurrentProfile, type ProfileRecord } from '../lib/profileService'
 import { useDialog } from '../contexts/dialogContext.helpers'
 import { getSupabaseClient } from '../lib/supabaseClient'
@@ -46,25 +49,25 @@ const notificationToggleSettings: ToggleSetting[] = [
     id: 'push',
     title: 'Thông báo đẩy',
     description: 'Nhận nhắc nhở thu chi, cảnh báo ngân sách khi vượt mức.',
-    icon: <RiBellLine className="h-5 w-5" />,
+    icon: <FaBell className="h-5 w-5" />,
   },
   {
     id: 'dailyDigest',
     title: 'Email tổng kết hàng ngày',
     description: 'Tổng hợp thu chi, hạn mức còn lại gửi về email lúc 20:00.',
-    icon: <RiSmartphoneLine className="h-5 w-5" />,
+    icon: <FaMobileAlt className="h-5 w-5" />,
   },
   {
     id: 'budgetAlert',
     title: 'Cảnh báo vượt ngân sách',
     description: 'Nhận thông báo khi chi tiêu gần đạt hoặc vượt hạn mức.',
-    icon: <RiAlertLine className="h-5 w-5" />,
+    icon: <FaExclamationCircle className="h-5 w-5" />,
   },
   {
     id: 'reminder',
     title: 'Nhắc nhở giao dịch định kỳ',
     description: 'Nhắc nhở các khoản thu chi định kỳ (hóa đơn, lương, v.v.).',
-    icon: <RiBellLine className="h-5 w-5" />,
+    icon: <FaBell className="h-5 w-5" />,
   },
 ]
 
@@ -73,19 +76,19 @@ const financeToggleSettings: ToggleSetting[] = [
     id: 'autoCategorize',
     title: 'Tự động phân loại giao dịch',
     description: 'Sử dụng AI để tự động phân loại giao dịch dựa trên mô tả.',
-    icon: <RiWallet3Line className="h-5 w-5" />,
+    icon: <FaWallet className="h-5 w-5" />,
   },
   {
     id: 'budgetSuggestion',
     title: 'Gợi ý ngân sách',
     description: 'Nhận gợi ý ngân sách dựa trên lịch sử chi tiêu của bạn.',
-    icon: <RiAlertLine className="h-5 w-5" />,
+    icon: <FaExclamationCircle className="h-5 w-5" />,
   },
   {
     id: 'autoBackup',
     title: 'Tự động sao lưu',
     description: 'Sao lưu dữ liệu cá nhân mỗi ngày vào 02:00 sáng.',
-    icon: <RiCloudLine className="h-5 w-5" />,
+    icon: <FaCloud className="h-5 w-5" />,
   },
 ]
 
@@ -94,19 +97,19 @@ const themeOptions = [
     id: 'classic',
     label: 'Giao diện sáng tối giản',
     description: 'Nền trắng, card rõ ràng, phù hợp môi trường văn phòng.',
-    icon: <RiPaletteLine className="h-5 w-5" />,
+    icon: <FaPalette className="h-5 w-5" />,
   },
   {
     id: 'vivid',
     label: 'Giao diện đa sắc',
     description: 'Dải màu gradient cho nav và thẻ, tạo cảm hứng sử dụng.',
-    icon: <RiColorFilterLine className="h-5 w-5" />,
+    icon: <FaFilter className="h-5 w-5" />,
   },
   {
     id: 'focus',
     label: 'Giao diện tập trung',
     description: 'Nhấn mạnh dữ liệu tài chính với card tối, chữ sáng.',
-    icon: <RiEmotionLine className="h-5 w-5" />,
+    icon: <FaSmile className="h-5 w-5" />,
   },
 ]
 
@@ -150,6 +153,7 @@ const SettingsPage = () => {
   const [isSupportModalOpen, setIsSupportModalOpen] = useState(false)
   const [supportModalType, setSupportModalType] = useState<'feedback' | 'bug'>('feedback')
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false)
+  const [isIconManagementOpen, setIsIconManagementOpen] = useState(false)
   const [darkMode, setDarkMode] = useState(false)
 
   const [notificationToggles, setNotificationToggles] = useState<Record<string, boolean>>({
@@ -259,7 +263,7 @@ const SettingsPage = () => {
               />
             ) : (
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-blue-600 text-white ring-4 ring-slate-100 sm:h-20 sm:w-20">
-                <RiUser3Line className="h-8 w-8 sm:h-10 sm:w-10" />
+                <FaUser className="h-8 w-8 sm:h-10 sm:w-10" />
               </div>
             )}
             <div className="flex-1">
@@ -276,7 +280,7 @@ const SettingsPage = () => {
                 className="rounded-xl border-2 border-amber-200 bg-white px-4 py-2 text-xs font-semibold text-amber-600 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 sm:px-5 sm:py-2.5 sm:text-sm"
               >
                 <span className="flex items-center justify-center gap-1.5">
-                  <RiRefreshLine className="h-4 w-4" />
+                  <FaRedo className="h-4 w-4" />
                   Reload
                 </span>
               </button>
@@ -304,14 +308,14 @@ const SettingsPage = () => {
             >
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
-                  <RiUser3Line className="h-5 w-5" />
+                  <FaUser className="h-5 w-5" />
                 </span>
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Thông tin cá nhân</p>
                   <p className="text-xs text-slate-500">Cập nhật họ tên, số điện thoại, ngày sinh</p>
                 </div>
               </div>
-              <RiArrowRightSLine className="h-5 w-5 shrink-0 text-slate-400" />
+              <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
             </button>
             <button
               type="button"
@@ -320,14 +324,14 @@ const SettingsPage = () => {
             >
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
-                  <RiLock2Line className="h-5 w-5" />
+                  <FaLock className="h-5 w-5" />
                 </span>
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Bảo mật & xác thực</p>
                   <p className="text-xs text-slate-500">Đổi mật khẩu, bảo mật tài khoản</p>
                 </div>
               </div>
-              <RiArrowRightSLine className="h-5 w-5 shrink-0 text-slate-400" />
+              <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
             </button>
             <button
               type="button"
@@ -335,14 +339,30 @@ const SettingsPage = () => {
             >
               <div className="flex items-center gap-3">
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
-                  <RiDownloadLine className="h-5 w-5" />
+                  <FaDownload className="h-5 w-5" />
                 </span>
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Xuất dữ liệu</p>
                   <p className="text-xs text-slate-500">Tải xuống dữ liệu tài chính của bạn</p>
                 </div>
               </div>
-              <RiArrowRightSLine className="h-5 w-5 shrink-0 text-slate-400" />
+              <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+            </button>
+            <button
+              type="button"
+              onClick={() => navigate('/budgets')}
+              className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+                  <FaDollarSign className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Ngân sách</p>
+                  <p className="text-xs text-slate-500">Quản lý và theo dõi ngân sách chi tiêu</p>
+                </div>
+              </div>
+              <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
             </button>
           </div>
         </section>
@@ -478,7 +498,7 @@ const SettingsPage = () => {
                     : 'bg-slate-50 ring-1 ring-slate-100 hover:ring-sky-200'
                 }`}
               >
-                <RiSunLine className={`h-5 w-5 ${!darkMode ? 'text-sky-600' : 'text-slate-400'}`} />
+                <FaSun className={`h-5 w-5 ${!darkMode ? 'text-sky-600' : 'text-slate-400'}`} />
                 <span className={`text-sm font-semibold ${!darkMode ? 'text-sky-700' : 'text-slate-600'}`}>
                   Sáng
                 </span>
@@ -492,12 +512,38 @@ const SettingsPage = () => {
                     : 'bg-slate-50 ring-1 ring-slate-100 hover:ring-slate-200'
                 }`}
                 >
-                <RiMoonLine className={`h-5 w-5 ${darkMode ? 'text-slate-300' : 'text-slate-400'}`} />
+                <FaMoon className={`h-5 w-5 ${darkMode ? 'text-slate-300' : 'text-slate-400'}`} />
                 <span className={`text-sm font-semibold ${darkMode ? 'text-slate-200' : 'text-slate-600'}`}>
                   Tối
                   </span>
                 </button>
             </div>
+          </div>
+        </section>
+
+        {/* System Management (Admin) */}
+        <section className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
+          <h2 className="mb-4 text-base font-bold text-slate-900 sm:text-lg">Quản lý hệ thống</h2>
+          <p className="mb-4 text-xs text-slate-500 sm:text-sm">
+            Quản lý icons và cấu hình hệ thống
+          </p>
+          <div className="space-y-2">
+            <button
+              type="button"
+              onClick={() => setIsIconManagementOpen(true)}
+              className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-600">
+                  <FaImage className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Quản lý Icons</p>
+                  <p className="text-xs text-slate-500">Thêm, sửa, xóa icons cho danh mục</p>
+                </div>
+              </div>
+              <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+            </button>
           </div>
         </section>
 
@@ -512,7 +558,7 @@ const SettingsPage = () => {
                 className="flex w-full items-center gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md ring-1 ring-slate-100"
                 >
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
-                  <RiFeedbackLine className="h-5 w-5" />
+                  <FaCommentAlt className="h-5 w-5" />
                   </span>
                   <div>
                   <p className="text-sm font-semibold text-slate-800">Gửi góp ý</p>
@@ -525,7 +571,7 @@ const SettingsPage = () => {
                 className="flex w-full items-center gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md ring-1 ring-slate-100"
               >
                 <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
-                  <RiBugLine className="h-5 w-5" />
+                  <FaBug className="h-5 w-5" />
                 </span>
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Báo lỗi</p>
@@ -538,7 +584,7 @@ const SettingsPage = () => {
           <div className="rounded-3xl bg-gradient-to-br from-amber-50 via-amber-50/50 to-white p-5 shadow-lg ring-1 ring-amber-100 sm:p-6">
             <div className="mb-4 flex items-center gap-3">
               <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg">
-                <RiTrophyLine className="h-7 w-7" />
+                <FaTrophy className="h-7 w-7" />
               </div>
               <div>
                 <h2 className="text-base font-bold text-slate-900 sm:text-lg">Nâng cấp BoFin+</h2>
@@ -606,6 +652,11 @@ const SettingsPage = () => {
       <UpgradeModal
         isOpen={isUpgradeModalOpen}
         onClose={() => setIsUpgradeModalOpen(false)}
+      />
+
+      <IconManagementModal
+        isOpen={isIconManagementOpen}
+        onClose={() => setIsIconManagementOpen(false)}
       />
     </div>
   )

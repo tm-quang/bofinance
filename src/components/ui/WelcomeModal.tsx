@@ -1,13 +1,13 @@
 import { useEffect, useState, useCallback, useEffectEvent } from 'react'
 import { 
-  RiCloseLine, 
-  RiWallet3Line, 
-  RiExchangeDollarLine, 
-  RiBarChartLine,
-  RiFolderLine,
-  RiSettings3Line,
-  RiSparklingFill
-} from 'react-icons/ri'
+  FaTimes, 
+  FaWallet, 
+  FaExchangeAlt, 
+  FaChartBar,
+  FaFolder,
+  FaCog,
+  FaStar
+} from 'react-icons/fa'
 
 type WelcomeModalProps = {
   isOpen: boolean
@@ -16,28 +16,28 @@ type WelcomeModalProps = {
 
 const APP_FEATURES = [
   {
-    icon: RiWallet3Line,
+    icon: FaWallet,
     title: 'Quản lý ví tài chính',
     description: 'Theo dõi nhiều ví, quản lý số dư hiệu quả',
     color: 'text-blue-600',
     bgColor: 'bg-blue-50',
   },
   {
-    icon: RiExchangeDollarLine,
+    icon: FaExchangeAlt,
     title: 'Quản lý Thu/Chi',
     description: 'Ghi chép và phân loại các khoản thu chi',
     color: 'text-emerald-600',
     bgColor: 'bg-emerald-50',
   },
   {
-    icon: RiBarChartLine,
+    icon: FaChartBar,
     title: 'Báo cáo & Thống kê',
     description: 'Phân tích chi tiêu, biểu đồ trực quan',
     color: 'text-purple-600',
     bgColor: 'bg-purple-50',
   },
   {
-    icon: RiFolderLine,
+    icon: FaFolder,
     title: 'Danh mục',
     description: 'Tổ chức Thu/Chi theo danh mục',
     color: 'text-amber-600',
@@ -134,7 +134,7 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
           className="absolute right-4 top-4 z-20 rounded-full p-2 text-slate-400 transition-all hover:bg-white/80 hover:text-slate-700 hover:shadow-lg focus:outline-none focus:ring-2 focus:ring-slate-300"
           aria-label="Đóng"
         >
-          <RiCloseLine className="h-5 w-5" />
+          <FaTimes className="h-5 w-5" />
         </button>
 
         {/* Content */}
@@ -158,11 +158,11 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
           }`}>
             <div className="mb-2 flex items-center justify-center gap-2">
-              <RiSparklingFill className="h-5 w-5 text-amber-400" />
+              <FaStar className="h-5 w-5 text-amber-400" />
               <h2 className="text-2xl font-bold bg-gradient-to-r from-sky-600 to-indigo-600 bg-clip-text text-transparent sm:text-3xl">
                 Chào mừng đến với BO.fin
               </h2>
-              <RiSparklingFill className="h-5 w-5 text-amber-400" />
+              <FaStar className="h-5 w-5 text-amber-400" />
             </div>
             <p className="text-sm font-medium text-slate-600 sm:text-base">
               Ứng dụng theo dõi chi tiêu, tối ưu tài chính
@@ -213,7 +213,7 @@ export const WelcomeModal = ({ isOpen, onClose }: WelcomeModalProps) => {
             isVisible ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-2'
           }`}>
             <div className="flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-4 py-2">
-              <RiSettings3Line className="h-4 w-4 text-slate-500" />
+              <FaCog className="h-4 w-4 text-slate-500" />
               <span className="text-xs font-semibold text-slate-700">Phiên bản 1.0.1</span>
             </div>
           </div>

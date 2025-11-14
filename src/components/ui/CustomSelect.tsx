@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { RiArrowDownSLine, RiCheckLine } from 'react-icons/ri'
+import { FaChevronDown, FaCheck } from 'react-icons/fa'
 import { Skeleton } from '../skeletons'
 
 type Option = {
@@ -96,7 +96,7 @@ export const CustomSelect = ({
             )}
           </div>
         </div>
-        <RiArrowDownSLine
+        <FaChevronDown
           className={`h-5 w-5 shrink-0 text-slate-400 transition-transform ${isOpen ? 'rotate-180' : ''}`}
         />
       </button>
@@ -133,7 +133,7 @@ export const CustomSelect = ({
                     {option.metadata && <div className="text-xs text-slate-500">{option.metadata}</div>}
                   </div>
                   {value === option.value && (
-                    <RiCheckLine className="h-5 w-5 shrink-0 text-sky-600" />
+                    <FaCheck className="h-5 w-5 shrink-0 text-sky-600" />
                   )}
                 </button>
               ))}

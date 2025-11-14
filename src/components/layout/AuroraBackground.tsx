@@ -1,7 +1,7 @@
 import type { PropsWithChildren } from 'react'
 
 export const AuroraBackground = ({ children }: PropsWithChildren) => (
-  <div className="relative flex h-full flex-col items-center justify-center overflow-hidden bg-gradient-to-br from-white via-blue-100 to-cyan-100 px-4 py-4 text-slate-900 sm:px-6 sm:py-6 md:px-10">
+  <div className="flex h-full flex-col overflow-hidden bg-gradient-to-br from-white via-blue-100 to-cyan-100 text-slate-900">
     <div className="absolute inset-0 bg-gradient-to-br from-sky-200 via-blue-200 via-cyan-200 to-teal-200 animate-gradient-xy" />
 
     <div className="absolute inset-0 opacity-60">
@@ -45,8 +45,10 @@ export const AuroraBackground = ({ children }: PropsWithChildren) => (
     <div className="absolute top-0 right-1/4 h-80 w-80 translate-x-1/2 rounded-full bg-blue-300 mix-blend-multiply blur-3xl opacity-50 animate-blob animation-delay-2000 md:h-96 md:w-96" />
     <div className="absolute -bottom-10 left-1/2 h-80 w-80 -translate-x-1/2 rounded-full bg-cyan-300 mix-blend-multiply blur-3xl opacity-50 animate-blob animation-delay-4000 md:h-96 md:w-96" />
 
-    <div className="relative z-10 flex h-full w-full max-w-md flex-col items-center justify-center py-2">
-      {children}
+    <div className="relative z-10 flex h-full w-full flex-col overflow-y-auto overscroll-contain">
+      <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 py-4 sm:py-4">
+        {children}
+      </div>
     </div>
   </div>
 )

@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
-  RiCalendarLine,
-  RiDownloadLine,
-  RiSearchLine,
-  RiArrowDownLine,
-  RiArrowUpLine,
-  RiArrowDownSLine,
-  RiFilterLine,
-} from 'react-icons/ri'
+  FaCalendar,
+  FaDownload,
+  FaSearch,
+  FaChevronDown,
+  FaChevronUp,
+  FaFilter,
+} from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
@@ -98,7 +97,7 @@ const FilterAccordionSection = ({
         <p className="text-sm font-semibold text-slate-900 sm:text-base">{title}</p>
         {subtitle && <p className="text-xs text-slate-500 sm:text-sm">{subtitle}</p>}
       </div>
-      <RiArrowDownSLine
+      <FaChevronDown
         className={classNames(
           'h-5 w-5 text-slate-500 transition-transform duration-300',
           isOpen ? 'rotate-180' : 'rotate-0'
@@ -405,7 +404,7 @@ const ReportPage = () => {
                   onClick={handleResetFilters}
                   className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-800 sm:text-sm"
                 >
-                  <RiFilterLine className="h-4 w-4" />
+                  <FaFilter className="h-4 w-4" />
                   Đặt lại
                 </button>
                 <button
@@ -413,7 +412,7 @@ const ReportPage = () => {
                   onClick={handleExport}
                   className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-sky-500/30 transition hover:scale-[1.02] sm:text-sm"
                 >
-                  <RiDownloadLine className="h-4 w-4" />
+                  <FaDownload className="h-4 w-4" />
                   Xuất báo cáo
                 </button>
               </div>
@@ -459,8 +458,8 @@ const ReportPage = () => {
                           : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                         }`}
                       >
-                      {type === 'Thu' && <RiArrowUpLine className="h-4 w-4" />}
-                      {type === 'Chi' && <RiArrowDownLine className="h-4 w-4" />}
+                      {type === 'Thu' && <FaChevronUp className="h-4 w-4" />}
+                      {type === 'Chi' && <FaChevronDown className="h-4 w-4" />}
                         {type === 'all' ? 'Tất cả' : type}
                       </button>
                     )
@@ -495,7 +494,7 @@ const ReportPage = () => {
               <div className="mt-4">
                 <p className="mb-2 text-xs font-medium text-slate-600 sm:text-sm">Từ khóa</p>
                 <div className="relative">
-                  <RiSearchLine className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <FaSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
@@ -740,7 +739,7 @@ const ReportPage = () => {
                             {transaction.description || 'Không có mô tả'}
                           </p>
                           <div className={`mt-0.5 flex items-center gap-2 text-[10px] sm:text-xs ${isIncome ? 'text-emerald-700' : 'text-rose-700'}`}>
-                            <RiCalendarLine className="h-3 w-3" />
+                            <FaCalendar className="h-3 w-3" />
                             {new Date(transaction.transaction_date).toLocaleDateString('vi-VN', {
                               day: '2-digit',
                               month: '2-digit',

@@ -1,4 +1,4 @@
-import { RiCloseLine } from 'react-icons/ri'
+import { FaTimes } from 'react-icons/fa'
 import type { CategoryRecord } from '../../lib/categoryService'
 import { CATEGORY_ICON_MAP } from '../../constants/categoryIcons'
 
@@ -65,7 +65,7 @@ export const CategoryFilter = ({
             >
               {IconComponent && <IconComponent className="h-4 w-4" />}
               <span>{category.name}</span>
-              {isSelected && <RiCloseLine className="h-3.5 w-3.5" />}
+              {isSelected && <FaTimes className="h-3.5 w-3.5" />}
             </button>
           )
         })}

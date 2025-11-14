@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useDataPreloader } from '../hooks/useDataPreloader'
-import { RiAddLine, RiCalendarLine, RiExchangeDollarLine, RiHandCoinLine, RiHandHeartLine, RiSendPlaneFill, RiSettings3Line, RiWallet3Line } from 'react-icons/ri'
+import { FaPlus, FaCalendar, FaExchangeAlt, FaHandHoldingUsd, FaHandHoldingHeart, FaPaperPlane, FaCog, FaWallet, FaFolder } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
@@ -32,7 +32,7 @@ const ALL_QUICK_ACTIONS = [
   { 
     id: 'send-money',
     label: 'Chi tiền', 
-    icon: RiSendPlaneFill,
+    icon: FaPaperPlane,
     color: 'from-blue-500 to-cyan-500',
     bgColor: 'bg-blue-50',
     textColor: 'text-blue-700',
@@ -40,15 +40,23 @@ const ALL_QUICK_ACTIONS = [
   { 
     id: 'add-transaction',
     label: 'Thêm thu/chi', 
-    icon: RiAddLine,
+    icon: FaPlus,
     color: 'from-emerald-500 to-teal-500',
     bgColor: 'bg-emerald-50',
     textColor: 'text-emerald-700',
   },
   { 
+    id: 'categories',
+    label: 'Danh mục', 
+    icon: FaFolder,
+    color: 'from-indigo-500 to-purple-500',
+    bgColor: 'bg-indigo-50',
+    textColor: 'text-indigo-700',
+  },
+  { 
     id: 'split-bill',
     label: 'Chia khoản', 
-    icon: RiExchangeDollarLine,
+    icon: FaExchangeAlt,
     color: 'from-purple-500 to-pink-500',
     bgColor: 'bg-purple-50',
     textColor: 'text-purple-700',
@@ -56,7 +64,7 @@ const ALL_QUICK_ACTIONS = [
   { 
     id: 'reminder',
     label: 'Nhắc thu/chi', 
-    icon: RiHandHeartLine,
+    icon: FaHandHoldingHeart,
     color: 'from-amber-500 to-orange-500',
     bgColor: 'bg-amber-50',
     textColor: 'text-amber-700',
@@ -64,7 +72,7 @@ const ALL_QUICK_ACTIONS = [
   { 
     id: 'settings',
     label: 'Cài đặt', 
-    icon: RiSettings3Line,
+    icon: FaCog,
     color: 'from-slate-500 to-slate-600',
     bgColor: 'bg-slate-50',
     textColor: 'text-slate-700',
@@ -178,12 +186,15 @@ export const DashboardPage = () => {
         setDefaultWalletId(selectedWallet.id) // Lưu vào state
         saveDefaultWalletId(selectedWallet.id) // Lưu vào localStorage để fallback
         setShowDefaultWalletModal(false)
+        success('Đã đặt ví mặc định thành công!')
       } catch (error) {
         console.error('Error setting default wallet:', error)
         // Vẫn lưu vào localStorage để fallback
         setDefaultWalletId(selectedWallet.id)
         saveDefaultWalletId(selectedWallet.id)
         setShowDefaultWalletModal(false)
+        // Thông báo lỗi nhưng vẫn đóng modal
+        showError('Không thể lưu vào database, đã lưu tạm vào bộ nhớ cục bộ.')
       }
     }
   }
@@ -195,11 +206,26 @@ export const DashboardPage = () => {
         const savedDefaultWalletId = await getDefaultWallet()
         if (savedDefaultWalletId) {
           setDefaultWalletId(savedDefaultWalletId)
+          saveDefaultWalletId(savedDefaultWalletId) // Đồng bộ với localStorage
           // WalletCarousel sẽ tự động chọn ví mặc định khi load
           // và gọi handleWalletChange để set selectedWallet
         } else {
-          // Nếu chưa có ví mặc định, hiển thị modal yêu cầu chọn sau khi wallets đã load
-          // Modal sẽ được hiển thị khi selectedWallet được set
+          // Kiểm tra localStorage fallback
+          const localDefaultWalletId = getDefaultWalletId()
+          if (localDefaultWalletId) {
+            // Kiểm tra xem ví này có còn tồn tại không
+            const wallets = await fetchWallets(false)
+            const walletExists = wallets.some(w => w.id === localDefaultWalletId)
+            if (walletExists) {
+              setDefaultWalletId(localDefaultWalletId)
+              // Đồng bộ lại với database
+              try {
+                await setDefaultWallet(localDefaultWalletId)
+              } catch (error) {
+                console.error('Error syncing default wallet to database:', error)
+              }
+            }
+          }
         }
       } catch (error) {
         console.error('Error loading default wallet:', error)
@@ -215,14 +241,56 @@ export const DashboardPage = () => {
 
   // Hiển thị modal nếu chưa có ví mặc định và đã có ví được chọn
   useEffect(() => {
-    if (!defaultWalletId && selectedWallet && !showDefaultWalletModal) {
-      // Đợi một chút để đảm bảo UI đã render
-      const timer = setTimeout(() => {
-        setShowDefaultWalletModal(true)
-      }, 500)
-      return () => clearTimeout(timer)
+    // Chỉ hiển thị modal nếu:
+    // 1. Chưa có ví mặc định trong state
+    // 2. Có ít nhất 1 ví trong danh sách
+    // 3. Đã có ví được chọn
+    // 4. Modal chưa được hiển thị
+    if (!defaultWalletId && wallets.length > 0 && selectedWallet && !showDefaultWalletModal) {
+      let isCancelled = false
+      let timer: ReturnType<typeof setTimeout> | null = null
+      
+      // Kiểm tra lại từ database để đảm bảo chính xác
+      const checkDefaultWallet = async () => {
+        try {
+          const dbDefaultWalletId = await getDefaultWallet()
+          if (!isCancelled) {
+            if (!dbDefaultWalletId) {
+              // Đợi một chút để đảm bảo UI đã render
+              timer = setTimeout(() => {
+                if (!isCancelled) {
+                  setShowDefaultWalletModal(true)
+                }
+              }, 500)
+            } else {
+              // Nếu đã có ví mặc định trong database, cập nhật state
+              setDefaultWalletId(dbDefaultWalletId)
+              saveDefaultWalletId(dbDefaultWalletId)
+            }
+          }
+        } catch (error) {
+          console.error('Error checking default wallet:', error)
+          // Nếu có lỗi, vẫn hiển thị modal nếu chưa có ví mặc định
+          if (!isCancelled && !defaultWalletId) {
+            timer = setTimeout(() => {
+              if (!isCancelled) {
+                setShowDefaultWalletModal(true)
+              }
+            }, 500)
+          }
+        }
+      }
+      
+      checkDefaultWallet()
+      
+      return () => {
+        isCancelled = true
+        if (timer) {
+          clearTimeout(timer)
+        }
+      }
     }
-  }, [defaultWalletId, selectedWallet, showDefaultWalletModal])
+  }, [defaultWalletId, selectedWallet, showDefaultWalletModal, wallets.length])
 
   // Load profile - sử dụng cache, chỉ reload khi cần
   useEffect(() => {
@@ -490,7 +558,8 @@ export const DashboardPage = () => {
             enabledQuickActions.length === 2 ? 'grid-cols-2' :
             enabledQuickActions.length === 3 ? 'grid-cols-3' :
             enabledQuickActions.length === 4 ? 'grid-cols-4' :
-            'grid-cols-5'
+            enabledQuickActions.length === 5 ? 'grid-cols-5' :
+            'grid-cols-6'
           }`}>
             {enabledQuickActions.map((action) => {
               const Icon = action.icon
@@ -503,6 +572,8 @@ export const DashboardPage = () => {
                       setIsTransactionModalOpen(true)
                     } else if (action.id === 'settings') {
                       setIsSettingsOpen(true)
+                    } else if (action.id === 'categories') {
+                      navigate('/categories')
                     }
                     // Các chức năng khác sẽ được implement sau
                   }}
@@ -577,7 +648,7 @@ export const DashboardPage = () => {
                       {IconComponent ? (
                         <IconComponent className="h-5 w-5" />
                       ) : (
-                        <RiAddLine className="h-5 w-5" />
+                        <FaPlus className="h-5 w-5" />
                       )}
                     </span>
                     
@@ -597,7 +668,7 @@ export const DashboardPage = () => {
                           <div className={`flex items-center gap-1 shrink-0 ${
                             isIncome ? 'text-emerald-700' : 'text-rose-700'
                           }`}>
-                            <RiCalendarLine className="h-3 w-3" />
+                            <FaCalendar className="h-3 w-3" />
                             <span className="whitespace-nowrap">
                               {new Date(transaction.transaction_date).toLocaleDateString('vi-VN', {
                                 day: '2-digit',
@@ -629,7 +700,7 @@ export const DashboardPage = () => {
                           const walletColor = getWalletColor(transaction.wallet_id)
                           return (
                             <div className={`flex items-center gap-1 rounded-full ${walletColor.bg} px-2 py-0.5`}>
-                              <RiWallet3Line className={`h-3 w-3 ${walletColor.icon}`} />
+                              <FaWallet className={`h-3 w-3 ${walletColor.icon}`} />
                               <span className={`text-xs font-semibold ${walletColor.text} whitespace-nowrap`}>
                                 {getWalletName(transaction.wallet_id)}
                               </span>
@@ -656,7 +727,7 @@ export const DashboardPage = () => {
               </p>
             </div>
             <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 text-xl text-slate-600 shadow-[0_12px_28px_rgba(15,40,80,0.12)]">
-              <RiHandCoinLine />
+              <FaHandHoldingUsd />
             </span>
           </div>
         </section>

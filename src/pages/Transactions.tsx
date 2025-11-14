@@ -1,13 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { useDataPreloader } from '../hooks/useDataPreloader'
 import {
-  RiAddLine,
-  RiArrowDownCircleLine,
-  RiArrowUpCircleLine,
-  RiCalendarLine,
-  RiSearchLine,
-  RiWallet3Line,
-} from 'react-icons/ri'
+  FaPlus,
+  FaArrowDown,
+  FaArrowUp,
+  FaCalendar,
+  FaSearch,
+  FaWallet,
+} from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
@@ -320,7 +320,7 @@ const TransactionsPage = () => {
           <section className="space-y-3">
             {/* Search Bar */}
             <div className="relative">
-              <RiSearchLine className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+              <FaSearch className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <input
                 type="text"
                 placeholder="Tìm kiếm giao dịch..."
@@ -343,7 +343,7 @@ const TransactionsPage = () => {
                       : 'text-slate-600 hover:bg-emerald-50'
                   }`}
                 >
-                  <RiArrowUpCircleLine className="h-4 w-4" />
+                  <FaArrowUp className="h-4 w-4" />
                   <span>Thu</span>
                 </button>
                 <button
@@ -355,7 +355,7 @@ const TransactionsPage = () => {
                       : 'text-slate-600 hover:bg-rose-50'
                   }`}
                 >
-                  <RiArrowDownCircleLine className="h-4 w-4" />
+                  <FaArrowDown className="h-4 w-4" />
                   <span>Chi</span>
                 </button>
                 {typeFilter !== 'all' && (
@@ -372,7 +372,7 @@ const TransactionsPage = () => {
 
               {/* Wallet Filter */}
               <div className="flex items-center gap-2 rounded-xl bg-white p-2 shadow-sm ring-1 ring-slate-200">
-                <RiWallet3Line className="h-4 w-4 text-slate-500" />
+                <FaWallet className="h-4 w-4 text-slate-500" />
                 <select
                   value={walletFilter}
                   onChange={(e) => setWalletFilter(e.target.value)}
@@ -400,7 +400,7 @@ const TransactionsPage = () => {
               <TransactionListSkeleton count={10} />
             ) : paginatedTransactions.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-12 shadow-lg ring-1 ring-slate-100">
-                <RiSearchLine className="mb-4 h-12 w-12 text-slate-300" />
+                <FaSearch className="mb-4 h-12 w-12 text-slate-300" />
                 <p className="text-sm font-semibold text-slate-600">
                   {searchTerm || typeFilter !== 'all' || walletFilter !== 'all'
                     ? 'Không tìm thấy giao dịch phù hợp'
@@ -445,7 +445,7 @@ const TransactionsPage = () => {
                         {IconComponent ? (
                           <IconComponent className="h-5 w-5" />
                         ) : (
-                          <RiAddLine className="h-5 w-5" />
+                          <FaPlus className="h-5 w-5" />
                         )}
                       </span>
 
@@ -469,7 +469,7 @@ const TransactionsPage = () => {
                                 isIncome ? 'text-emerald-700' : 'text-rose-700'
                               }`}
                             >
-                              <RiCalendarLine className="h-3 w-3" />
+                              <FaCalendar className="h-3 w-3" />
                               <span className="whitespace-nowrap">
                                 {new Date(transaction.transaction_date).toLocaleDateString('vi-VN', {
                                   day: '2-digit',
@@ -505,7 +505,7 @@ const TransactionsPage = () => {
                             const walletColor = getWalletColor(transaction.wallet_id)
                             return (
                               <div className={`flex items-center gap-1 rounded-full ${walletColor.bg} px-2 py-0.5`}>
-                                <RiWallet3Line className={`h-3 w-3 ${walletColor.icon}`} />
+                                <FaWallet className={`h-3 w-3 ${walletColor.icon}`} />
                                 <span className={`text-xs font-semibold ${walletColor.text} whitespace-nowrap`}>
                                   {getWalletName(transaction.wallet_id)}
                                 </span>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { RiAddLine, RiEdit2Line, RiDeleteBin6Line, RiWallet3Line, RiCheckLine, RiStarLine, RiStarFill } from 'react-icons/ri'
+import { FaPlus, FaEdit, FaTrash, FaWallet, FaCheck, FaStar } from 'react-icons/fa'
 import { useDataPreloader } from '../hooks/useDataPreloader'
 
 import FooterNav from '../components/layout/FooterNav'
@@ -421,7 +421,7 @@ export const WalletsPage = () => {
             onClick={() => handleOpenForm()}
             className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-6 py-4 font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-blue-700"
           >
-            <RiAddLine className="h-5 w-5" />
+            <FaPlus className="h-5 w-5" />
             Thêm ví mới
           </button>
 
@@ -430,7 +430,7 @@ export const WalletsPage = () => {
             <WalletListSkeleton count={5} />
           ) : wallets.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-12 text-center shadow-sm">
-              <RiWallet3Line className="mb-4 h-16 w-16 text-slate-300" />
+              <FaWallet className="mb-4 h-16 w-16 text-slate-300" />
               <p className="text-sm font-semibold text-slate-700">Chưa có ví nào</p>
               <p className="mt-1 text-xs text-slate-500">Tạo ví đầu tiên để bắt đầu</p>
             </div>
@@ -464,7 +464,7 @@ export const WalletsPage = () => {
                               animation: 'scaleIn 0.3s ease-out, scaleOut 0.3s ease-out 1.7s'
                             }}
                           >
-                            <RiCheckLine className="h-10 w-10 text-emerald-500" />
+                            <FaCheck className="h-10 w-10 text-emerald-500" />
                           </div>
                         </div>
                       )}
@@ -534,13 +534,13 @@ export const WalletsPage = () => {
                             onClick={() => handleOpenForm(wallet)}
                             className="rounded-full p-2 text-white/70 transition hover:bg-white/20 hover:text-white"
                           >
-                            <RiEdit2Line className="h-5 w-5" />
+                            <FaEdit className="h-5 w-5" />
                           </button>
                           <button
                             onClick={() => handleDelete(wallet.id)}
                             className="rounded-full p-2 text-white/70 transition hover:bg-white/20 hover:text-rose-300"
                           >
-                            <RiDeleteBin6Line className="h-5 w-5" />
+                            <FaTrash className="h-5 w-5" />
                           </button>
                         </div>
                       </div>
@@ -593,12 +593,12 @@ export const WalletsPage = () => {
                             >
                               {isDefault ? (
                                 <>
-                                  <RiStarFill className="h-4 w-4" />
+                                  <FaStar className="h-4 w-4" />
                                   <span>Ví mặc định</span>
                                 </>
                               ) : (
                                 <>
-                                  <RiStarLine className="h-4 w-4" />
+                                  <FaStar className="h-4 w-4" />
                                   <span>Đặt làm ví mặc định</span>
                                 </>
                               )}
@@ -709,13 +709,13 @@ export const WalletsPage = () => {
                                         onClick={() => handleOpenForm(wallet)}
                                         className="rounded-full p-2 text-white/70 transition hover:bg-white/20 hover:text-white"
                                       >
-                                        <RiEdit2Line className="h-5 w-5" />
+                                        <FaEdit className="h-5 w-5" />
                                       </button>
                                       <button
                                         onClick={() => handleDelete(wallet.id)}
                                         className="rounded-full p-2 text-white/70 transition hover:bg-white/20 hover:text-rose-300"
                                       >
-                                        <RiDeleteBin6Line className="h-5 w-5" />
+                                        <FaTrash className="h-5 w-5" />
                                       </button>
                                     </div>
                                   </div>

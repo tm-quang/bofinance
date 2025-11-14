@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { RiCalendarLine, RiCloseLine, RiImageAddLine, RiWallet3Line, RiArrowDownCircleLine, RiArrowUpCircleLine } from 'react-icons/ri'
+import { FaCalendar, FaTimes, FaImage, FaWallet, FaArrowDown, FaArrowUp } from 'react-icons/fa'
 
 import { CATEGORY_ICON_MAP } from '../../constants/categoryIcons'
 import { CustomSelect } from '../ui/CustomSelect'
@@ -309,7 +309,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
             onClick={onClose}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-all hover:bg-slate-200 hover:scale-110 active:scale-95 sm:h-10 sm:w-10"
           >
-            <RiCloseLine className="h-4 w-4 sm:h-5 sm:w-5" />
+            <FaTimes className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
         </div>
 
@@ -336,7 +336,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
                     : 'border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 text-slate-600 hover:border-emerald-300 hover:from-emerald-50 hover:to-emerald-100 hover:text-emerald-700 hover:shadow-md'
                 }`}
               >
-                <RiArrowUpCircleLine className={`relative z-10 h-5 w-5 transition-transform ${formState.type === 'Thu' ? 'scale-110' : ''} sm:h-6 sm:w-6`} />
+                <FaArrowUp className={`relative z-10 h-5 w-5 transition-transform ${formState.type === 'Thu' ? 'scale-110' : ''} sm:h-6 sm:w-6`} />
                 <span className="relative z-10">Thu nhập</span>
                 {formState.type === 'Thu' && (
                   <div className="absolute inset-0 z-0 rounded-2xl bg-white/10 backdrop-blur-sm" />
@@ -351,7 +351,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
                     : 'border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 text-slate-600 hover:border-rose-300 hover:from-rose-50 hover:to-rose-100 hover:text-rose-700 hover:shadow-md'
                 }`}
               >
-                <RiArrowDownCircleLine className={`relative z-10 h-5 w-5 transition-transform ${formState.type === 'Chi' ? 'scale-110' : ''} sm:h-6 sm:w-6`} />
+                <FaArrowDown className={`relative z-10 h-5 w-5 transition-transform ${formState.type === 'Chi' ? 'scale-110' : ''} sm:h-6 sm:w-6`} />
                 <span className="relative z-10">Chi tiêu</span>
                 {formState.type === 'Chi' && (
                   <div className="absolute inset-0 z-0 rounded-2xl bg-white/10 backdrop-blur-sm" />
@@ -372,7 +372,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
                   value: wallet.id,
                   label: wallet.name,
                   metadata: formatCurrency(wallet.balance),
-                  icon: <RiWallet3Line className="h-4 w-4" />,
+                  icon: <FaWallet className="h-4 w-4" />,
                 }))}
                 value={formState.wallet_id}
                 onChange={(value) => setFormState((prev) => ({ ...prev, wallet_id: value }))}
@@ -438,7 +438,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
                 Ngày giao dịch <span className="text-rose-500">*</span>
               </label>
               <div className="relative">
-                <RiCalendarLine className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <FaCalendar className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   type="date"
                   id="date"
@@ -491,7 +491,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
                         }
                         className="hover:text-sky-900"
                       >
-                        <RiCloseLine className="h-3 w-3" />
+                        <FaTimes className="h-3 w-3" />
                       </button>
                     </span>
                   ))}
@@ -550,7 +550,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
               onClick={() => fileInputRef.current?.click()}
               className="flex w-full items-center justify-center gap-1 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-sm font-medium text-slate-600 transition-all hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 sm:p-5"
             >
-              <RiImageAddLine className="h-5 w-5" />
+              <FaImage className="h-5 w-5" />
               <span>Tải lên hóa đơn/ảnh (tùy chọn)</span>
             </button>
             {(uploadedFiles.length > 0 || uploadedImageUrls.length > 0) && (
@@ -571,7 +571,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
                       onClick={() => removeImageUrl(index)}
                       className="absolute top-2 right-2 rounded-full bg-black/50 p-1.5 text-white opacity-0 transition-opacity group-hover:opacity-100 hover:bg-black/70"
                     >
-                      <RiCloseLine className="h-4 w-4" />
+                      <FaTimes className="h-4 w-4" />
                     </button>
                   </div>
                 ))}
@@ -582,7 +582,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
                     className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-2.5 sm:p-3"
                   >
                     <div className="flex min-w-0 flex-1 items-center gap-2">
-                      <RiImageAddLine className="h-4 w-4 shrink-0 text-slate-400" />
+                      <FaImage className="h-4 w-4 shrink-0 text-slate-400" />
                       <span className="truncate text-xs text-slate-700 sm:text-sm">{file.name}</span>
                       <span className="shrink-0 text-xs text-slate-500">
                         ({(file.size / 1024).toFixed(1)} KB - Chưa upload)
@@ -593,7 +593,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
                       onClick={() => removeFile(index)}
                       className="ml-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
                     >
-                      <RiCloseLine className="h-4 w-4" />
+                      <FaTimes className="h-4 w-4" />
                     </button>
                   </div>
                 ))}

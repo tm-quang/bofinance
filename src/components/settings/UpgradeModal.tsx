@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { RiCheckLine, RiCloseLine, RiSparkling2Line, RiVipCrownLine } from 'react-icons/ri'
+import { FaCheck, FaTimes, FaStar, FaCrown } from 'react-icons/fa'
 
 type UpgradeModalProps = {
   isOpen: boolean
@@ -28,7 +28,7 @@ export const UpgradeModal = ({ isOpen, onClose }: UpgradeModalProps) => {
         <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-br from-amber-50 via-amber-50/50 to-white px-4 py-4 sm:px-6 sm:py-5 rounded-t-3xl">
           <div className="flex items-center gap-3">
             <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg sm:h-14 sm:w-14">
-              <RiVipCrownLine className="h-7 w-7 sm:h-8 sm:w-8" />
+              <FaCrown className="h-7 w-7 sm:h-8 sm:w-8" />
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-900 sm:text-xl">Nâng cấp BoFin+</h2>
@@ -40,7 +40,7 @@ export const UpgradeModal = ({ isOpen, onClose }: UpgradeModalProps) => {
             onClick={onClose}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-all hover:bg-slate-200 hover:scale-110 active:scale-95 sm:h-10 sm:w-10"
           >
-            <RiCloseLine className="h-4 w-4 sm:h-5 sm:w-5" />
+            <FaTimes className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
         </div>
 
@@ -75,7 +75,7 @@ export const UpgradeModal = ({ isOpen, onClose }: UpgradeModalProps) => {
           {/* Pricing */}
           <div className="mb-6 rounded-2xl border-2 border-amber-200 bg-gradient-to-br from-amber-50 to-white p-6 text-center">
             <div className="mb-2 flex items-center justify-center gap-2">
-              <RiSparkling2Line className="h-5 w-5 text-amber-500" />
+              <FaStar className="h-5 w-5 text-amber-500" />
               <span className="text-sm font-semibold text-amber-700">Ưu đãi đặc biệt</span>
             </div>
             <div className="mb-1">
@@ -98,7 +98,7 @@ export const UpgradeModal = ({ isOpen, onClose }: UpgradeModalProps) => {
                 className="flex items-center gap-3 rounded-xl bg-slate-50 p-3"
               >
                 <div className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-                  <RiCheckLine className="h-4 w-4" />
+                  <FaCheck className="h-4 w-4" />
                 </div>
                 <span className="text-sm text-slate-700">{feature.name}</span>
               </div>

@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { RiStarFill } from 'react-icons/ri'
+import { FaStar } from 'react-icons/fa'
 import type { WalletRecord } from '../../lib/walletService'
 import { getWalletCashFlowStats } from '../../lib/walletBalanceService'
 
@@ -218,7 +218,7 @@ export const WalletCard = ({ wallet, isActive = false, isDefault = false }: Wall
             })()}
             {isDefault && (
               <span className="shrink-0 ml-auto flex items-center gap-1 rounded-full bg-amber-400/90 px-2 py-0.5 text-xs font-medium text-white shadow-lg backdrop-blur-sm">
-                <RiStarFill className="h-3 w-3" />
+                <FaStar className="h-3 w-3" />
                 <span>Ví mặc định</span>
               </span>
             )}

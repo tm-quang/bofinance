@@ -1,4 +1,4 @@
-import { RiDeleteBinLine, RiEditLine } from 'react-icons/ri'
+import { FaTrash, FaEdit } from 'react-icons/fa'
 
 type TransactionActionModalProps = {
   isOpen: boolean
@@ -33,7 +33,7 @@ export const TransactionActionModal = ({
           className="flex items-center gap-3 rounded-xl px-4 py-3 text-left transition hover:bg-sky-50 active:bg-sky-100"
         >
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
-            <RiEditLine className="h-5 w-5" />
+            <FaEdit className="h-5 w-5" />
           </div>
           <div className="flex-1">
             <p className="text-sm font-semibold text-slate-900">Sửa giao dịch</p>
@@ -47,7 +47,7 @@ export const TransactionActionModal = ({
           className="flex items-center gap-3 rounded-xl px-4 py-3 text-left transition hover:bg-rose-50 active:bg-rose-100"
         >
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
-            <RiDeleteBinLine className="h-5 w-5" />
+            <FaTrash className="h-5 w-5" />
           </div>
           <div className="flex-1">
             <p className="text-sm font-semibold text-slate-900">Xóa giao dịch</p>

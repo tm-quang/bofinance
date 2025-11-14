@@ -17,14 +17,21 @@ build
 *.local
 
 # Environment variables and secrets
+# Ignore all .env files to prevent committing sensitive data
 .env
+.env.*
 .env.local
 .env.development
 .env.production
 .env.test
-.env.*.local
+.env.development.local
+.env.production.local
+.env.test.local
 *.env
+*.env.local
+# Allow template file
 !.env.example
+!env.template
 
 # Development tools and scripts (not needed for production)
 Tool/
@@ -35,6 +42,9 @@ supabase/
 *.aab
 .gradle/
 local.properties
+
+# Documentation files
+*.md
 
 # Editor directories and files
 .vscode/*

@@ -1,5 +1,5 @@
 import { useEffect, useState, useEffectEvent } from 'react'
-import { RiCloseLine, RiDragMoveLine } from 'react-icons/ri'
+import { FaTimes, FaGripVertical } from 'react-icons/fa'
 
 type QuickAction = {
   id: string
@@ -70,7 +70,7 @@ export const QuickActionsSettings = ({
             onClick={onClose}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-all hover:bg-slate-200 hover:scale-110 active:scale-95 sm:h-10 sm:w-10"
           >
-            <RiCloseLine className="h-4 w-4 sm:h-5 sm:w-5" />
+            <FaTimes className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
         </div>
 
@@ -83,7 +83,7 @@ export const QuickActionsSettings = ({
                 className="flex items-center justify-between rounded-xl border-2 border-slate-200 bg-white p-4 transition-all hover:border-slate-300 hover:shadow-sm"
               >
                 <div className="flex items-center gap-3">
-                  <RiDragMoveLine className="h-5 w-5 text-slate-400" />
+                  <FaGripVertical className="h-5 w-5 text-slate-400" />
                   <div>
                     <p className="font-semibold text-slate-900">{action.label}</p>
                     <p className="text-xs text-slate-500">

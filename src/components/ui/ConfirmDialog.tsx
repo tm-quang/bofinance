@@ -1,4 +1,4 @@
-import { RiCheckLine, RiCloseLine, RiErrorWarningLine, RiInformationLine, RiAlertLine } from 'react-icons/ri'
+import { FaCheck, FaTimes, FaExclamationTriangle, FaInfoCircle, FaExclamationCircle } from 'react-icons/fa'
 import type { DialogType } from '../../contexts/dialogContext.helpers'
 
 type ConfirmDialogProps = {
@@ -20,7 +20,7 @@ type ConfirmDialogProps = {
 const getDialogConfig = (type: DialogType = 'confirm') => {
   const configs = {
     confirm: {
-      icon: RiInformationLine,
+      icon: FaInfoCircle,
       iconColor: 'text-blue-500',
       iconBg: 'bg-blue-100',
       titleColor: 'text-slate-900',
@@ -28,7 +28,7 @@ const getDialogConfig = (type: DialogType = 'confirm') => {
       defaultTitle: 'Xác nhận',
     },
     alert: {
-      icon: RiAlertLine,
+      icon: FaExclamationCircle,
       iconColor: 'text-amber-500',
       iconBg: 'bg-amber-100',
       titleColor: 'text-slate-900',
@@ -36,7 +36,7 @@ const getDialogConfig = (type: DialogType = 'confirm') => {
       defaultTitle: 'Thông báo',
     },
     warning: {
-      icon: RiErrorWarningLine,
+      icon: FaExclamationTriangle,
       iconColor: 'text-orange-500',
       iconBg: 'bg-orange-100',
       titleColor: 'text-orange-900',
@@ -44,7 +44,7 @@ const getDialogConfig = (type: DialogType = 'confirm') => {
       defaultTitle: 'Cảnh báo',
     },
     info: {
-      icon: RiInformationLine,
+      icon: FaInfoCircle,
       iconColor: 'text-blue-500',
       iconBg: 'bg-blue-100',
       titleColor: 'text-slate-900',
@@ -52,7 +52,7 @@ const getDialogConfig = (type: DialogType = 'confirm') => {
       defaultTitle: 'Thông tin',
     },
     success: {
-      icon: RiCheckLine,
+      icon: FaCheck,
       iconColor: 'text-emerald-500',
       iconBg: 'bg-emerald-100',
       titleColor: 'text-slate-900',
@@ -60,7 +60,7 @@ const getDialogConfig = (type: DialogType = 'confirm') => {
       defaultTitle: 'Thành công',
     },
     error: {
-      icon: RiErrorWarningLine,
+      icon: FaExclamationTriangle,
       iconColor: 'text-rose-500',
       iconBg: 'bg-rose-100',
       titleColor: 'text-rose-900',
@@ -135,7 +135,7 @@ export const ConfirmDialog = ({
             onClick={handleCancel}
             className="absolute right-4 top-4 z-10 rounded-full p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
           >
-            <RiCloseLine className="h-5 w-5" />
+            <FaTimes className="h-5 w-5" />
           </button>
         )}
 

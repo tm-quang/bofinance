@@ -13,8 +13,8 @@ export const LoginPage = () => {
 
   return (
     <AuroraBackground>
-      <div className="flex h-full w-full flex-col items-center justify-between gap-2 py-8 sm:gap-3 sm:py-4">
-        <div className="flex w-full flex-shrink-0 flex-col items-center gap-2 sm:gap-3">
+      <div className="flex min-h-full w-full flex-col items-center justify-between gap-3">
+        <div className="flex w-full flex-shrink-0 flex-col items-center gap-2 sm:gap-3 pt-6 sm:pt-8">
           <BrandBadge />
 
           <div className="text-center">
@@ -22,7 +22,7 @@ export const LoginPage = () => {
           </div>
         </div>
 
-        <div className="flex w-full flex-1 flex-col items-center justify-center gap-2 overflow-y-auto sm:gap-3">
+        <div className="flex w-full flex-1 flex-col items-center justify-center gap-3 py-4">
           <LoginForm
             onSuccess={() => {
               void refresh()
@@ -36,7 +36,7 @@ export const LoginPage = () => {
           <SocialLoginButtons />
         </div>
 
-        <div className="flex w-full flex-shrink-0 items-center justify-center">
+        <div className="flex w-full flex-shrink-0 items-center justify-center pb-4">
           <AuthFooter prompt="Chưa có tài khoản?" linkTo="/register" linkLabel="Đăng ký ngay" />
         </div>
       </div>

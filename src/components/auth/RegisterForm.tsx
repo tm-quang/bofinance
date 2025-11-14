@@ -1,5 +1,5 @@
 import { useState, type ChangeEvent, type FormEvent } from 'react'
-import { FiEye, FiEyeOff, FiLock, FiMail, FiUser } from 'react-icons/fi'
+import { FaEye, FaEyeSlash, FaLock, FaEnvelope, FaUser } from 'react-icons/fa'
 
 import { getSupabaseClient } from '../../lib/supabaseClient'
 import { useNotification } from '../../contexts/notificationContext.helpers'
@@ -80,9 +80,9 @@ export const RegisterForm = ({ onSuccess, onError }: RegisterFormProps) => {
   }
 
   return (
-    <div className="rounded-3xl shadow-lg bg-white p-6 sm:p-8">
+    <div className="w-full max-w-lg rounded-3xl shadow-lg bg-white p-6 sm:p-8">
       {error && (
-        <div className="mb-5 rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="mb-5 rounded-3xl border border-rose-200 bg-rose-50 px-4 py-10 text-sm text-rose-700">
           {error}
         </div>
       )}
@@ -91,14 +91,14 @@ export const RegisterForm = ({ onSuccess, onError }: RegisterFormProps) => {
         <div className="space-y-2">
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-              <FiUser className="h-5 w-5 text-slate-400" />
+              <FaUser className="h-5 w-5 text-slate-400" />
             </div>
             <input
               id="name"
               name="name"
               type="text"
               required
-              className="block w-full rounded-3xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-4 text-slate-900 placeholder:text-slate-400 transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="block w-full rounded-xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-4 text-slate-900 placeholder:text-slate-400 transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
               placeholder="Họ và tên"
               value={formData.name}
               onChange={handleChange('name')}
@@ -109,14 +109,14 @@ export const RegisterForm = ({ onSuccess, onError }: RegisterFormProps) => {
         <div className="space-y-2">
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-              <FiMail className="h-5 w-5 text-slate-400" />
+              <FaEnvelope className="h-5 w-5 text-slate-400" />
             </div>
             <input
               id="register-email"
               name="email"
               type="email"
               required
-              className="block w-full rounded-3xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-4 text-slate-900 placeholder:text-slate-400 transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="block w-full rounded-xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-4 text-slate-900 placeholder:text-slate-400 transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
               placeholder="Email của bạn"
               value={formData.email}
               onChange={handleChange('email')}
@@ -127,7 +127,7 @@ export const RegisterForm = ({ onSuccess, onError }: RegisterFormProps) => {
         <div className="space-y-2">
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-              <FiLock className="h-5 w-5 text-slate-400" />
+              <FaLock className="h-5 w-5 text-slate-400" />
             </div>
             <input
               id="register-password"
@@ -135,7 +135,7 @@ export const RegisterForm = ({ onSuccess, onError }: RegisterFormProps) => {
               type={showPassword ? 'text' : 'password'}
               autoComplete="new-password"
               required
-              className="block w-full rounded-3xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-12 text-slate-900 placeholder:text-slate-400 transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="block w-full rounded-xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-12 text-slate-900 placeholder:text-slate-400 transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
               placeholder="Nhập mật khẩu"
               value={formData.password}
               onChange={handleChange('password')}
@@ -146,7 +146,7 @@ export const RegisterForm = ({ onSuccess, onError }: RegisterFormProps) => {
               onClick={() => setShowPassword((prev) => !prev)}
               aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
             >
-              {showPassword ? <FiEyeOff className="h-5 w-5" /> : <FiEye className="h-5 w-5" />}
+              {showPassword ? <FaEyeSlash className="h-5 w-5" /> : <FaEye className="h-5 w-5" />}
             </button>
           </div>
         </div>
@@ -154,7 +154,7 @@ export const RegisterForm = ({ onSuccess, onError }: RegisterFormProps) => {
         <div className="space-y-2">
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-              <FiLock className="h-5 w-5 text-slate-400" />
+              <FaLock className="h-5 w-5 text-slate-400" />
             </div>
             <input
               id="register-confirm-password"
@@ -162,7 +162,7 @@ export const RegisterForm = ({ onSuccess, onError }: RegisterFormProps) => {
               type={showConfirmPassword ? 'text' : 'password'}
               autoComplete="new-password"
               required
-              className="block w-full rounded-3xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-12 text-slate-900 placeholder:text-slate-400 transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="block w-full rounded-xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-12 text-slate-900 placeholder:text-slate-400 transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
               placeholder="Nhập lại mật khẩu"
               value={formData.confirmPassword}
               onChange={handleChange('confirmPassword')}
@@ -173,7 +173,7 @@ export const RegisterForm = ({ onSuccess, onError }: RegisterFormProps) => {
               onClick={() => setShowConfirmPassword((prev) => !prev)}
               aria-label={showConfirmPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
             >
-              {showConfirmPassword ? <FiEyeOff className="h-5 w-5" /> : <FiEye className="h-5 w-5" />}
+              {showConfirmPassword ? <FaEyeSlash className="h-5 w-5" /> : <FaEye className="h-5 w-5" />}
             </button>
           </div>
         </div>

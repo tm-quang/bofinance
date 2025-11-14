@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { RiCameraLine, RiCloseLine, RiMailLine, RiPhoneLine, RiUser3Line } from 'react-icons/ri'
+import { FaCamera, FaTimes, FaEnvelope, FaPhone, FaUser } from 'react-icons/fa'
 
 import { deleteAvatar, getCurrentProfile, updateProfile, uploadAvatar, type ProfileRecord } from '../../lib/profileService'
 import { getSupabaseClient } from '../../lib/supabaseClient'
@@ -205,7 +205,7 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
             onClick={onClose}
             className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-all hover:bg-slate-200 hover:scale-110 active:scale-95 sm:h-10 sm:w-10"
           >
-            <RiCloseLine className="h-4 w-4 sm:h-5 sm:w-5" />
+            <FaTimes className="h-4 w-4 sm:h-5 sm:w-5" />
           </button>
         </div>
 
@@ -232,7 +232,7 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
                     />
                   ) : (
                     <div className="flex h-24 w-24 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-blue-600 text-white ring-4 ring-slate-100 sm:h-28 sm:w-28">
-                      <RiUser3Line className="h-12 w-12 sm:h-14 sm:w-14" />
+                      <FaUser className="h-12 w-12 sm:h-14 sm:w-14" />
                     </div>
                   )}
                   {(isAvatarProcessing || isAvatarUploading) && (
@@ -246,7 +246,7 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
                     disabled={isSubmitting || isAvatarProcessing || isAvatarUploading}
                     className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-sky-500 text-white shadow-lg transition hover:bg-sky-600 disabled:opacity-50 sm:h-10 sm:w-10"
                   >
-                    <RiCameraLine className="h-4 w-4 sm:h-5 sm:w-5" />
+                    <FaCamera className="h-4 w-4 sm:h-5 sm:w-5" />
                   </button>
                   <input
                     ref={fileInputRef}
@@ -276,7 +276,7 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
               {/* Full Name */}
               <div>
                 <label htmlFor="full_name" className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
-                  <RiUser3Line className="mr-1.5 inline h-4 w-4" />
+                  <FaUser className="mr-1.5 inline h-4 w-4" />
                   Họ và tên
                 </label>
                 <input
@@ -292,7 +292,7 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
               {/* Email (read-only) */}
               <div>
                 <label htmlFor="email" className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
-                  <RiMailLine className="mr-1.5 inline h-4 w-4" />
+                  <FaEnvelope className="mr-1.5 inline h-4 w-4" />
                   Email
                 </label>
                 <input
@@ -308,7 +308,7 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
               {/* Phone */}
               <div>
                 <label htmlFor="phone" className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
-                  <RiPhoneLine className="mr-1.5 inline h-4 w-4" />
+                  <FaPhone className="mr-1.5 inline h-4 w-4" />
                   Số điện thoại
                 </label>
                 <input

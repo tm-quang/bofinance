@@ -1,5 +1,5 @@
-import { useState, type ChangeEvent, type FormEvent } from 'react'
-import { FiEye, FiEyeOff, FiLock, FiMail } from 'react-icons/fi'
+import { useState, useEffect, type ChangeEvent, type FormEvent } from 'react'
+import { FaEye, FaEyeSlash, FaLock, FaEnvelope } from 'react-icons/fa'
 
 import { getSupabaseClient } from '../../lib/supabaseClient'
 import { useNotification } from '../../contexts/notificationContext.helpers'
@@ -10,12 +10,24 @@ type LoginFormProps = {
   onError?: (message: string) => void
 }
 
+const REMEMBER_EMAIL_KEY = 'bofin_remembered_email'
+
 export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
   const { success, error: showError } = useNotification()
   const [formData, setFormData] = useState({ email: '', password: '' })
   const [error, setError] = useState<string>('')
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [showPassword, setShowPassword] = useState(false)
+  const [rememberMe, setRememberMe] = useState(false)
+
+  // Load remembered email on mount
+  useEffect(() => {
+    const rememberedEmail = localStorage.getItem(REMEMBER_EMAIL_KEY)
+    if (rememberedEmail) {
+      setFormData((prev) => ({ ...prev, email: rememberedEmail }))
+      setRememberMe(true)
+    }
+  }, [])
 
   const handleChange =
     (field: 'email' | 'password') =>
@@ -43,6 +55,13 @@ export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
         throw authError
       }
 
+      // Save or remove email based on remember me checkbox
+      if (rememberMe) {
+        localStorage.setItem(REMEMBER_EMAIL_KEY, formData.email)
+      } else {
+        localStorage.removeItem(REMEMBER_EMAIL_KEY)
+      }
+
       // Set flag to show welcome modal after navigation
       sessionStorage.setItem('showWelcomeModal', 'true')
 
@@ -63,9 +82,9 @@ export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
   }
 
   return (
-    <div className="rounded-3xl shadow-lg bg-white p-6 sm:p-8">
+    <div className="w-full max-w-lg rounded-3xl shadow-lg bg-white p-6 sm:p-8">
       {error && (
-        <div className="mb-5 rounded-3xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+        <div className="mb-5 rounded-3xl border border-rose-200 bg-rose-50 px-4 py-10 text-sm text-rose-700">
           {error}
         </div>
       )}
@@ -74,14 +93,14 @@ export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
         <div className="space-y-2">
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-              <FiMail className="h-5 w-5 text-slate-400" />
+              <FaEnvelope className="h-5 w-5 text-slate-400" />
             </div>
             <input
               id="email"
               name="email"
               type="email"
               required
-              className="block w-full rounded-3xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-4 text-slate-900 placeholder:text-slate-400 transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="block w-full rounded-xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-4 text-slate-900 placeholder:text-slate-400 transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
               placeholder="Nhập địa chỉ Email"
               value={formData.email}
               onChange={handleChange('email')}
@@ -92,7 +111,7 @@ export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
         <div className="space-y-2">
           <div className="relative">
             <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-4">
-              <FiLock className="h-5 w-5 text-slate-400" />
+              <FaLock className="h-5 w-5 text-slate-400" />
             </div>
             <input
               id="password"
@@ -100,7 +119,7 @@ export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
               type={showPassword ? 'text' : 'password'}
               autoComplete="current-password"
               required
-              className="block w-full rounded-3xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-12 text-slate-900 placeholder:text-slate-400 transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
+              className="block w-full rounded-xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-12 text-slate-900 placeholder:text-slate-400 transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
               placeholder="Nhập mật khẩu"
               value={formData.password}
               onChange={handleChange('password')}
@@ -111,12 +130,23 @@ export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
               onClick={() => setShowPassword((prev) => !prev)}
               aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
             >
-              {showPassword ? <FiEyeOff className="h-5 w-5" /> : <FiEye className="h-5 w-5" />}
+              {showPassword ? <FaEyeSlash className="h-5 w-5" /> : <FaEye className="h-5 w-5" />}
             </button>
           </div>
         </div>
 
-        <div className="text-right">
+        <div className="flex items-center justify-between">
+          <label className="flex items-center gap-2 cursor-pointer group">
+            <input
+              type="checkbox"
+              checked={rememberMe}
+              onChange={(e) => setRememberMe(e.target.checked)}
+              className="h-4 w-4 rounded border-slate-300 text-sky-600 focus:ring-2 focus:ring-sky-500 focus:ring-offset-0 cursor-pointer transition"
+            />
+            <span className="text-sm text-slate-600 group-hover:text-slate-900 transition-colors">
+              Ghi nhớ đăng nhập
+            </span>
+          </label>
           <button
             className="text-sm font-medium text-sky-600 transition-colors hover:text-sky-500"
             type="button"

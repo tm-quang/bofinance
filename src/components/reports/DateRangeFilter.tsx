@@ -1,4 +1,4 @@
-import { RiCalendarLine } from 'react-icons/ri'
+import { FaCalendar } from 'react-icons/fa'
 
 type DateRangeType = 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
 
@@ -53,7 +53,7 @@ export const DateRangeFilter = ({
       {rangeType === 'custom' && (
         <div className="grid grid-cols-2 gap-3 rounded-xl bg-white border border-slate-200 p-3">
           <div className="relative">
-            <RiCalendarLine className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <FaCalendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="date"
               value={startDate || ''}
@@ -63,7 +63,7 @@ export const DateRangeFilter = ({
             />
           </div>
           <div className="relative">
-            <RiCalendarLine className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <FaCalendar className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
               type="date"
               value={endDate || ''}

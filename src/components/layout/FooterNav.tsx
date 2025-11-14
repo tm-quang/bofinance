@@ -1,12 +1,12 @@
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { IconType } from 'react-icons'
 import {
-  RiAddLine,
-  RiBarChart2Line,
-  RiHome2Line,
-  RiSettings4Line,
-  RiFolder2Line,
-} from 'react-icons/ri'
+  FaPlus,
+  FaChartBar,
+  FaHome,
+  FaCog,
+  FaWallet,
+} from 'react-icons/fa'
 
 type FooterNavProps = {
   onAddClick?: () => void
@@ -21,11 +21,11 @@ type TabItem = {
 }
 
 const tabs: TabItem[] = [
-  { id: 'home', label: 'Trang chủ', icon: RiHome2Line, path: '/dashboard' },
-  { id: 'wallet', label: 'Danh mục', icon: RiFolder2Line, path: '/categories' },
-  { id: 'add', label: '', icon: RiAddLine, prominent: true },
-  { id: 'reports', label: 'Báo cáo', icon: RiBarChart2Line, path: '/reports' },
-  { id: 'settings', label: 'Cài đặt', icon: RiSettings4Line, path: '/settings' },
+  { id: 'home', label: 'Trang chủ', icon: FaHome, path: '/dashboard' },
+  { id: 'budgets', label: 'Ngân sách', icon: FaWallet, path: '/budgets' },
+  { id: 'add', label: '', icon: FaPlus, prominent: true },
+  { id: 'reports', label: 'Báo cáo', icon: FaChartBar, path: '/reports' },
+  { id: 'settings', label: 'Cài đặt', icon: FaCog, path: '/settings' },
 ]
 
 export const FooterNav = ({ onAddClick }: FooterNavProps) => {

@@ -1,6 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { FiBell } from 'react-icons/fi'
-import { RiArrowLeftLine } from 'react-icons/ri'
+import { FaBell, FaArrowLeft } from 'react-icons/fa'
 import { useNavigate } from 'react-router-dom'
 
 type HeaderBarProps =
@@ -76,7 +75,7 @@ const HeaderBar = (props: HeaderBarProps) => {
             className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100"
             aria-label="Quay lại"
           >
-            <RiArrowLeftLine className="h-5 w-5" />
+            <FaArrowLeft className="h-5 w-5" />
           </button>
           <p className="flex-1 px-4 text-center text-base font-semibold uppercase tracking-[0.2em] text-slate-800">
             {title}
@@ -124,7 +123,7 @@ const HeaderBar = (props: HeaderBarProps) => {
         </div>
         <button className="relative flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-xl ring-1 ring-slate-100">
           <span className={`absolute right-1 top-1 h-2.5 w-2.5 rounded-full ${badgeColor}`} />
-          <FiBell className="h-6 w-6 text-slate-500" />
+          <FaBell className="h-6 w-6 text-slate-500" />
         </button>
         </div>
       </div>

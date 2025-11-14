@@ -1,4 +1,4 @@
-import { RiCloseLine } from 'react-icons/ri'
+import { FaTimes } from 'react-icons/fa'
 
 type TagSuggestionsProps = {
   selectedTags: string[]
@@ -48,7 +48,7 @@ export const TagSuggestions = ({
               }`}
             >
               <span>{tag}</span>
-              {isSelected && <RiCloseLine className="h-3 w-3" />}
+              {isSelected && <FaTimes className="h-3 w-3" />}
             </button>
           )
         })}
