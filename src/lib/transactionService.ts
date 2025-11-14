@@ -1,7 +1,8 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 
-import { cacheManager, invalidateCache } from './cache'
 import { getSupabaseClient } from './supabaseClient'
+import { syncWalletBalanceFromTransactions } from './walletBalanceService'
+import { cacheFirstWithRefresh, cacheManager, invalidateCache } from './cache'
 
 export type TransactionType = 'Thu' | 'Chi'
 
@@ -16,6 +17,7 @@ export type TransactionRecord = {
   transaction_date: string
   notes: string | null
   tags: string[] | null
+  image_urls: string[] | null
   created_at: string
   updated_at: string
 }
@@ -29,6 +31,7 @@ export type TransactionInsert = {
   transaction_date?: string
   notes?: string
   tags?: string[]
+  image_urls?: string[]
 }
 
 export type TransactionUpdate = Partial<
@@ -62,15 +65,6 @@ const throwIfError = (error: PostgrestError | null, fallbackMessage: string): vo
 export const fetchTransactions = async (
   filters?: TransactionFilters
 ): Promise<TransactionRecord[]> => {
-  // Generate cache key
-  const cacheKey = cacheManager.generateKey('fetchTransactions', filters as Record<string, unknown>)
-  
-  // Check cache
-  const cached = cacheManager.get<TransactionRecord[]>(cacheKey)
-  if (cached !== null) {
-    return cached
-  }
-
   const supabase = getSupabaseClient()
   const {
     data: { user },
@@ -80,50 +74,55 @@ export const fetchTransactions = async (
     throw new Error('Bạn cần đăng nhập để xem giao dịch.')
   }
 
-  let query = supabase
-    .from(TABLE_NAME)
-    .select('*')
-    .eq('user_id', user.id)
-    .order('transaction_date', { ascending: false })
-    .order('created_at', { ascending: false })
+  const cacheKey = cacheManager.generateKey('transactions', {
+    userId: user.id,
+    ...filters,
+  })
 
-  if (filters) {
-    if (filters.wallet_id) {
-      query = query.eq('wallet_id', filters.wallet_id)
+  const fetchFromSupabase = async (): Promise<TransactionRecord[]> => {
+    let query = supabase
+      .from(TABLE_NAME)
+      .select('*')
+      .eq('user_id', user.id)
+      .order('transaction_date', { ascending: false })
+      .order('created_at', { ascending: false })
+
+    if (filters) {
+      if (filters.wallet_id) {
+        query = query.eq('wallet_id', filters.wallet_id)
+      }
+      if (filters.category_id) {
+        query = query.eq('category_id', filters.category_id)
+      }
+      if (filters.type) {
+        query = query.eq('type', filters.type)
+      }
+      if (filters.start_date) {
+        query = query.gte('transaction_date', filters.start_date)
+      }
+      if (filters.end_date) {
+        query = query.lte('transaction_date', filters.end_date)
+      }
+      if (filters.tags && filters.tags.length > 0) {
+        query = query.contains('tags', filters.tags)
+      }
+      if (typeof filters.limit === 'number') {
+        query = query.limit(filters.limit)
+      }
+      if (typeof filters.offset === 'number') {
+        const limit = filters.limit || 50
+        query = query.range(filters.offset, filters.offset + limit - 1)
+      }
     }
-    if (filters.category_id) {
-      query = query.eq('category_id', filters.category_id)
-    }
-    if (filters.type) {
-      query = query.eq('type', filters.type)
-    }
-    if (filters.start_date) {
-      query = query.gte('transaction_date', filters.start_date)
-    }
-    if (filters.end_date) {
-      query = query.lte('transaction_date', filters.end_date)
-    }
-    if (filters.tags && filters.tags.length > 0) {
-      query = query.contains('tags', filters.tags)
-    }
-    if (filters.limit) {
-      query = query.limit(filters.limit)
-    }
-    if (filters.offset) {
-      query = query.range(filters.offset, filters.offset + (filters.limit || 50) - 1)
-    }
+
+    const { data, error } = await query
+
+    throwIfError(error, 'Không thể tải danh sách giao dịch.')
+
+    return data ?? []
   }
 
-  const { data, error } = await query
-
-  throwIfError(error, 'Không thể tải danh sách giao dịch.')
-
-  const result = data ?? []
-  
-  // Cache result (2 minutes for transactions as they change frequently)
-  cacheManager.set(cacheKey, result, 2 * 60 * 1000)
-
-  return result
+  return cacheFirstWithRefresh(cacheKey, fetchFromSupabase, 60 * 1000, 20 * 1000)
 }
 
 // Lấy một giao dịch theo ID
@@ -176,10 +175,13 @@ export const createTransaction = async (payload: TransactionInsert): Promise<Tra
     throw new Error('Không nhận được dữ liệu giao dịch sau khi tạo.')
   }
 
-  // Invalidate transaction caches
-  invalidateCache('fetchTransactions')
+  // Tự động cập nhật số dư ví từ giao dịch (chạy trong background)
+  syncWalletBalanceFromTransactions(payload.wallet_id).catch((error) => {
+    console.warn('Error syncing wallet balance after transaction creation:', error)
+  })
+
+  invalidateCache('transactions')
   invalidateCache('getTransactionStats')
-  invalidateCache('getTransactionById')
 
   return data
 }
@@ -212,10 +214,17 @@ export const updateTransaction = async (
     throw new Error('Không nhận được dữ liệu giao dịch sau khi cập nhật.')
   }
 
-  // Invalidate transaction caches
-  invalidateCache('fetchTransactions')
+  // Tự động cập nhật số dư ví từ giao dịch
+  // Cần lấy wallet_id từ giao dịch cũ hoặc mới
+  const walletId = updates.wallet_id || data.wallet_id
+  if (walletId) {
+    syncWalletBalanceFromTransactions(walletId).catch((error) => {
+      console.warn('Error syncing wallet balance after transaction update:', error)
+    })
+  }
+
+  invalidateCache('transactions')
   invalidateCache('getTransactionStats')
-  invalidateCache('getTransactionById')
 
   return data
 }
@@ -231,6 +240,16 @@ export const deleteTransaction = async (id: string): Promise<void> => {
     throw new Error('Bạn cần đăng nhập để xóa giao dịch.')
   }
 
+  // Lấy wallet_id trước khi xóa
+  const { data: transaction } = await supabase
+    .from(TABLE_NAME)
+    .select('wallet_id')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .single()
+
+  const walletId = transaction?.wallet_id
+
   const { error } = await supabase
     .from(TABLE_NAME)
     .delete()
@@ -239,10 +258,15 @@ export const deleteTransaction = async (id: string): Promise<void> => {
 
   throwIfError(error, 'Không thể xóa giao dịch.')
 
-  // Invalidate transaction caches
-  invalidateCache('fetchTransactions')
+  // Tự động cập nhật số dư ví từ giao dịch
+  if (walletId) {
+    syncWalletBalanceFromTransactions(walletId).catch((error) => {
+      console.warn('Error syncing wallet balance after transaction deletion:', error)
+    })
+  }
+
+  invalidateCache('transactions')
   invalidateCache('getTransactionStats')
-  invalidateCache('getTransactionById')
 }
 
 // Lấy thống kê giao dịch
@@ -256,24 +280,6 @@ export const getTransactionStats = async (
   net_balance: number
   transaction_count: number
 }> => {
-  // Generate cache key
-  const cacheKey = cacheManager.generateKey('getTransactionStats', {
-    startDate,
-    endDate,
-    walletId,
-  })
-  
-  // Check cache
-  const cached = cacheManager.get<{
-    total_income: number
-    total_expense: number
-    net_balance: number
-    transaction_count: number
-  }>(cacheKey)
-  if (cached !== null) {
-    return cached
-  }
-
   const supabase = getSupabaseClient()
   const {
     data: { user },
@@ -283,43 +289,52 @@ export const getTransactionStats = async (
     throw new Error('Bạn cần đăng nhập để xem thống kê.')
   }
 
-  let query = supabase
-    .from(TABLE_NAME)
-    .select('type, amount')
-    .eq('user_id', user.id)
+  const cacheKey = cacheManager.generateKey('getTransactionStats', {
+    userId: user.id,
+    startDate,
+    endDate,
+    walletId,
+  })
 
-  if (walletId) {
-    query = query.eq('wallet_id', walletId)
-  }
-  if (startDate) {
-    query = query.gte('transaction_date', startDate)
-  }
-  if (endDate) {
-    query = query.lte('transaction_date', endDate)
-  }
+  return cacheFirstWithRefresh(
+    cacheKey,
+    async () => {
+      let query = supabase
+        .from(TABLE_NAME)
+        .select('type, amount')
+        .eq('user_id', user.id)
 
-  const { data, error } = await query
+      if (walletId) {
+        query = query.eq('wallet_id', walletId)
+      }
+      if (startDate) {
+        query = query.gte('transaction_date', startDate)
+      }
+      if (endDate) {
+        query = query.lte('transaction_date', endDate)
+      }
 
-  throwIfError(error, 'Không thể tải thống kê giao dịch.')
+      const { data, error } = await query
 
-  const transactions = data ?? []
-  const total_income = transactions
-    .filter((t) => t.type === 'Thu')
-    .reduce((sum, t) => sum + Number(t.amount), 0)
-  const total_expense = transactions
-    .filter((t) => t.type === 'Chi')
-    .reduce((sum, t) => sum + Number(t.amount), 0)
+      throwIfError(error, 'Không thể tải thống kê giao dịch.')
 
-  const result = {
-    total_income,
-    total_expense,
-    net_balance: total_income - total_expense,
-    transaction_count: transactions.length,
-  }
+      const transactions = data ?? []
+      const total_income = transactions
+        .filter((t) => t.type === 'Thu')
+        .reduce((sum, t) => sum + Number(t.amount), 0)
+      const total_expense = transactions
+        .filter((t) => t.type === 'Chi')
+        .reduce((sum, t) => sum + Number(t.amount), 0)
 
-  // Cache result (2 minutes)
-  cacheManager.set(cacheKey, result, 2 * 60 * 1000)
-
-  return result
+      return {
+        total_income,
+        total_expense,
+        net_balance: total_income - total_expense,
+        transaction_count: transactions.length,
+      }
+    },
+    2 * 60 * 1000,
+    45 * 1000
+  )
 }
 

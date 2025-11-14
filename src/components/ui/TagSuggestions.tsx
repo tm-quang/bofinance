@@ -7,6 +7,8 @@ type TagSuggestionsProps = {
 }
 
 const DEFAULT_SUGGESTIONS = [
+  'sinh hoạt',
+  'tiền nhà',
   'ăn uống',
   'cuối tuần',
   'mua sắm',

@@ -1,27 +1,6 @@
-import { createContext, useContext, type ReactNode } from 'react'
+import { type ReactNode } from 'react'
 import toast, { type ToastOptions } from 'react-hot-toast'
-
-type ToastType = 'success' | 'error' | 'info' | 'loading' | 'notification'
-
-interface NotificationContextType {
-  showToast: (message: string, type?: ToastType, options?: ToastOptions) => string
-  success: (message: string, options?: ToastOptions) => string
-  error: (message: string, options?: ToastOptions) => string
-  info: (message: string, options?: ToastOptions) => string
-  loading: (message: string, options?: ToastOptions) => string
-  notification: (message: string, options?: ToastOptions) => string
-  dismiss: (toastId?: string) => void
-}
-
-const NotificationContext = createContext<NotificationContextType | undefined>(undefined)
-
-export const useNotification = () => {
-  const context = useContext(NotificationContext)
-  if (!context) {
-    throw new Error('useNotification must be used within NotificationProvider')
-  }
-  return context
-}
+import { NotificationContext, type ToastType } from './notificationContext.helpers'
 
 interface NotificationProviderProps {
   children: ReactNode

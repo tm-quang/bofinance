@@ -28,7 +28,7 @@ build
 
 # Development tools and scripts (not needed for production)
 Tool/
-
+supabase/
 # Android build artifacts
 *.keystore
 *.apk

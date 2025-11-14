@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { RiArrowDownSLine, RiCheckLine } from 'react-icons/ri'
+import { Skeleton } from '../skeletons'
 
 type Option = {
   value: string
@@ -52,8 +53,8 @@ export const CustomSelect = ({
 
   if (loading) {
     return (
-      <div className={`rounded-xl border-2 border-slate-200 bg-slate-50 p-3 text-center text-sm text-slate-500 ${className}`}>
-        Đang tải...
+      <div className={`rounded-xl border-2 border-slate-200 bg-white p-3 ${className}`}>
+        <Skeleton variant="rounded" height={24} width="100%" />
       </div>
     )
   }

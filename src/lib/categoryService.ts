@@ -1,7 +1,7 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 
-import { cacheManager, invalidateCache } from './cache'
 import { getSupabaseClient } from './supabaseClient'
+import { cacheFirstWithRefresh, cacheManager, invalidateCache } from './cache'
 
 export type CategoryType = 'Chi tiêu' | 'Thu nhập'
 
@@ -10,7 +10,7 @@ export type CategoryRecord = {
   name: string
   type: CategoryType
   icon_id: string
-  user_id?: string | null
+  user_id: string
   created_at: string
   updated_at?: string | null
 }
@@ -19,10 +19,9 @@ export type CategoryInsert = {
   name: string
   type: CategoryType
   icon_id: string
-  user_id?: string | null
 }
 
-export type CategoryUpdate = Partial<Omit<CategoryInsert, 'user_id'>> & {
+export type CategoryUpdate = Partial<CategoryInsert> & {
   icon_id?: string
 }
 
@@ -35,36 +34,50 @@ const throwIfError = (error: PostgrestError | null, fallbackMessage: string): vo
 }
 
 export const fetchCategories = async (): Promise<CategoryRecord[]> => {
-  // Generate cache key
-  const cacheKey = cacheManager.generateKey('fetchCategories')
-  
-  // Check cache
-  const cached = cacheManager.get<CategoryRecord[]>(cacheKey)
-  if (cached !== null) {
-    return cached
+  const supabase = getSupabaseClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error('Bạn cần đăng nhập để xem danh mục.')
   }
 
-  const supabase = getSupabaseClient()
-  const { data, error } = await supabase
-    .from(TABLE_NAME)
-    .select('*')
-    .order('name', { ascending: true })
+  const cacheKey = cacheManager.generateKey('categories', { userId: user.id })
 
-  throwIfError(error, 'Không thể tải danh mục.')
+  return cacheFirstWithRefresh(
+    cacheKey,
+    async () => {
+      const { data, error } = await supabase
+        .from(TABLE_NAME)
+        .select('*')
+        .eq('user_id', user.id)
+        .order('name', { ascending: true })
 
-  const result = data ?? []
-  
-  // Cache result (10 minutes for categories as they change rarely)
-  cacheManager.set(cacheKey, result, 10 * 60 * 1000)
+      throwIfError(error, 'Không thể tải danh mục.')
 
-  return result
+      return data ?? []
+    },
+    2 * 60 * 1000
+  )
 }
 
 export const createCategory = async (payload: CategoryInsert): Promise<CategoryRecord> => {
   const supabase = getSupabaseClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error('Bạn cần đăng nhập để tạo danh mục.')
+  }
+
   const { data, error } = await supabase
     .from(TABLE_NAME)
-    .insert(payload)
+    .insert({
+      ...payload,
+      user_id: user.id,
+    })
     .select()
     .single()
 
@@ -74,8 +87,7 @@ export const createCategory = async (payload: CategoryInsert): Promise<CategoryR
     throw new Error('Không nhận được dữ liệu danh mục sau khi tạo.')
   }
 
-  // Invalidate category cache
-  invalidateCache('fetchCategories')
+  invalidateCache('categories')
 
   return data
 }
@@ -85,10 +97,19 @@ export const updateCategory = async (
   updates: CategoryUpdate
 ): Promise<CategoryRecord> => {
   const supabase = getSupabaseClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error('Bạn cần đăng nhập để cập nhật danh mục.')
+  }
+
   const { data, error } = await supabase
     .from(TABLE_NAME)
     .update(updates)
     .eq('id', id)
+    .eq('user_id', user.id)
     .select()
     .single()
 
@@ -98,20 +119,29 @@ export const updateCategory = async (
     throw new Error('Không nhận được dữ liệu danh mục sau khi cập nhật.')
   }
 
-  // Invalidate category cache
-  invalidateCache('fetchCategories')
+  invalidateCache('categories')
 
   return data
 }
 
 export const deleteCategory = async (id: string): Promise<void> => {
   const supabase = getSupabaseClient()
-  const { error } = await supabase.from(TABLE_NAME).delete().eq('id', id)
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error('Bạn cần đăng nhập để xoá danh mục.')
+  }
+
+  const { error } = await supabase
+    .from(TABLE_NAME)
+    .delete()
+    .eq('id', id)
+    .eq('user_id', user.id)
 
   throwIfError(error, 'Không thể xoá danh mục.')
 
-  // Invalidate category cache
-  invalidateCache('fetchCategories')
+  invalidateCache('categories')
 }
-
 

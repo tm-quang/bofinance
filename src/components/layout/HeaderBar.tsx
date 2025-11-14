@@ -7,6 +7,7 @@ type HeaderBarProps =
   | {
     variant?: 'greeting'
     userName: string
+    avatarUrl?: string
     avatarText?: string
     badgeColor?: string
   }
@@ -89,7 +90,7 @@ const HeaderBar = (props: HeaderBarProps) => {
     )
   }
 
-  const { userName, avatarText = userName.charAt(0).toUpperCase(), badgeColor = 'bg-sky-600' } = props
+  const { userName, avatarUrl, avatarText = userName.charAt(0).toUpperCase(), badgeColor = 'bg-sky-600' } = props
 
   return (
     <header className="pointer-events-none relative z-40 flex-shrink-0 bg-[#F7F9FC]">
@@ -105,11 +106,19 @@ const HeaderBar = (props: HeaderBarProps) => {
           }`}
         >
         <div className="flex items-center gap-3">
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt={userName}
+              className="h-12 w-12 rounded-full object-cover ring-2 ring-white shadow-[0_18px_35px_rgba(102,166,255,0.35)]"
+            />
+          ) : (
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-gradient-to-br from-[#89f7fe] to-[#66a6ff] text-lg font-semibold text-slate-800 shadow-[0_18px_35px_rgba(102,166,255,0.35)]">
             {avatarText}
           </div>
+          )}
           <div>
-            <p className="text-xs font-medium uppercase tracking-[0.25em] text-slate-400">Xin chào,</p>
+            <p className="text-sm tracking-[0.25em] text-slate-500" style={{ fontFamily: "'Lobster', cursive" }}>Xin chào,</p>
             <p className="text-lg font-semibold text-slate-900">{userName}</p>
           </div>
         </div>

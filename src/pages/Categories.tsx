@@ -12,7 +12,8 @@ import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
 import { TransactionModal } from '../components/transactions/TransactionModal'
 import { CategoryCardSkeleton } from '../components/skeletons'
-import { useNotification } from '../contexts/NotificationContext'
+import { useNotification } from '../contexts/notificationContext.helpers'
+import { useDialog } from '../contexts/dialogContext.helpers'
 import {
     CATEGORY_ICON_GROUPS,
     CATEGORY_ICON_MAP,
@@ -53,6 +54,7 @@ const sortCategories = (items: Category[]) =>
 
 export const CategoriesPage = () => {
     const { success, error: showError } = useNotification()
+    const { showDialog } = useDialog()
     const [categories, setCategories] = useState<Category[]>([])
     const [searchTerm, setSearchTerm] = useState('')
     const [activeTab, setActiveTab] = useState<'expense' | 'income'>('expense')
@@ -219,20 +221,27 @@ export const CategoriesPage = () => {
     const handleDelete = async (id: string) => {
         const target = categories.find((category) => category.id === id)
         if (!target) return
-        const confirmed = window.confirm(`Bạn có chắc muốn xoá danh mục "${target.name}"?`)
-        if (!confirmed) return
-
-        try {
-            await deleteCategoryFromDb(id)
-            setCategories((prev) => prev.filter((category) => category.id !== id))
-            success('Đã xóa danh mục thành công!')
-        } catch (error) {
-            const message =
-                error instanceof Error
-                    ? `Không thể xoá danh mục: ${error.message}`
-                    : 'Không thể xoá danh mục. Vui lòng thử lại sau.'
-            showError(message)
-        }
+        
+        await showDialog({
+            message: `Bạn có chắc muốn xoá danh mục "${target.name}"?`,
+            type: 'warning',
+            title: 'Xóa danh mục',
+            confirmText: 'Xóa',
+            cancelText: 'Hủy',
+            onConfirm: async () => {
+                try {
+                    await deleteCategoryFromDb(id)
+                    setCategories((prev) => prev.filter((category) => category.id !== id))
+                    success('Đã xóa danh mục thành công!')
+                } catch (error) {
+                    const message =
+                        error instanceof Error
+                            ? `Không thể xoá danh mục: ${error.message}`
+                            : 'Không thể xoá danh mục. Vui lòng thử lại sau.'
+                    showError(message)
+                }
+            },
+        })
     }
 
     const currentCategories = activeTab === 'expense' ? expenseCategories : incomeCategories

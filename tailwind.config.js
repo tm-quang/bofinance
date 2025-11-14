@@ -6,6 +6,10 @@ export default {
   ],
   theme: {
     extend: {
+      fontFamily: {
+        sans: ['Roboto', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'sans-serif'],
+        lobster: ['Lobster', 'cursive'],
+      },
       animation: {
         'gradient-xy': 'gradient-xy 20s ease infinite',
         blob: 'blob 7s infinite',

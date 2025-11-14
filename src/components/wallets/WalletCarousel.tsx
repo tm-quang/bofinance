@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { fetchWallets, type WalletRecord } from '../../lib/walletService'
+import { fetchWallets, getDefaultWallet, type WalletRecord } from '../../lib/walletService'
 import { WalletCardSkeleton } from '../skeletons'
 import { WalletCard } from './WalletCard'
 import { useSwipe } from '../../hooks/useSwipe'
@@ -18,9 +18,39 @@ export const WalletCarousel = ({ onWalletChange, onAddWallet }: WalletCarouselPr
     const loadWallets = async () => {
       try {
         const data = await fetchWallets()
-        setWallets(data.filter((w) => w.is_active))
-        if (data.length > 0 && onWalletChange) {
-          onWalletChange(data[0])
+        const activeWallets = data.filter((w) => w.is_active)
+        setWallets(activeWallets)
+        
+        if (activeWallets.length > 0) {
+          // Kiểm tra ví mặc định từ database
+          let defaultWalletId: string | null = null
+          try {
+            defaultWalletId = await getDefaultWallet()
+          } catch (error) {
+            console.error('Error loading default wallet:', error)
+            // Fallback về localStorage
+            try {
+              defaultWalletId = localStorage.getItem('bofin_default_wallet_id')
+            } catch (e) {
+              console.error('Error reading from localStorage:', e)
+            }
+          }
+          
+          // Tìm index của ví mặc định
+          let selectedIndex = 0
+          if (defaultWalletId) {
+            const defaultIndex = activeWallets.findIndex(w => w.id === defaultWalletId)
+            if (defaultIndex !== -1) {
+              selectedIndex = defaultIndex
+            }
+          }
+          
+          // Set index để hiển thị ví mặc định (hoặc ví đầu tiên nếu không có mặc định)
+          setCurrentIndex(selectedIndex)
+          
+          if (onWalletChange) {
+            onWalletChange(activeWallets[selectedIndex])
+          }
         }
       } catch (error) {
         console.error('Error loading wallets:', error)
@@ -96,11 +126,17 @@ export const WalletCarousel = ({ onWalletChange, onAddWallet }: WalletCarouselPr
             transform: `translateX(calc(-${currentIndex * 100}% + ${swipe.translateX}px))`,
           }}
         >
-          {wallets.map((wallet, index) => (
-            <div key={wallet.id} className="min-w-full flex-shrink-0">
-              <WalletCard wallet={wallet} isActive={index === currentIndex} />
-            </div>
-          ))}
+          {wallets.map((wallet, index) => {
+            // Lấy ví mặc định từ database (sẽ được cache trong state)
+            // Tạm thời dùng localStorage để check, sẽ được cập nhật khi load
+            const defaultWalletId = localStorage.getItem('bofin_default_wallet_id')
+            const isDefault = defaultWalletId === wallet.id
+            return (
+              <div key={wallet.id} className="min-w-full flex-shrink-0">
+                <WalletCard wallet={wallet} isActive={index === currentIndex} isDefault={isDefault} />
+              </div>
+            )
+          })}
         </div>
       </div>
 
@@ -132,11 +168,11 @@ export const WalletCarousel = ({ onWalletChange, onAddWallet }: WalletCarouselPr
         {onAddWallet && (
           <button
             onClick={onAddWallet}
-            className="flex items-center gap-1.5 rounded-full bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 sm:px-4 sm:py-2 sm:text-sm"
-            aria-label="Thêm ví mới"
+            className="flex items-center gap-1 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-1 text-sm font-bold text-white shadow-lg shadow-sky-500/30 transition-all hover:from-sky-600 hover:to-blue-700 hover:shadow-xl hover:shadow-sky-500/40 hover:scale-105 active:scale-95 sm:px-6 sm:py-3 sm:text-base"
+            aria-label="Quản lý ví của bạn"
           >
-            <span className="text-base sm:text-lg">+</span>
-            <span>Thêm ví</span>
+            <span className="text-lg font-bold sm:text-xl">+</span>
+            <span>Quản lý ví của bạn</span>
           </button>
         )}
       </div>

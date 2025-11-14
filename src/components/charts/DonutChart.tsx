@@ -1,4 +1,4 @@
-import { useMemo } from 'react'
+import { useMemo, useState, useRef, useEffect } from 'react'
 import type { TransactionRecord } from '../../lib/transactionService'
 import type { CategoryRecord } from '../../lib/categoryService'
 
@@ -38,6 +38,11 @@ const formatCurrency = (value: number) =>
   }).format(value)
 
 export const DonutChart = ({ transactions, categories, type, totalAmount }: DonutChartProps) => {
+  const [selectedSegment, setSelectedSegment] = useState<DonutChartData | null>(null)
+  const [tooltipPosition, setTooltipPosition] = useState<{ left: number; top: number } | null>(null)
+  const chartContainerRef = useRef<HTMLDivElement>(null)
+  const tooltipDimensions = useRef({ width: 260, height: 156, margin: 12 })
+
   const chartData = useMemo(() => {
     // Ensure we have both transactions and categories before processing
     if (transactions.length === 0 || totalAmount === 0 || categories.length === 0) {
@@ -76,6 +81,21 @@ export const DonutChart = ({ transactions, categories, type, totalAmount }: Donu
     return data
   }, [transactions, categories, totalAmount])
 
+  // Calculate angle for segment (middle angle)
+  const calculateSegmentAngle = (data: DonutChartData[], index: number): number => {
+    if (data.length === 0 || index >= data.length) return -90
+
+    let startAngle = -90
+    for (let i = 0; i < index; i++) {
+      startAngle += (data[i].percentage / 100) * 360
+    }
+    
+    const percentage = data[index].percentage
+    const middleAngle = startAngle + (percentage / 100) * 180 // Middle of the segment
+    
+    return middleAngle
+  }
+
   // Calculate SVG path for donut chart
   const calculatePath = (data: DonutChartData[], index: number) => {
     if (data.length === 0 || index >= data.length) return ''
@@ -91,7 +111,8 @@ export const DonutChart = ({ transactions, categories, type, totalAmount }: Donu
       startAngle += (data[i].percentage / 100) * 360
     }
     
-    const endAngle = startAngle + (data[index].percentage / 100) * 360
+    const percentage = data[index].percentage
+    const endAngle = startAngle + (percentage / 100) * 360
 
     // Convert to radians
     const startAngleRad = (startAngle * Math.PI) / 180
@@ -110,8 +131,25 @@ export const DonutChart = ({ transactions, categories, type, totalAmount }: Donu
     const y4 = centerY + innerRadius * Math.sin(startAngleRad)
 
     // Determine if we need large arc (for outer circle)
-    const angleDiff = ((endAngle - startAngle + 360) % 360)
+    // For 100% (full circle), we need large arc flag = 1
+    const angleDiff = percentage === 100 ? 360 : ((endAngle - startAngle + 360) % 360)
     const largeArcFlag = angleDiff > 180 ? 1 : 0
+
+    // Special handling for 100% (full circle)
+    if (percentage === 100) {
+      // For full circle, draw two 180-degree arcs to complete the circle
+      // Calculate midpoint (180 degrees from start)
+      const midAngleRad = startAngleRad + Math.PI
+      const xMid = centerX + radius * Math.cos(midAngleRad)
+      const yMid = centerY + radius * Math.sin(midAngleRad)
+      const xMidInner = centerX + innerRadius * Math.cos(midAngleRad)
+      const yMidInner = centerY + innerRadius * Math.sin(midAngleRad)
+      
+      // Outer circle: two 180-degree arcs
+      // Inner circle: two 180-degree arcs (reverse direction)
+      const path = `M ${x1.toFixed(2)} ${y1.toFixed(2)} A ${radius} ${radius} 0 1 1 ${xMid.toFixed(2)} ${yMid.toFixed(2)} A ${radius} ${radius} 0 1 1 ${x1.toFixed(2)} ${y1.toFixed(2)} L ${x4.toFixed(2)} ${y4.toFixed(2)} A ${innerRadius} ${innerRadius} 0 1 0 ${xMidInner.toFixed(2)} ${yMidInner.toFixed(2)} A ${innerRadius} ${innerRadius} 0 1 0 ${x4.toFixed(2)} ${y4.toFixed(2)} Z`
+      return path
+    }
 
     // Build path: Move to start point on outer circle
     // Arc along outer circle to end point
@@ -123,10 +161,45 @@ export const DonutChart = ({ transactions, categories, type, totalAmount }: Donu
     return path
   }
 
+  // Get transaction count for selected segment
+  const selectedTransactionCount = selectedSegment
+    ? transactions.filter((t) => t.category_id === selectedSegment.category_id).length
+    : 0
+
+  // Close tooltip when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (chartContainerRef.current) {
+        const target = e.target as Node
+        // Check if click is outside the chart container
+        if (!chartContainerRef.current.contains(target)) {
+          setSelectedSegment(null)
+          setTooltipPosition(null)
+        }
+      }
+    }
+
+    if (selectedSegment) {
+      // Use mousedown to catch clicks before they bubble
+      document.addEventListener('mousedown', handleClickOutside)
+      // Also listen for clicks on the document
+      document.addEventListener('click', handleClickOutside)
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+      document.removeEventListener('click', handleClickOutside)
+    }
+  }, [selectedSegment])
+
   if (chartData.length === 0) {
     return (
-      <div className="flex h-64 items-center justify-center rounded-2xl bg-slate-50 text-sm text-slate-500">
-        Chưa có dữ liệu {type === 'Thu' ? 'Thu nhập' : 'Chi tiêu'} hôm nay
+      <div className="flex h-64 items-center justify-center rounded-2xl bg-slate-50">
+        <img 
+          src="/savings-74.png" 
+          alt="Chưa có dữ liệu" 
+          className="h-48 w-48 object-contain opacity-60"
+        />
       </div>
     )
   }
@@ -134,7 +207,11 @@ export const DonutChart = ({ transactions, categories, type, totalAmount }: Donu
   return (
     <div>
       {/* Chart */}
-      <div className="relative flex items-center justify-center" style={{ minHeight: '256px' }}>
+      <div 
+        ref={chartContainerRef}
+        className="relative flex items-center justify-center" 
+        style={{ minHeight: '256px' }}
+      >
         <svg 
           viewBox="0 0 200 200" 
           width="200"
@@ -183,6 +260,54 @@ export const DonutChart = ({ transactions, categories, type, totalAmount }: Donu
               })
             }
             
+            const handleClick = () => {
+              const segmentAngle = calculateSegmentAngle(chartData, index)
+              
+              // Calculate position on the outer edge of the donut
+              const centerX = 100
+              const centerY = 100
+              const radius = 80
+              const angleRad = (segmentAngle * Math.PI) / 180
+              
+              // Position on outer circle (point where tooltip arrow should point)
+              const pointX = centerX + radius * Math.cos(angleRad)
+              const pointY = centerY + radius * Math.sin(angleRad)
+              
+              // Get container dimensions
+              if (chartContainerRef.current) {
+                const container = chartContainerRef.current
+                const rect = container.getBoundingClientRect()
+                const svgElement = container.querySelector('svg')
+                if (svgElement) {
+                  const svgRect = svgElement.getBoundingClientRect()
+                  
+                  const offsetX = (rect.width - svgRect.width) / 2
+                  const offsetY = (rect.height - svgRect.height) / 2
+                  const relativeX = offsetX + (pointX / 200) * svgRect.width
+                  const relativeY = offsetY + (pointY / 200) * svgRect.height
+
+                  const { width, height, margin } = tooltipDimensions.current
+                  const desiredLeft = relativeX - width / 2
+                  const desiredTop = relativeY - height - margin
+                  const clampedLeft = Math.max(
+                    margin,
+                    Math.min(desiredLeft, rect.width - width - margin)
+                  )
+                  const clampedTop = Math.max(
+                    margin,
+                    Math.min(desiredTop, rect.height - height - margin)
+                  )
+
+                  setSelectedSegment(item)
+                  setTooltipPosition({
+                    left: clampedLeft,
+                    top: clampedTop,
+                  })
+                }
+              }
+            }
+
+
             return (
               <path
                 key={`path-${item.category_id}-${index}`}
@@ -194,10 +319,12 @@ export const DonutChart = ({ transactions, categories, type, totalAmount }: Donu
                   fill: color,
                   stroke: 'white',
                   strokeWidth: '2',
-                  opacity: 1,
-                  pointerEvents: 'auto'
+                  opacity: selectedSegment?.category_id === item.category_id ? 0.7 : 1,
+                  pointerEvents: 'auto',
+                  cursor: 'pointer'
                 }}
-                className="transition-opacity hover:opacity-80"
+                className="transition-all hover:opacity-90 cursor-pointer"
+                onClick={handleClick}
               />
             )
           })}
@@ -212,6 +339,42 @@ export const DonutChart = ({ transactions, categories, type, totalAmount }: Donu
             </p>
           )}
         </div>
+
+        {/* Inline Tooltip */}
+        {selectedSegment && tooltipPosition && (
+          <div
+            className="absolute z-50"
+            style={{
+              left: `${tooltipPosition.left}px`,
+              top: `${tooltipPosition.top}px`,
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Tooltip content */}
+            <div
+              className="rounded-xl shadow-2xl p-4 text-white min-w-[220px] relative"
+              style={{
+                background: selectedSegment.color,
+              }}
+            >
+              <div className="font-bold text-base mb-3">{selectedSegment.category_name}</div>
+              <div className="space-y-1.5 text-sm">
+                <div className="flex justify-between">
+                  <span>Số tiền:</span>
+                  <strong>{formatCurrency(selectedSegment.amount)}</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Tỷ lệ:</span>
+                  <strong>{selectedSegment.percentage.toFixed(1)}%</strong>
+                </div>
+                <div className="flex justify-between">
+                  <span>Số giao dịch:</span>
+                  <strong>{selectedTransactionCount}</strong>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -1,19 +1,22 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   RiCalendarLine,
   RiDownloadLine,
   RiSearchLine,
   RiArrowDownLine,
   RiArrowUpLine,
+  RiArrowDownSLine,
+  RiFilterLine,
 } from 'react-icons/ri'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
 import { TransactionModal } from '../components/transactions/TransactionModal'
-import { BarChart } from '../components/charts/BarChart'
+import { CombinedTrendChart } from '../components/charts/CombinedTrendChart'
 import { DateRangeFilter } from '../components/reports/DateRangeFilter'
 import { CategoryFilter } from '../components/reports/CategoryFilter'
-import { useNotification } from '../contexts/NotificationContext'
+import { TransactionListSkeleton } from '../components/skeletons'
+import { useNotification } from '../contexts/notificationContext.helpers'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
 import { fetchCategories, type CategoryRecord } from '../lib/categoryService'
 import { fetchTransactions, type TransactionRecord } from '../lib/transactionService'
@@ -36,18 +39,20 @@ const getDateRange = (rangeType: DateRangeType, customStart?: string, customEnd?
     case 'day':
       startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
       break
-    case 'week':
+    case 'week': {
       const dayOfWeek = now.getDay()
       const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1) // Monday
       startDate = new Date(now.getFullYear(), now.getMonth(), diff, 0, 0, 0)
       break
+    }
     case 'month':
       startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0)
       break
-    case 'quarter':
+    case 'quarter': {
       const quarter = Math.floor(now.getMonth() / 3)
       startDate = new Date(now.getFullYear(), quarter * 3, 1, 0, 0, 0)
       break
+    }
     case 'year':
       startDate = new Date(now.getFullYear(), 0, 1, 0, 0, 0)
       break
@@ -65,6 +70,61 @@ const getDateRange = (rangeType: DateRangeType, customStart?: string, customEnd?
   }
 }
 
+type FilterSectionKey = 'range' | 'type' | 'category'
+
+const classNames = (...classes: Array<string | false | null | undefined>) =>
+  classes.filter(Boolean).join(' ')
+
+const FilterAccordionSection = ({
+  title,
+  subtitle,
+  isOpen,
+  onToggle,
+  children,
+}: {
+  title: string
+  subtitle?: string
+  isOpen: boolean
+  onToggle: () => void
+  children: ReactNode
+}) => (
+  <div className="rounded-3xl border border-slate-100 bg-white/90 p-4 shadow-sm backdrop-blur-sm sm:p-5">
+    <button
+      type="button"
+      onClick={onToggle}
+      className="flex w-full items-center justify-between gap-3 text-left"
+    >
+      <div>
+        <p className="text-sm font-semibold text-slate-900 sm:text-base">{title}</p>
+        {subtitle && <p className="text-xs text-slate-500 sm:text-sm">{subtitle}</p>}
+      </div>
+      <RiArrowDownSLine
+        className={classNames(
+          'h-5 w-5 text-slate-500 transition-transform duration-300',
+          isOpen ? 'rotate-180' : 'rotate-0'
+        )}
+      />
+    </button>
+    <div
+      className={classNames(
+        'grid transition-[grid-template-rows,opacity] duration-300 ease-out',
+        isOpen ? 'mt-4 grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+      )}
+    >
+      <div className="overflow-hidden">{children}</div>
+    </div>
+  </div>
+)
+
+const RANGE_LABEL_MAP: Record<DateRangeType, string> = {
+  day: 'Hôm nay',
+  week: 'Tuần này',
+  month: 'Tháng này',
+  quarter: 'Quý này',
+  year: 'Năm nay',
+  custom: 'Tùy chỉnh',
+}
+
 const ReportPage = () => {
   const { success, error: showError } = useNotification()
   const [transactions, setTransactions] = useState<TransactionRecord[]>([])
@@ -77,6 +137,28 @@ const ReportPage = () => {
   const [customEndDate, setCustomEndDate] = useState<string>('')
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
+  const [showAllCategories, setShowAllCategories] = useState(false)
+  const [openFilterSections, setOpenFilterSections] = useState<Record<FilterSectionKey, boolean>>({
+    range: true,
+    type: true,
+    category: false,
+  })
+
+  const filteredCategoriesByType = useMemo(() => {
+    if (typeFilter === 'all') return categories
+    return categories.filter((cat) =>
+      typeFilter === 'Thu' ? cat.type === 'Thu nhập' : cat.type === 'Chi tiêu'
+    )
+  }, [categories, typeFilter])
+
+  const displayCategories = useMemo(() => {
+    if (showAllCategories) return filteredCategoriesByType
+    return filteredCategoriesByType.slice(0, 8)
+  }, [filteredCategoriesByType, showAllCategories])
+
+  const toggleSection = (section: FilterSectionKey) => {
+    setOpenFilterSections((prev) => ({ ...prev, [section]: !prev[section] }))
+  }
 
   const dateRange = useMemo(
     () => getDateRange(rangeType, customStartDate, customEndDate),
@@ -239,7 +321,12 @@ const ReportPage = () => {
     })
 
     return Array.from(dataMap.entries())
-      .map(([label, values]) => ({ label, ...values }))
+      .map(([label, values]) => ({
+        label,
+        income: values.income,
+        expense: values.expense,
+        balance: values.income - values.expense,
+      }))
       .sort((a, b) => {
         // Sort by date order if possible, otherwise by label
         return a.label.localeCompare(b.label, 'vi')
@@ -257,6 +344,17 @@ const ReportPage = () => {
     success('Tính năng xuất báo cáo đang được phát triển')
   }
 
+  const handleResetFilters = () => {
+    setRangeType('month')
+    setCustomStartDate('')
+    setCustomEndDate('')
+    setTypeFilter('all')
+    setSelectedCategoryIds([])
+    setSearchTerm('')
+    setShowAllCategories(false)
+    setOpenFilterSections({ range: true, type: true, category: false })
+  }
+
   const getCategoryInfo = (categoryId: string) => {
     const category = categories.find((c) => c.id === categoryId)
     if (!category) return { name: 'Không xác định', icon: null }
@@ -269,7 +367,7 @@ const ReportPage = () => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
-      <HeaderBar variant="page" title="Báo cáo" />
+      <HeaderBar variant="page" title="BÁO CÁO & THỐNG KÊ" />
       <main className="flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 py-4 sm:max-w-4xl sm:gap-5 sm:px-6 sm:py-5 md:max-w-6xl lg:max-w-7xl">
           {/* Summary Cards */}
@@ -295,24 +393,38 @@ const ReportPage = () => {
           </div>
 
           {/* Filters */}
-          <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100 sm:rounded-3xl sm:p-5">
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h2 className="text-sm font-bold text-slate-900 sm:text-base">Bộ lọc</h2>
+          <div className="flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Bộ lọc thông minh</p>
+                <h2 className="text-lg font-bold text-slate-900 sm:text-xl">Tinh chỉnh dữ liệu</h2>
+              </div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={handleResetFilters}
+                  className="flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-600 transition hover:border-slate-300 hover:text-slate-800 sm:text-sm"
+                >
+                  <RiFilterLine className="h-4 w-4" />
+                  Đặt lại
+                </button>
                 <button
                   type="button"
                   onClick={handleExport}
-                  className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-3 py-1.5 text-xs font-semibold text-white shadow-lg shadow-sky-500/30 transition hover:scale-[1.02] sm:px-4 sm:py-2 sm:text-sm"
+                  className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2 text-xs font-semibold text-white shadow-lg shadow-sky-500/30 transition hover:scale-[1.02] sm:text-sm"
                 >
                   <RiDownloadLine className="h-4 w-4" />
-                  <span className="hidden sm:inline">Xuất báo cáo</span>
-                  <span className="sm:hidden">Xuất</span>
+                  Xuất báo cáo
                 </button>
               </div>
+              </div>
 
-              {/* Date Range Filter */}
-              <div>
-                <p className="mb-2 text-xs font-medium text-slate-600 sm:text-sm">Khoảng thời gian</p>
+            <FilterAccordionSection
+              title="Khoảng thời gian"
+              subtitle="Chọn nhanh theo ngày, tuần, tháng hoặc tùy chỉnh"
+              isOpen={openFilterSections.range}
+              onToggle={() => toggleSection('range')}
+            >
                 <DateRangeFilter
                   rangeType={rangeType}
                   onRangeTypeChange={setRangeType}
@@ -321,12 +433,15 @@ const ReportPage = () => {
                   onStartDateChange={setCustomStartDate}
                   onEndDateChange={setCustomEndDate}
                 />
-              </div>
+            </FilterAccordionSection>
 
-              {/* Type Filter */}
-              <div>
-                <p className="mb-2 text-xs font-medium text-slate-600 sm:text-sm">Loại giao dịch</p>
-                <div className="flex gap-2">
+            <FilterAccordionSection
+              title="Loại giao dịch"
+              subtitle="Xem nhanh thu, chi hoặc toàn bộ"
+              isOpen={openFilterSections.type}
+              onToggle={() => toggleSection('type')}
+            >
+              <div className="grid grid-cols-3 gap-2">
                   {(['all', 'Thu', 'Chi'] as const).map((type) => {
                     const isActive = typeFilter === type
                     return (
@@ -334,60 +449,79 @@ const ReportPage = () => {
                         key={type}
                         type="button"
                         onClick={() => setTypeFilter(type)}
-                        className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition sm:px-4 sm:py-2 sm:text-sm ${
+                      className={`flex items-center justify-center gap-1.5 rounded-2xl px-4 py-3 text-sm font-semibold transition ${
                           isActive
                             ? type === 'Thu'
-                              ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md shadow-emerald-500/30'
+                            ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/30'
                               : type === 'Chi'
-                                ? 'bg-gradient-to-r from-rose-500 to-rose-600 text-white shadow-md shadow-rose-500/30'
-                                : 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md shadow-sky-500/30'
-                            : 'bg-white text-slate-600 border border-slate-200 hover:border-slate-300'
+                              ? 'bg-gradient-to-r from-rose-500 to-rose-600 text-white shadow-lg shadow-rose-500/30'
+                              : 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-lg shadow-sky-500/30'
+                          : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300'
                         }`}
                       >
-                        {type === 'Thu' && <RiArrowUpLine className="h-3.5 w-3.5" />}
-                        {type === 'Chi' && <RiArrowDownLine className="h-3.5 w-3.5" />}
+                      {type === 'Thu' && <RiArrowUpLine className="h-4 w-4" />}
+                      {type === 'Chi' && <RiArrowDownLine className="h-4 w-4" />}
                         {type === 'all' ? 'Tất cả' : type}
                       </button>
                     )
                   })}
                 </div>
-              </div>
+            </FilterAccordionSection>
 
-              {/* Category Filter */}
-              <div>
-                <p className="mb-2 text-xs font-medium text-slate-600 sm:text-sm">Danh mục</p>
+            <FilterAccordionSection
+              title="Danh mục & tìm kiếm"
+              subtitle="Chọn nhanh danh mục và tìm kiếm giao dịch"
+              isOpen={openFilterSections.category}
+              onToggle={() => toggleSection('category')}
+            >
                 <CategoryFilter
-                  categories={categories}
+                categories={displayCategories}
                   selectedCategoryIds={selectedCategoryIds}
                   onCategoryToggle={handleCategoryToggle}
                   onClearAll={() => setSelectedCategoryIds([])}
-                  type={typeFilter === 'all' ? 'all' : typeFilter}
-                />
+                type="all"
+              />
+              {filteredCategoriesByType.length > 8 && (
+                <div className="mt-3 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setShowAllCategories((prev) => !prev)}
+                    className="text-xs font-semibold text-sky-600 hover:text-sky-700 sm:text-sm"
+                  >
+                    {showAllCategories ? 'Thu gọn danh mục' : `Xem thêm ${filteredCategoriesByType.length - 8} danh mục`}
+                  </button>
               </div>
-
-              {/* Search */}
-              <div>
-                <p className="mb-2 text-xs font-medium text-slate-600 sm:text-sm">Tìm kiếm</p>
+              )}
+              <div className="mt-4">
+                <p className="mb-2 text-xs font-medium text-slate-600 sm:text-sm">Từ khóa</p>
                 <div className="relative">
                   <RiSearchLine className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                   <input
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Tìm kiếm giao dịch..."
-                    className="h-10 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-3 text-xs text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100 sm:text-sm"
+                    placeholder="Tìm theo mô tả, danh mục hoặc ngày..."
+                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                   />
                 </div>
               </div>
-            </div>
-          </section>
+            </FilterAccordionSection>
+          </div>
 
           {/* Chart Section */}
-          {chartData.length > 0 && (
-            <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100 sm:rounded-3xl sm:p-5">
-              <h2 className="mb-4 text-sm font-bold text-slate-900 sm:text-base">Biểu đồ thu & chi</h2>
-              <BarChart data={chartData} height={180} />
-            </section>
-          )}
+          <section className="rounded-3xl bg-white p-4 shadow-sm ring-1 ring-slate-100 sm:p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Xu hướng dòng tiền</p>
+                <h2 className="text-lg font-bold text-slate-900 sm:text-xl">Thu - chi & cân đối</h2>
+              </div>
+              <span className="text-xs text-slate-500 sm:text-sm">
+                {chartData.length} mốc dữ liệu · Phạm vi {RANGE_LABEL_MAP[rangeType]}
+              </span>
+            </div>
+            <div className="mt-4">
+              <CombinedTrendChart data={chartData} height={190} />
+            </div>
+          </section>
 
           {/* Top Categories and Stats */}
           <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
@@ -568,9 +702,7 @@ const ReportPage = () => {
             </h2>
 
             {isLoading ? (
-              <div className="flex items-center justify-center rounded-xl bg-slate-50 p-8 text-sm text-slate-500">
-                Đang tải dữ liệu...
-              </div>
+              <TransactionListSkeleton count={5} />
             ) : filteredTransactions.length === 0 ? (
               <div className="flex items-center justify-center rounded-xl bg-slate-50 p-8 text-sm text-slate-500">
                 Không có giao dịch phù hợp với bộ lọc hiện tại

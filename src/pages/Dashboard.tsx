@@ -1,17 +1,24 @@
-import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
-import { RiAddLine, RiCalendarLine, RiExchangeDollarLine, RiHandCoinLine, RiHandHeartLine, RiSendPlaneFill, RiSettings3Line } from 'react-icons/ri'
+import { useEffect, useRef, useState } from 'react'
+import { useNavigate, useLocation } from 'react-router-dom'
+import { RiAddLine, RiCalendarLine, RiExchangeDollarLine, RiHandCoinLine, RiHandHeartLine, RiSendPlaneFill, RiSettings3Line, RiWallet3Line } from 'react-icons/ri'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
 import { QuickActionsSettings } from '../components/quickActions/QuickActionsSettings'
 import { TransactionChart } from '../components/charts/TransactionChart'
 import { TransactionModal } from '../components/transactions/TransactionModal'
+import { TransactionActionModal } from '../components/transactions/TransactionActionModal'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import { WelcomeModal } from '../components/ui/WelcomeModal'
 import { WalletCarousel } from '../components/wallets/WalletCarousel'
+import { TransactionListSkeleton } from '../components/skeletons'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
 import { fetchCategories, type CategoryRecord } from '../lib/categoryService'
-import { fetchTransactions, type TransactionRecord } from '../lib/transactionService'
-import type { WalletRecord } from '../lib/walletService'
+import { fetchTransactions, deleteTransaction, type TransactionRecord } from '../lib/transactionService'
+import { fetchWallets, type WalletRecord } from '../lib/walletService'
+import { getDefaultWallet, setDefaultWallet } from '../lib/walletService'
+import { getCurrentProfile, type ProfileRecord } from '../lib/profileService'
+import { useNotification } from '../contexts/notificationContext.helpers'
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('vi-VN', {
@@ -64,15 +71,49 @@ const ALL_QUICK_ACTIONS = [
 ]
 
 const STORAGE_KEY = 'quickActionsSettings'
+const DEFAULT_WALLET_KEY = 'bofin_default_wallet_id'
+
+// Utility functions for default wallet
+const getDefaultWalletId = (): string | null => {
+  try {
+    return localStorage.getItem(DEFAULT_WALLET_KEY)
+  } catch {
+    return null
+  }
+}
+
+const saveDefaultWalletId = (walletId: string): void => {
+  try {
+    localStorage.setItem(DEFAULT_WALLET_KEY, walletId)
+  } catch (error) {
+    console.error('Error saving default wallet:', error)
+  }
+}
 
 export const DashboardPage = () => {
   const navigate = useNavigate()
+  const location = useLocation()
+  const { success, error: showError } = useNotification()
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [selectedWallet, setSelectedWallet] = useState<WalletRecord | null>(null)
+  const [defaultWalletId, setDefaultWalletId] = useState<string | null>(null)
+  const [showDefaultWalletModal, setShowDefaultWalletModal] = useState(false)
   const [transactions, setTransactions] = useState<TransactionRecord[]>([])
   const [categories, setCategories] = useState<CategoryRecord[]>([])
+  const [wallets, setWallets] = useState<WalletRecord[]>([])
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true)
+  const [selectedTransaction, setSelectedTransaction] = useState<TransactionRecord | null>(null)
+  const [isActionModalOpen, setIsActionModalOpen] = useState(false)
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
+  const [isEditConfirmOpen, setIsEditConfirmOpen] = useState(false)
+  const [isDeleting, setIsDeleting] = useState(false)
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false)
+  const [profile, setProfile] = useState<ProfileRecord | null>(null)
+  
+  // Long press handler refs
+  const longPressTimerRef = useRef<number | null>(null)
+  const longPressTargetRef = useRef<TransactionRecord | null>(null)
 
   // Load quick actions settings from localStorage
   const getStoredActions = () => {
@@ -123,7 +164,98 @@ export const DashboardPage = () => {
 
   const handleWalletChange = (wallet: WalletRecord) => {
     setSelectedWallet(wallet)
+    // Chỉ cập nhật state để hiển thị, không lưu làm ví mặc định
+    // Ví mặc định chỉ được lưu khi người dùng chủ động chọn từ trang Wallets
   }
+
+  const handleConfirmDefaultWallet = async () => {
+    if (selectedWallet) {
+      try {
+        // Lưu vào database
+        await setDefaultWallet(selectedWallet.id)
+        setDefaultWalletId(selectedWallet.id) // Lưu vào state
+        saveDefaultWalletId(selectedWallet.id) // Lưu vào localStorage để fallback
+        setShowDefaultWalletModal(false)
+      } catch (error) {
+        console.error('Error setting default wallet:', error)
+        // Vẫn lưu vào localStorage để fallback
+        setDefaultWalletId(selectedWallet.id)
+        saveDefaultWalletId(selectedWallet.id)
+        setShowDefaultWalletModal(false)
+      }
+    }
+  }
+
+  // Load default wallet on mount
+  useEffect(() => {
+    const loadDefaultWallet = async () => {
+      try {
+        const savedDefaultWalletId = await getDefaultWallet()
+        if (savedDefaultWalletId) {
+          setDefaultWalletId(savedDefaultWalletId)
+          // WalletCarousel sẽ tự động chọn ví mặc định khi load
+          // và gọi handleWalletChange để set selectedWallet
+        } else {
+          // Nếu chưa có ví mặc định, hiển thị modal yêu cầu chọn sau khi wallets đã load
+          // Modal sẽ được hiển thị khi selectedWallet được set
+        }
+      } catch (error) {
+        console.error('Error loading default wallet:', error)
+        // Fallback về localStorage
+        const savedDefaultWalletId = getDefaultWalletId()
+        if (savedDefaultWalletId) {
+          setDefaultWalletId(savedDefaultWalletId)
+        }
+      }
+    }
+    loadDefaultWallet()
+  }, [])
+
+  // Hiển thị modal nếu chưa có ví mặc định và đã có ví được chọn
+  useEffect(() => {
+    if (!defaultWalletId && selectedWallet && !showDefaultWalletModal) {
+      // Đợi một chút để đảm bảo UI đã render
+      const timer = setTimeout(() => {
+        setShowDefaultWalletModal(true)
+      }, 500)
+      return () => clearTimeout(timer)
+    }
+  }, [defaultWalletId, selectedWallet, showDefaultWalletModal])
+
+  // Load profile
+  useEffect(() => {
+    const loadProfile = async () => {
+      try {
+        const profileData = await getCurrentProfile()
+        setProfile(profileData)
+      } catch (error) {
+        console.error('Error loading profile:', error)
+      }
+    }
+    loadProfile()
+  }, [location.key]) // Reload when navigating back to dashboard
+
+  // Check for welcome modal flag from login
+  useEffect(() => {
+    // Use a small delay to ensure sessionStorage is set before checking
+    const checkWelcomeModal = () => {
+      const shouldShowWelcome = sessionStorage.getItem('showWelcomeModal')
+      if (shouldShowWelcome === 'true') {
+        // Clear the flag immediately so it doesn't show again
+        sessionStorage.removeItem('showWelcomeModal')
+        // Show modal after a short delay to ensure page is loaded
+        setShowWelcomeModal(true)
+      }
+    }
+    
+    // Check immediately
+    checkWelcomeModal()
+    
+    // Also check after a short delay to handle any race conditions
+    const timer = setTimeout(checkWelcomeModal, 200)
+    
+    return () => clearTimeout(timer)
+  }, [location.key]) // Re-run when location changes (navigation)
 
   const handleAddWallet = () => {
     navigate('/wallets')
@@ -134,9 +266,10 @@ export const DashboardPage = () => {
     const loadData = async () => {
       setIsLoadingTransactions(true)
       try {
-        const [transactionsData, categoriesData] = await Promise.all([
-          fetchTransactions({ limit: 10 }),
+        const [transactionsData, categoriesData, walletsData] = await Promise.all([
+          fetchTransactions({ limit: 5 }),
           fetchCategories(),
+          fetchWallets(),
         ])
         // Sort by date: newest first (transaction_date desc, then created_at desc)
         const sortedTransactions = [...transactionsData].sort((a, b) => {
@@ -152,6 +285,7 @@ export const DashboardPage = () => {
         })
         setTransactions(sortedTransactions)
         setCategories(categoriesData)
+        setWallets(walletsData)
       } catch (error) {
         console.error('Error loading transactions:', error)
       } finally {
@@ -162,11 +296,14 @@ export const DashboardPage = () => {
     loadData()
   }, [])
 
-  // Reload transactions when a new transaction is added
+  // Reload transactions when a new transaction is added/updated/deleted
   const handleTransactionSuccess = () => {
     const loadTransactions = async () => {
       try {
-        const transactionsData = await fetchTransactions({ limit: 10 })
+        // Đợi một chút để đảm bảo wallet balance đã được sync
+        await new Promise(resolve => setTimeout(resolve, 500))
+        
+        const transactionsData = await fetchTransactions({ limit: 5 })
         // Sort by date: newest first (transaction_date desc, then created_at desc)
         const sortedTransactions = [...transactionsData].sort((a, b) => {
           const dateA = new Date(a.transaction_date).getTime()
@@ -187,6 +324,83 @@ export const DashboardPage = () => {
     loadTransactions()
   }
 
+  // Long press handlers
+  const handleLongPressStart = (transaction: TransactionRecord) => {
+    // Clear any existing timer
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current)
+    }
+
+    longPressTargetRef.current = transaction
+
+    // Set timer for long press (500ms)
+    longPressTimerRef.current = window.setTimeout(() => {
+      if (longPressTargetRef.current) {
+        setSelectedTransaction(longPressTargetRef.current)
+        setIsActionModalOpen(true)
+      }
+    }, 500)
+  }
+
+  const handleLongPressEnd = () => {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+    longPressTargetRef.current = null
+  }
+
+  const handleLongPressCancel = () => {
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+    longPressTargetRef.current = null
+  }
+
+  // Handle edit
+  const handleEditClick = () => {
+    setIsEditConfirmOpen(true)
+  }
+
+  const handleEditConfirm = () => {
+    setIsEditConfirmOpen(false)
+    setIsActionModalOpen(false)
+    setIsTransactionModalOpen(true)
+  }
+
+  // Handle delete
+  const handleDeleteClick = () => {
+    setIsDeleteConfirmOpen(true)
+  }
+
+  const handleDeleteConfirm = async () => {
+    if (!selectedTransaction) return
+
+    setIsDeleting(true)
+    try {
+      await deleteTransaction(selectedTransaction.id)
+      success('Đã xóa giao dịch thành công!')
+      handleTransactionSuccess()
+      setSelectedTransaction(null)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Không thể xóa giao dịch'
+      showError(message)
+    } finally {
+      setIsDeleting(false)
+      setIsDeleteConfirmOpen(false)
+    }
+  }
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (longPressTimerRef.current) {
+        window.clearTimeout(longPressTimerRef.current)
+      }
+    }
+  }, [])
+
   // Get category info for a transaction
   const getCategoryInfo = (categoryId: string) => {
     const category = categories.find((cat) => cat.id === categoryId)
@@ -201,17 +415,52 @@ export const DashboardPage = () => {
     }
   }
 
+  // Get wallet name
+  const getWalletName = (walletId: string) => {
+    const wallet = wallets.find((w) => w.id === walletId)
+    return wallet?.name || 'Không xác định'
+  }
+
+  // Get wallet color based on ID (consistent color for same wallet)
+  const getWalletColor = (walletId: string) => {
+    // Array of beautiful color combinations
+    const colors = [
+      { bg: 'bg-sky-100', icon: 'text-sky-600', text: 'text-sky-700' },
+      { bg: 'bg-emerald-100', icon: 'text-emerald-600', text: 'text-emerald-700' },
+      { bg: 'bg-rose-100', icon: 'text-rose-600', text: 'text-rose-700' },
+      { bg: 'bg-amber-100', icon: 'text-amber-600', text: 'text-amber-700' },
+      { bg: 'bg-purple-100', icon: 'text-purple-600', text: 'text-purple-700' },
+      { bg: 'bg-indigo-100', icon: 'text-indigo-600', text: 'text-indigo-700' },
+      { bg: 'bg-pink-100', icon: 'text-pink-600', text: 'text-pink-700' },
+      { bg: 'bg-cyan-100', icon: 'text-cyan-600', text: 'text-cyan-700' },
+      { bg: 'bg-orange-100', icon: 'text-orange-600', text: 'text-orange-700' },
+      { bg: 'bg-teal-100', icon: 'text-teal-600', text: 'text-teal-700' },
+    ]
+
+    // Simple hash function to convert wallet ID to index
+    let hash = 0
+    for (let i = 0; i < walletId.length; i++) {
+      hash = walletId.charCodeAt(i) + ((hash << 5) - hash)
+    }
+    const index = Math.abs(hash) % colors.length
+    return colors[index]
+  }
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
-      <HeaderBar userName="Minh Quang" badgeColor="bg-sky-500" />
+      <HeaderBar 
+        userName={profile?.full_name || 'Người dùng'} 
+        avatarUrl={profile?.avatar_url || undefined}
+        badgeColor="bg-sky-500" 
+      />
 
       <main className="flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 py-4 sm:py-4">
           {/* Wallet Card Carousel */}
           <WalletCarousel onWalletChange={handleWalletChange} onAddWallet={handleAddWallet} />
 
-        {/* Transaction Chart */}
-        <TransactionChart walletId={selectedWallet?.id} />
+        {/* Transaction Chart - Sử dụng ví mặc định */}
+        <TransactionChart walletId={defaultWalletId || undefined} />
 
         <section className="rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-white p-5 shadow-lg ring-1 ring-slate-100">
           <div className="flex items-center justify-between mb-6">
@@ -273,7 +522,7 @@ export const DashboardPage = () => {
               <p className="text-sm text-slate-500">Theo dõi lịch sử thu chi mới nhất.</p>
             </div>
             <button 
-              onClick={() => navigate('/reports')}
+              onClick={() => navigate('/transactions')}
               className="text-sm font-semibold text-sky-500 transition hover:text-sky-600 hover:underline"
             >
               Xem thêm
@@ -281,15 +530,13 @@ export const DashboardPage = () => {
           </header>
           <div className="space-y-3">
             {isLoadingTransactions ? (
-              <div className="flex items-center justify-center rounded-3xl bg-white p-8 shadow-[0_20px_55px_rgba(15,40,80,0.1)] ring-1 ring-slate-100">
-                <p className="text-sm text-slate-500">Đang tải giao dịch...</p>
-              </div>
+              <TransactionListSkeleton count={5} />
             ) : transactions.length === 0 ? (
               <div className="flex items-center justify-center rounded-3xl bg-white p-8 shadow-[0_20px_55px_rgba(15,40,80,0.1)] ring-1 ring-slate-100">
                 <p className="text-sm text-slate-500">Chưa có giao dịch nào</p>
               </div>
             ) : (
-              transactions.map((transaction) => {
+              transactions.slice(0, 5).map((transaction) => {
                 const categoryInfo = getCategoryInfo(transaction.category_id)
                 const IconComponent = categoryInfo.icon
                 const isIncome = transaction.type === 'Thu'
@@ -297,62 +544,90 @@ export const DashboardPage = () => {
                 return (
                   <div
                     key={transaction.id}
-                    className={`flex items-center justify-between rounded-3xl p-4 shadow-[0_20px_55px_rgba(15,40,80,0.1)] ring-1 transition-all ${
+                    onTouchStart={() => handleLongPressStart(transaction)}
+                    onTouchEnd={handleLongPressEnd}
+                    onTouchCancel={handleLongPressCancel}
+                    onMouseDown={() => handleLongPressStart(transaction)}
+                    onMouseUp={handleLongPressEnd}
+                    onMouseLeave={handleLongPressCancel}
+                    className={`relative flex gap-2.5 rounded-2xl p-2.5 shadow-[0_20px_55px_rgba(15,40,80,0.1)] ring-1 transition-all select-none ${
                       isIncome
                         ? 'bg-gradient-to-r from-emerald-50 via-emerald-50/80 to-white border-l-4 border-emerald-500'
                         : 'bg-gradient-to-r from-rose-50 via-rose-50/80 to-white border-l-4 border-rose-500'
                     }`}
                   >
-                    <div className="flex items-center gap-3">
-                      <span
-                        className={`flex h-12 w-12 items-center justify-center rounded-2xl text-lg shadow-md transition-transform hover:scale-110 ${
-                          isIncome
-                            ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white'
-                            : 'bg-gradient-to-br from-rose-400 to-rose-600 text-white'
-                        }`}
-                      >
-                        {IconComponent ? (
-                          <IconComponent className="h-6 w-6" />
-                        ) : (
-                          <RiAddLine className="h-6 w-6" />
-                        )}
-                      </span>
-                      <div>
-                        <p className={`font-semibold ${
+                    {/* Icon */}
+                    <span
+                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base shadow-sm transition-transform ${
+                        isIncome
+                          ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white'
+                          : 'bg-gradient-to-br from-rose-400 to-rose-600 text-white'
+                      }`}
+                    >
+                      {IconComponent ? (
+                        <IconComponent className="h-5 w-5" />
+                      ) : (
+                        <RiAddLine className="h-5 w-5" />
+                      )}
+                    </span>
+                    
+                    {/* Content */}
+                    <div className="flex-1 min-w-0 flex items-start justify-between gap-2">
+                      {/* Left side: Description, Date, Category */}
+                      <div className="flex-1 min-w-0">
+                        {/* Description */}
+                        <p className={`truncate text-sm font-semibold mb-1 ${
                           isIncome ? 'text-emerald-900' : 'text-rose-900'
                         }`}>
                           {transaction.description || 'Không có mô tả'}
                         </p>
-                        <div className={`flex items-center gap-2 text-xs ${
-                          isIncome ? 'text-emerald-700' : 'text-rose-700'
-                        }`}>
-                          <RiCalendarLine className="h-3.5 w-3.5" />
-                          {new Date(transaction.transaction_date).toLocaleDateString('vi-VN', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                          })}
-                          {transaction.created_at && (
-                            <>
-                              {' '}
-                              {new Date(transaction.created_at).toLocaleTimeString('vi-VN', {
-                                hour: '2-digit',
-                                minute: '2-digit',
+                        
+                        {/* Date and Category - Compact */}
+                        <div className="flex items-center gap-2 text-xs">
+                          <div className={`flex items-center gap-1 shrink-0 ${
+                            isIncome ? 'text-emerald-700' : 'text-rose-700'
+                          }`}>
+                            <RiCalendarLine className="h-3 w-3" />
+                            <span className="whitespace-nowrap">
+                              {new Date(transaction.transaction_date).toLocaleDateString('vi-VN', {
+                                day: '2-digit',
+                                month: '2-digit',
+                                year: 'numeric',
                               })}
-                            </>
-                          )}
-                          <span>• {categoryInfo.name}</span>
+                            </span>
+                          </div>
+                          <span className="text-slate-400">•</span>
+                          <span className={`font-medium truncate ${
+                            isIncome ? 'text-emerald-700' : 'text-rose-700'
+                          }`}>
+                            {categoryInfo.name}
+                          </span>
                         </div>
                       </div>
+                      
+                      {/* Right side: Amount and Wallet */}
+                      <div className="flex flex-col items-end gap-1 shrink-0">
+                        {/* Amount - Top Right */}
+                        <span className={`text-base font-bold ${
+                          isIncome ? 'text-emerald-700' : 'text-rose-700'
+                        }`}>
+                          {isIncome ? '+' : '-'}
+                          {formatCurrency(transaction.amount)}
+                        </span>
+                        {/* Wallet - Bottom Right */}
+                        {(() => {
+                          const walletColor = getWalletColor(transaction.wallet_id)
+                          return (
+                            <div className={`flex items-center gap-1 rounded-full ${walletColor.bg} px-2 py-0.5`}>
+                              <RiWallet3Line className={`h-3 w-3 ${walletColor.icon}`} />
+                              <span className={`text-xs font-semibold ${walletColor.text} whitespace-nowrap`}>
+                                {getWalletName(transaction.wallet_id)}
+                              </span>
+                            </div>
+                          )
+                        })()}
+                      </div>
                     </div>
-                    <span
-                      className={`text-base font-bold ${
-                        isIncome ? 'text-emerald-700' : 'text-rose-700'
-                      }`}
-                    >
-                      {isIncome ? '+' : '-'}
-                      {formatCurrency(transaction.amount)}
-                    </span>
                   </div>
                 )
               })
@@ -382,8 +657,57 @@ export const DashboardPage = () => {
 
       <TransactionModal
         isOpen={isTransactionModalOpen}
-        onClose={() => setIsTransactionModalOpen(false)}
-        onSuccess={handleTransactionSuccess}
+        onClose={() => {
+          setIsTransactionModalOpen(false)
+          setSelectedTransaction(null)
+          setIsActionModalOpen(false)
+        }}
+        onSuccess={() => {
+          handleTransactionSuccess()
+          setSelectedTransaction(null)
+        }}
+        transaction={selectedTransaction}
+      />
+
+      <TransactionActionModal
+        isOpen={isActionModalOpen}
+        onClose={() => {
+          setIsActionModalOpen(false)
+          setSelectedTransaction(null)
+        }}
+        onEdit={() => {
+          setIsActionModalOpen(false)
+          // Keep selectedTransaction for edit action
+          handleEditClick()
+        }}
+        onDelete={() => {
+          setIsActionModalOpen(false)
+          // Keep selectedTransaction for delete action
+          handleDeleteClick()
+        }}
+      />
+
+      <ConfirmDialog
+        isOpen={isEditConfirmOpen}
+        onClose={() => setIsEditConfirmOpen(false)}
+        onConfirm={handleEditConfirm}
+        type="warning"
+        title="Xác nhận sửa giao dịch"
+        message="Bạn có chắc chắn muốn sửa giao dịch này? Thông tin giao dịch sẽ được cập nhật và có thể ảnh hưởng đến số dư ví."
+        confirmText="Sửa"
+        cancelText="Hủy"
+      />
+
+      <ConfirmDialog
+        isOpen={isDeleteConfirmOpen}
+        onClose={() => setIsDeleteConfirmOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        type="error"
+        title="Xác nhận xóa giao dịch"
+        message="Bạn có chắc chắn muốn xóa giao dịch này? Hành động này không thể hoàn tác và sẽ ảnh hưởng đến số dư ví."
+        confirmText="Xóa"
+        cancelText="Hủy"
+        isLoading={isDeleting}
       />
 
       <QuickActionsSettings
@@ -391,6 +715,41 @@ export const DashboardPage = () => {
         onClose={() => setIsSettingsOpen(false)}
         actions={quickActionsSettings}
         onUpdate={handleUpdateQuickActions}
+      />
+
+      {/* Modal yêu cầu chọn ví mặc định */}
+      {showDefaultWalletModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
+            <h2 className="mb-4 text-xl font-bold text-slate-900">
+              Chọn ví mặc định
+            </h2>
+            <p className="mb-6 text-sm text-slate-600">
+              Vui lòng chọn một ví làm ví mặc định để tính toán luồng tiền Thu và Chi. Bạn có thể thay đổi ví mặc định bất cứ lúc nào.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleConfirmDefaultWallet}
+                disabled={!selectedWallet}
+                className="flex-1 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Xác nhận
+              </button>
+              <button
+                onClick={() => navigate('/wallets')}
+                className="flex-1 rounded-xl border-2 border-slate-200 bg-white px-6 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
+              >
+                Thêm ví mới
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Welcome Modal */}
+      <WelcomeModal
+        isOpen={showWelcomeModal}
+        onClose={() => setShowWelcomeModal(false)}
       />
     </div>
   )

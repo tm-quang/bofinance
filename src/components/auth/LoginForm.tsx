@@ -2,7 +2,8 @@ import { useState, type ChangeEvent, type FormEvent } from 'react'
 import { FiEye, FiEyeOff, FiLock, FiMail } from 'react-icons/fi'
 
 import { getSupabaseClient } from '../../lib/supabaseClient'
-import { useNotification } from '../../contexts/NotificationContext'
+import { useNotification } from '../../contexts/notificationContext.helpers'
+import { translateAuthError } from '../../utils/authErrorTranslator'
 
 type LoginFormProps = {
   onSuccess?: (email: string) => void
@@ -42,13 +43,17 @@ export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
         throw authError
       }
 
+      // Set flag to show welcome modal after navigation
+      sessionStorage.setItem('showWelcomeModal', 'true')
+
       success('Đăng nhập thành công!')
       onSuccess?.(formData.email)
     } catch (error) {
-      const message =
+      const rawMessage =
         error instanceof Error
           ? error.message
           : 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin và thử lại.'
+      const message = translateAuthError(rawMessage)
       setError(message)
       showError(message)
       onError?.(message)
@@ -77,7 +82,7 @@ export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
               type="email"
               required
               className="block w-full rounded-3xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-4 text-slate-900 placeholder:text-slate-400 transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-              placeholder="Email / Số điện thoại"
+              placeholder="Nhập địa chỉ Email"
               value={formData.email}
               onChange={handleChange('email')}
             />
@@ -96,7 +101,7 @@ export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
               autoComplete="current-password"
               required
               className="block w-full rounded-3xl border border-slate-200 bg-slate-50 py-3.5 pl-12 pr-12 text-slate-900 placeholder:text-slate-400 transition-all focus:border-transparent focus:bg-white focus:outline-none focus:ring-2 focus:ring-sky-500"
-              placeholder="Mật khẩu"
+              placeholder="Nhập mật khẩu"
               value={formData.password}
               onChange={handleChange('password')}
             />

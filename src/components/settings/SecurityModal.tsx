@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { RiCloseLine, RiEyeLine, RiEyeOffLine, RiLock2Line } from 'react-icons/ri'
 
 import { changePassword } from '../../lib/profileService'
-import { useNotification } from '../../contexts/NotificationContext'
+import { useNotification } from '../../contexts/notificationContext.helpers'
 
 type SecurityModalProps = {
   isOpen: boolean
@@ -86,9 +86,9 @@ export const SecurityModal = ({ isOpen, onClose }: SecurityModalProps) => {
 
   return (
     <div className="fixed inset-0 z-50 flex items-end backdrop-blur-md bg-slate-950/50">
-      <div className="flex w-full max-h-[85vh] flex-col rounded-t-3xl bg-white shadow-2xl">
+      <div className="flex w-full max-h-[85vh] flex-col rounded-t-3xl bg-white shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50 px-4 py-4 sm:px-6 sm:py-5">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50 px-4 py-4 sm:px-6 sm:py-5 rounded-t-3xl">
           <div>
             <h2 className="text-lg font-bold text-slate-900 sm:text-xl">Đổi mật khẩu</h2>
             <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">Bảo mật tài khoản của bạn</p>

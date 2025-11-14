@@ -124,6 +124,7 @@ export const FooterNav = ({ onAddClick }: FooterNavProps) => {
                   type="button"
                   onClick={() => handleClick(tab)}
                   aria-current={active ? 'page' : undefined}
+                  data-no-haptic="true"
                   className={`relative z-20 flex flex-1 flex-col items-center gap-1 text-[10px] font-medium transition-colors ${
                     active ? 'text-white' : 'text-slate-400'
                   }`}

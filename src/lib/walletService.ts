@@ -1,7 +1,7 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 
-import { cacheManager, invalidateCache } from './cache'
 import { getSupabaseClient } from './supabaseClient'
+import { invalidateCache } from './cache'
 
 export type WalletType = 'Tiền mặt' | 'Ngân hàng' | 'Tiết kiệm' | 'Tín dụng' | 'Đầu tư' | 'Khác'
 
@@ -45,15 +45,6 @@ const throwIfError = (error: PostgrestError | null, fallbackMessage: string): vo
 
 // Lấy tất cả ví của user hiện tại
 export const fetchWallets = async (includeInactive = false): Promise<WalletRecord[]> => {
-  // Generate cache key
-  const cacheKey = cacheManager.generateKey('fetchWallets', { includeInactive })
-  
-  // Check cache
-  const cached = cacheManager.get<WalletRecord[]>(cacheKey)
-  if (cached !== null) {
-    return cached
-  }
-
   const supabase = getSupabaseClient()
   const {
     data: { user },
@@ -77,12 +68,7 @@ export const fetchWallets = async (includeInactive = false): Promise<WalletRecor
 
   throwIfError(error, 'Không thể tải danh sách ví.')
 
-  const result = data ?? []
-  
-  // Cache result (5 minutes for wallets as they change less frequently)
-  cacheManager.set(cacheKey, result, 5 * 60 * 1000)
-
-  return result
+  return data ?? []
 }
 
 // Lấy một ví theo ID
@@ -136,10 +122,6 @@ export const createWallet = async (payload: WalletInsert): Promise<WalletRecord>
     throw new Error('Không nhận được dữ liệu ví sau khi tạo.')
   }
 
-  // Invalidate wallet caches
-  invalidateCache('fetchWallets')
-  invalidateCache('getWalletById')
-  invalidateCache('getTotalBalance')
 
   return data
 }
@@ -169,10 +151,6 @@ export const updateWallet = async (id: string, updates: WalletUpdate): Promise<W
     throw new Error('Không nhận được dữ liệu ví sau khi cập nhật.')
   }
 
-  // Invalidate wallet caches
-  invalidateCache('fetchWallets')
-  invalidateCache('getWalletById')
-  invalidateCache('getTotalBalance')
 
   return data
 }
@@ -200,10 +178,6 @@ export const deleteWallet = async (id: string, hardDelete = false): Promise<void
     throwIfError(error, 'Không thể vô hiệu hóa ví.')
   }
 
-  // Invalidate wallet caches
-  invalidateCache('fetchWallets')
-  invalidateCache('getWalletById')
-  invalidateCache('getTotalBalance')
 }
 
 // Cập nhật số dư ví
@@ -215,5 +189,82 @@ export const updateWalletBalance = async (id: string, newBalance: number): Promi
 export const getTotalBalance = async (): Promise<number> => {
   const wallets = await fetchWallets()
   return wallets.reduce((total, wallet) => total + wallet.balance, 0)
+}
+
+// Lưu ví mặc định vào database
+export const setDefaultWallet = async (walletId: string): Promise<void> => {
+  const supabase = getSupabaseClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    throw new Error('Bạn cần đăng nhập để đặt ví mặc định.')
+  }
+
+  // Kiểm tra xem ví có thuộc về user không
+  const wallet = await getWalletById(walletId)
+  if (!wallet) {
+    throw new Error('Ví không tồn tại.')
+  }
+
+  // Lưu vào bảng user_preferences
+  // Bảng này được tạo bằng migration SQL (xem supabase/migrations/create_user_preferences.sql)
+  const { error } = await supabase
+    .from('user_preferences')
+    .upsert(
+      {
+        user_id: user.id,
+        key: 'default_wallet_id',
+        value: walletId,
+        // updated_at sẽ được tự động cập nhật bởi trigger
+      },
+      {
+        onConflict: 'user_id,key',
+      }
+    )
+
+  if (error) {
+    // Nếu bảng user_preferences không tồn tại, fallback về localStorage
+    console.warn('Không thể lưu ví mặc định vào database:', error)
+    try {
+      localStorage.setItem('bofin_default_wallet_id', walletId)
+    } catch (e) {
+      console.error('Không thể lưu vào localStorage:', e)
+    }
+  } else {
+    // Invalidate cache để đảm bảo dữ liệu mới nhất
+    invalidateCache('fetchWallets')
+  }
+}
+
+// Lấy ví mặc định từ database
+export const getDefaultWallet = async (): Promise<string | null> => {
+  const supabase = getSupabaseClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    return null
+  }
+
+  const { data, error } = await supabase
+    .from('user_preferences')
+    .select('value')
+    .eq('user_id', user.id)
+    .eq('key', 'default_wallet_id')
+    .single()
+
+  if (error || !data) {
+    // Fallback về localStorage
+    try {
+      return localStorage.getItem('bofin_default_wallet_id')
+    } catch {
+      return null
+    }
+  }
+
+  return data.value as string
 }
 

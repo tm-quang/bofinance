@@ -9,11 +9,15 @@
     
     <!-- PWA Meta Tags -->
     <meta name="theme-color" content="#10b981" />
-    <meta name="description" content="BOfin Financial Application" />
+    <meta name="description" content="BOfin - Theo dõi chi tiêu, tối ưu tài chính" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="BOfin" />
+    <meta name="apple-mobile-web-app-title" content="BOfin App" />
+    
+    <!-- Fullscreen PWA on Android -->
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#10b981" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#10b981" />
     
     <!-- Icons -->
     <link rel="apple-touch-icon" href="/icon-192x192.png" />
@@ -23,7 +27,12 @@
     <!-- Prevent address bar on Android -->
     <meta name="format-detection" content="telephone=no" />
     
-    <title>BOfin App</title>
+    <!-- Google Fonts: Roboto (default) and Lobster (for greeting) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&family=Lobster&display=swap" rel="stylesheet">
+    
+    <title>BOfin - Theo dõi chi tiêu, tối ưu tài chính</title>
     
     <style>
       /* Native app behavior - Prevent all zoom and unwanted interactions */
@@ -44,15 +53,19 @@
         user-select: text;
       }
       
-      /* Prevent pull-to-refresh and overscroll */
+      /* Prevent pull-to-refresh and overscroll - Full screen PWA */
       html, body {
         overscroll-behavior: none;
         overscroll-behavior-y: none;
+        overscroll-behavior-x: none;
         -webkit-overflow-scrolling: touch;
         touch-action: pan-y;
         position: fixed;
         width: 100%;
         height: 100%;
+        /* Prevent address bar from showing */
+        height: 100vh;
+        height: -webkit-fill-available;
       }
       
       /* Prevent zoom on double tap */
@@ -67,7 +80,7 @@
         width: 100vw;
         height: 100vh;
         overflow: hidden;
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+        font-family: 'Roboto', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Oxygen',
           'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
           sans-serif;
         -webkit-font-smoothing: antialiased;

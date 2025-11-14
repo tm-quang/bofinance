@@ -11,7 +11,6 @@ import {
   RiEmotionLine,
   RiFeedbackLine,
   RiLock2Line,
-  RiLogoutCircleLine,
   RiMoonLine,
   RiPaletteLine,
   RiSmartphoneLine,
@@ -28,6 +27,7 @@ import { SecurityModal } from '../components/settings/SecurityModal'
 import { SupportModal } from '../components/settings/SupportModal'
 import { UpgradeModal } from '../components/settings/UpgradeModal'
 import { getCurrentProfile, type ProfileRecord } from '../lib/profileService'
+import { useDialog } from '../contexts/dialogContext.helpers'
 import { getSupabaseClient } from '../lib/supabaseClient'
 
 type ToggleSetting = {
@@ -138,6 +138,7 @@ const themeOptions = [
 
 const SettingsPage = () => {
   const navigate = useNavigate()
+  const { showConfirm } = useDialog()
   const [profile, setProfile] = useState<ProfileRecord | null>(null)
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
   const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false)
@@ -168,18 +169,37 @@ const SettingsPage = () => {
         const profileData = await getCurrentProfile()
         setProfile(profileData)
       } catch (error) {
-        console.error('Error loading profile:', error)
+        // Log detailed error information
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        const errorDetails = error instanceof Error ? {
+          name: error.name,
+          message: error.message,
+          stack: error.stack
+        } : error
+        
+        console.error('Error loading profile:', {
+          message: errorMessage,
+          details: errorDetails,
+          timestamp: new Date().toISOString()
+        })
+        
+        // If it's a 406 error, it likely means the profiles table doesn't exist
+        if (errorMessage.includes('406') || errorMessage.includes('Not Acceptable')) {
+          console.warn('Profile table may not exist. Please run the migration: create_profiles_table.sql')
+        }
       }
     }
     loadProfile()
   }, [])
 
   const handleLogout = async () => {
-    if (window.confirm('Bạn có chắc chắn muốn đăng xuất?')) {
+    await showConfirm('Bạn có chắc chắn muốn đăng xuất?', async () => {
       const supabase = getSupabaseClient()
+      // Clear welcome modal flag when logging out
+      sessionStorage.removeItem('showWelcomeModal')
       await supabase.auth.signOut()
       navigate('/login')
-    }
+    })
   }
 
   const handleOpenSupport = (type: 'feedback' | 'bug') => {
@@ -219,13 +239,24 @@ const SettingsPage = () => {
               </h3>
               <p className="text-xs text-slate-500 sm:text-sm">{profile?.email || ''}</p>
             </div>
-            <button
-              type="button"
-              onClick={() => setIsAccountModalOpen(true)}
-              className="rounded-xl border-2 border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 sm:px-5 sm:py-2.5 sm:text-sm"
-            >
-              Chỉnh sửa
-            </button>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={() => setIsAccountModalOpen(true)}
+                className="rounded-xl border-2 border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 sm:px-5 sm:py-2.5 sm:text-sm"
+              >
+                Chỉnh sửa
+              </button>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="rounded-xl border-2 border-rose-200 bg-white px-4 py-2 text-xs font-semibold text-rose-600 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 sm:px-5 sm:py-2.5 sm:text-sm"
+              >
+                <span className="flex items-center justify-center gap-1.5">
+                  Đăng xuất
+                </span>
+              </button>
+            </div>
           </div>
         </section>
 
@@ -494,17 +525,6 @@ const SettingsPage = () => {
           </div>
         </section>
 
-        {/* Logout */}
-        <section className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-600 transition hover:border-rose-300 hover:bg-rose-100"
-          >
-            <RiLogoutCircleLine className="h-5 w-5" />
-            Đăng xuất khỏi BoFin
-          </button>
-        </section>
         </div>
       </main>
 
@@ -520,7 +540,19 @@ const SettingsPage = () => {
               const profileData = await getCurrentProfile()
               setProfile(profileData)
             } catch (error) {
-              console.error('Error reloading profile:', error)
+              // Log detailed error information
+              const errorMessage = error instanceof Error ? error.message : String(error)
+              const errorDetails = error instanceof Error ? {
+                name: error.name,
+                message: error.message,
+                stack: error.stack
+              } : error
+              
+              console.error('Error reloading profile:', {
+                message: errorMessage,
+                details: errorDetails,
+                timestamp: new Date().toISOString()
+              })
             }
           }
           loadProfile()

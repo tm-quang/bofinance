@@ -113,11 +113,34 @@ export const preventTextSelection = () => {
 
 /**
  * Handle back button (Android)
+ * This works with React Router's BrowserRouter
  */
 export const handleBackButton = (callback: () => void) => {
   window.addEventListener('popstate', () => {
     callback()
   })
+}
+
+/**
+ * Enhanced Android back button handler for PWA
+ * Handles hardware back button on Android devices
+ */
+export const setupAndroidBackButton = (onBack: () => boolean) => {
+  // Handle browser back button (works with React Router)
+  window.addEventListener('popstate', () => {
+    const shouldPreventDefault = onBack()
+    if (shouldPreventDefault) {
+      // Push state back if we want to prevent navigation
+      window.history.pushState(null, '', window.location.href)
+    }
+  })
+
+  // Push initial state to enable back button
+  window.history.pushState(null, '', window.location.href)
+
+  // Handle hardware back button on Android (via beforeunload)
+  // Note: This is handled by React Router's BrowserRouter automatically
+  // but we add this for additional control
 }
 
 /**
@@ -139,7 +162,7 @@ export const lockOrientation = async (orientation: 'portrait' | 'landscape' = 'p
       await orientationLock(orientation)
     }
   } catch {
-    console.log('Orientation lock not supported')
+    // Orientation lock not supported - silently fail
   }
 }
 
@@ -169,7 +192,7 @@ export const initNativeAppBehavior = () => {
   // preventTextSelection()
   // lockOrientation('portrait')
 
-  console.log('✅ Native app behavior initialized')
+  // Native app behavior initialized (log removed for security)
 }
 
 /**
@@ -195,7 +218,7 @@ export const setupInstallPrompt = () => {
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault()
     deferredPrompt = e
-    console.log('PWA install prompt ready')
+    // PWA install prompt ready (log removed for security)
   })
 }
 
@@ -213,10 +236,22 @@ export const showInstallPrompt = async (): Promise<boolean> => {
 
 /**
  * Add haptic feedback to buttons
+ * Excludes footer navigation buttons
  */
 export const addHapticFeedback = () => {
   document.addEventListener('click', (e) => {
     const target = e.target as HTMLElement
+    
+    // Skip haptic feedback for footer navigation and buttons with data-no-haptic
+    if (
+      target.closest('[class*="FooterNav"]') ||
+      target.closest('footer') ||
+      target.closest('[data-no-haptic="true"]') ||
+      target.hasAttribute('data-no-haptic')
+    ) {
+      return
+    }
+    
     if (
       target.tagName === 'BUTTON' ||
       target.closest('button') ||

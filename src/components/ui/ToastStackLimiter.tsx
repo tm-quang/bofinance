@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { toast, useToasterStore } from 'react-hot-toast'
 
-const TOAST_LIMIT = 3
+const TOAST_LIMIT = 1
 
 export default function ToastStackLimiter() {
   const { toasts } = useToasterStore()

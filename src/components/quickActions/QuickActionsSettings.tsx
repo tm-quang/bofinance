@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useEffectEvent } from 'react'
 import { RiCloseLine, RiDragMoveLine } from 'react-icons/ri'
 
 type QuickAction = {
@@ -21,10 +21,13 @@ export const QuickActionsSettings = ({
   onUpdate,
 }: QuickActionsSettingsProps) => {
   const [localActions, setLocalActions] = useState<QuickAction[]>(actions)
+  const syncLocalActions = useEffectEvent((next: QuickAction[]) => {
+    setLocalActions(next)
+  })
 
   useEffect(() => {
     if (isOpen) {
-      setLocalActions(actions)
+      syncLocalActions(actions)
     }
   }, [isOpen, actions])
 
@@ -53,9 +56,9 @@ export const QuickActionsSettings = ({
 
   return (
     <div className="fixed inset-0 z-50 flex items-end backdrop-blur-md bg-slate-950/50">
-      <div className="flex w-full max-h-[85vh] flex-col rounded-t-3xl bg-white shadow-2xl">
+      <div className="flex w-full max-h-[85vh] flex-col rounded-t-3xl bg-white shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50 px-4 py-4 sm:px-6 sm:py-5">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50 px-4 py-4 sm:px-6 sm:py-5 rounded-t-3xl">
           <div>
             <h2 className="text-lg font-bold text-slate-900 sm:text-xl">Cài đặt chức năng nhanh</h2>
             <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">

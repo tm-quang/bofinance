@@ -3,7 +3,9 @@ import { RiCameraLine, RiCloseLine, RiMailLine, RiPhoneLine, RiUser3Line } from 
 
 import { deleteAvatar, getCurrentProfile, updateProfile, uploadAvatar, type ProfileRecord } from '../../lib/profileService'
 import { getSupabaseClient } from '../../lib/supabaseClient'
-import { useNotification } from '../../contexts/NotificationContext'
+import { useNotification } from '../../contexts/notificationContext.helpers'
+import { AccountInfoSkeleton } from '../skeletons'
+import { compressImageForAvatar, isFileSizeAcceptable } from '../../utils/imageCompression'
 
 type AccountInfoModalProps = {
   isOpen: boolean
@@ -16,9 +18,13 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
   const [profile, setProfile] = useState<ProfileRecord | null>(null)
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isAvatarProcessing, setIsAvatarProcessing] = useState(false)
+  const [isAvatarUploading, setIsAvatarUploading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [userEmail, setUserEmail] = useState<string>('')
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null)
+  const [pendingAvatarFile, setPendingAvatarFile] = useState<File | null>(null)
 
   const [formData, setFormData] = useState({
     full_name: '',
@@ -46,6 +52,8 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
         const profileData = await getCurrentProfile()
         if (profileData) {
           setProfile(profileData)
+          setAvatarPreview(null)
+          setPendingAvatarFile(null)
           setFormData({
             full_name: profileData.full_name || '',
             phone: profileData.phone || '',
@@ -62,6 +70,15 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
     loadProfile()
   }, [isOpen])
 
+  // Cleanup preview URL
+  useEffect(() => {
+    return () => {
+      if (avatarPreview) {
+        URL.revokeObjectURL(avatarPreview)
+      }
+    }
+  }, [avatarPreview])
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
@@ -71,27 +88,38 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
       return
     }
 
-    if (file.size > 5 * 1024 * 1024) {
-      setError('Kích thước ảnh không được vượt quá 5MB')
+    // Check initial file size (before compression)
+    const maxInitialSize = 10 * 1024 * 1024 // 10MB max before compression
+    if (file.size > maxInitialSize) {
+      setError('Kích thước ảnh quá lớn. Vui lòng chọn ảnh nhỏ hơn 10MB')
       return
     }
 
-    setIsSubmitting(true)
+    setIsAvatarProcessing(true)
     setError(null)
     try {
-      await uploadAvatar(file)
-      const updatedProfile = await getCurrentProfile()
-      if (updatedProfile) {
-        setProfile(updatedProfile)
-        success('Đã cập nhật ảnh đại diện thành công!')
-        onUpdate()
+      // Compress image to avatar size (200x200, max 250KB)
+      const compressedFile = await compressImageForAvatar(file, 200, 200, 250, 0.8)
+      
+      // Verify compressed size
+      if (!isFileSizeAcceptable(compressedFile, 250)) {
+        setError('Không thể nén ảnh xuống dưới 250KB. Vui lòng chọn ảnh khác')
+        return
       }
+
+      setPendingAvatarFile(compressedFile)
+      const newPreviewUrl = URL.createObjectURL(compressedFile)
+      if (avatarPreview) {
+        URL.revokeObjectURL(avatarPreview)
+      }
+      setAvatarPreview(newPreviewUrl)
+      success('Ảnh đã sẵn sàng, nhấn "Lưu thay đổi" để cập nhật.')
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Không thể upload avatar'
       setError(message)
       showError(message)
     } finally {
-      setIsSubmitting(false)
+      setIsAvatarProcessing(false)
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
@@ -99,6 +127,11 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
   }
 
   const handleRemoveAvatar = async () => {
+    setPendingAvatarFile(null)
+    if (avatarPreview) {
+      URL.revokeObjectURL(avatarPreview)
+      setAvatarPreview(null)
+    }
     setIsSubmitting(true)
     setError(null)
     try {
@@ -124,6 +157,16 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
     setIsSubmitting(true)
 
     try {
+      if (pendingAvatarFile) {
+        setIsAvatarUploading(true)
+        await uploadAvatar(pendingAvatarFile)
+        setPendingAvatarFile(null)
+        if (avatarPreview) {
+          URL.revokeObjectURL(avatarPreview)
+          setAvatarPreview(null)
+        }
+      }
+
       await updateProfile({
         full_name: formData.full_name || undefined,
         phone: formData.phone || undefined,
@@ -141,6 +184,7 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
       setError(message)
       showError(message)
     } finally {
+      setIsAvatarUploading(false)
       setIsSubmitting(false)
     }
   }
@@ -149,9 +193,9 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
 
   return (
     <div className="fixed inset-0 z-50 flex items-end backdrop-blur-md bg-slate-950/50">
-      <div className="flex w-full max-h-[85vh] flex-col rounded-t-3xl bg-white shadow-2xl">
+      <div className="flex w-full max-h-[85vh] flex-col rounded-t-3xl bg-white shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50 px-4 py-4 sm:px-6 sm:py-5">
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50 px-4 py-4 sm:px-6 sm:py-5 rounded-t-3xl">
           <div>
             <h2 className="text-lg font-bold text-slate-900 sm:text-xl">Thông tin tài khoản</h2>
             <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">Cập nhật thông tin cá nhân của bạn</p>
@@ -174,17 +218,15 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
           )}
 
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <p className="text-sm text-slate-500">Đang tải thông tin...</p>
-            </div>
+            <AccountInfoSkeleton />
           ) : (
             <form onSubmit={handleSubmit} id="account-form" className="space-y-4">
               {/* Avatar */}
               <div className="flex flex-col items-center gap-4">
                 <div className="relative">
-                  {profile?.avatar_url ? (
+                  {avatarPreview || profile?.avatar_url ? (
                     <img
-                      src={profile.avatar_url}
+                      src={avatarPreview || profile?.avatar_url || ''}
                       alt="Avatar"
                       className="h-24 w-24 rounded-full object-cover ring-4 ring-slate-100 sm:h-28 sm:w-28"
                     />
@@ -193,10 +235,15 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
                       <RiUser3Line className="h-12 w-12 sm:h-14 sm:w-14" />
                     </div>
                   )}
+                  {(isAvatarProcessing || isAvatarUploading) && (
+                    <div className="absolute inset-0 flex items-center justify-center rounded-full bg-white/70 text-xs font-semibold text-slate-700">
+                      {isAvatarProcessing ? 'Đang xử lý ảnh...' : 'Đang tải ảnh lên...'}
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isAvatarProcessing || isAvatarUploading}
                     className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-sky-500 text-white shadow-lg transition hover:bg-sky-600 disabled:opacity-50 sm:h-10 sm:w-10"
                   >
                     <RiCameraLine className="h-4 w-4 sm:h-5 sm:w-5" />
@@ -209,11 +256,16 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
                     className="hidden"
                   />
                 </div>
+                {pendingAvatarFile && !isAvatarProcessing && !isAvatarUploading && (
+                  <p className="text-xs text-slate-500">
+                    Ảnh sẽ được cập nhật sau khi bạn nhấn "Lưu thay đổi".
+                  </p>
+                )}
                 {profile?.avatar_url && (
                   <button
                     type="button"
                     onClick={handleRemoveAvatar}
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || isAvatarProcessing || isAvatarUploading}
                     className="text-xs font-medium text-rose-600 hover:text-rose-700 disabled:opacity-50"
                   >
                     Xóa ảnh đại diện
@@ -301,9 +353,9 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
               type="submit"
               form="account-form"
               className="flex-1 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-blue-700 disabled:opacity-50 sm:py-3 sm:text-base"
-              disabled={isSubmitting || isLoading}
+              disabled={isSubmitting || isLoading || isAvatarProcessing}
             >
-              {isSubmitting ? 'Đang lưu...' : 'Lưu thay đổi'}
+              {isSubmitting ? (isAvatarUploading ? 'Đang tải ảnh...' : 'Đang lưu...') : 'Lưu thay đổi'}
             </button>
           </div>
         </div>

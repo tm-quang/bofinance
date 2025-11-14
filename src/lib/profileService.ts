@@ -1,6 +1,7 @@
 import type { PostgrestError, AuthError } from '@supabase/supabase-js'
 
 import { getSupabaseClient } from './supabaseClient'
+import { uploadToCloudinary } from './cloudinaryService'
 
 export type ProfileRecord = {
   id: string
@@ -45,7 +46,45 @@ export const getCurrentProfile = async (): Promise<ProfileRecord | null> => {
     .eq('id', user.id)
     .single()
 
-  throwIfError(error, 'Không thể tải thông tin cá nhân.')
+  if (error) {
+    // Log detailed error for debugging
+    console.error('Supabase profile query error:', {
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+      table: TABLE_NAME,
+      userId: user.id
+    })
+    
+    // If profile doesn't exist (PGRST116), try to create it
+    if (error.code === 'PGRST116') {
+      console.warn('Profile not found, attempting to create default profile...')
+      try {
+        const { data: newProfile, error: insertError } = await supabase
+          .from(TABLE_NAME)
+          .insert({
+            id: user.id,
+            email: user.email || null,
+            full_name: user.user_metadata?.full_name || null,
+          })
+          .select()
+          .single()
+        
+        if (insertError) {
+          console.error('Failed to create profile:', insertError)
+          throwIfError(insertError, 'Không thể tạo thông tin cá nhân.')
+        }
+        
+        return newProfile
+      } catch (createError) {
+        console.error('Failed to bootstrap profile record after missing profile error:', createError)
+        throwIfError(error, 'Không thể tải thông tin cá nhân.')
+      }
+    }
+    
+    throwIfError(error, 'Không thể tải thông tin cá nhân.')
+  }
 
   return data
 }
@@ -120,11 +159,6 @@ export const uploadAvatar = async (file: File): Promise<string> => {
     throw new Error('Bạn cần đăng nhập để upload avatar.')
   }
 
-  // Tạo tên file unique với format: {user_id}/{timestamp}.{ext}
-  const fileExt = file.name.split('.').pop()
-  const fileName = `${Date.now()}.${fileExt}`
-  const filePath = `${user.id}/${fileName}`
-
   // Xóa avatar cũ nếu có
   const profile = await getCurrentProfile()
   if (profile?.avatar_url) {
@@ -135,27 +169,18 @@ export const uploadAvatar = async (file: File): Promise<string> => {
     }
   }
 
-  // Upload file lên storage
-  const { error: uploadError } = await supabase.storage
-    .from('avatars')
-    .upload(filePath, file, {
-      cacheControl: '3600',
-      upsert: true,
-    })
-
-  if (uploadError) {
-    throw new Error(`Không thể upload avatar: ${uploadError.message}`)
-  }
-
-  // Lấy public URL
-  const {
-    data: { publicUrl },
-  } = supabase.storage.from('avatars').getPublicUrl(filePath)
+  // Upload file lên Cloudinary
+  // Folder structure: {base_folder}/avatars/{user_id}
+  // Image is already compressed client-side to 200x200px and max 250KB
+  // Note: Transformations should be configured in Upload Preset or applied via URL
+  const uploadResult = await uploadToCloudinary(file, {
+    folder: `avatars/${user.id}`,
+  })
 
   // Cập nhật avatar_url trong profile
-  await updateProfile({ avatar_url: publicUrl })
+  await updateProfile({ avatar_url: uploadResult.secure_url })
 
-  return publicUrl
+  return uploadResult.secure_url
 }
 
 // Xóa avatar
@@ -169,27 +194,10 @@ export const deleteAvatar = async (): Promise<void> => {
     throw new Error('Bạn cần đăng nhập để xóa avatar.')
   }
 
-  const profile = await getCurrentProfile()
-
-  if (profile?.avatar_url) {
-    // Extract file path from URL
-    // URL format: https://{project}.supabase.co/storage/v1/object/public/avatars/{user_id}/{filename}
-    const urlParts = profile.avatar_url.split('/')
-    const fileNameIndex = urlParts.findIndex((part) => part === 'avatars')
-    if (fileNameIndex !== -1 && fileNameIndex < urlParts.length - 1) {
-      const filePath = urlParts.slice(fileNameIndex + 1).join('/')
-
-      // Xóa file từ storage
-      const { error: deleteError } = await supabase.storage
-        .from('avatars')
-        .remove([filePath])
-
-      if (deleteError) {
-        console.warn('Không thể xóa file avatar:', deleteError.message)
-      }
-    }
-  }
-
+  // Note: Cloudinary deletion should be done server-side for security
+  // For now, we just remove the URL from the profile
+  // The actual image will remain on Cloudinary until manually deleted or expired
+  
   // Cập nhật profile để xóa avatar_url
   await updateProfile({ avatar_url: null })
 }
