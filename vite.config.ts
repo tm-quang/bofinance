@@ -4,6 +4,19 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // https://vite.dev/config/
 export default defineConfig({
+  build: {
+    chunkSizeWarningLimit: 1000, // Tăng limit từ 500KB lên 1000KB
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Tách vendor libraries thành chunks riêng
+          'react-vendor': ['react', 'react-dom', 'react-router-dom'],
+          'supabase-vendor': ['@supabase/supabase-js'],
+          'icons-vendor': ['react-icons'],
+        },
+      },
+    },
+  },
   plugins: [
     react(),
     VitePWA({
