@@ -58,7 +58,7 @@ const TransactionsPage = () => {
         const [transactionsData, categoriesData, walletsData] = await Promise.all([
           fetchTransactions(),
           fetchCategories(),
-          fetchWallets(),
+          fetchWallets(false), // Chỉ lấy ví active, không lấy ví đã ẩn
         ])
         // Sort by date: newest first
         const sortedTransactions = [...transactionsData].sort((a, b) => {

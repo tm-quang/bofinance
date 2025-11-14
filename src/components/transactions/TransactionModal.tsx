@@ -72,7 +72,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
       setError(null)
       try {
         const [walletsData, categoriesData, defaultId] = await Promise.all([
-          fetchWallets(),
+          fetchWallets(false), // Chỉ lấy ví active, không lấy ví đã ẩn
           fetchCategories(),
           getDefaultWallet(),
         ])

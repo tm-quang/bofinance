@@ -17,11 +17,11 @@ export const WalletCarousel = ({ onWalletChange, onAddWallet }: WalletCarouselPr
   useEffect(() => {
     const loadWallets = async () => {
       try {
-        const data = await fetchWallets()
-        const activeWallets = data.filter((w) => w.is_active)
-        setWallets(activeWallets)
+        // Chỉ lấy ví active, không lấy ví đã ẩn
+        const data = await fetchWallets(false)
+        setWallets(data)
         
-        if (activeWallets.length > 0) {
+        if (data.length > 0) {
           // Kiểm tra ví mặc định từ database
           let defaultWalletId: string | null = null
           try {
@@ -39,7 +39,7 @@ export const WalletCarousel = ({ onWalletChange, onAddWallet }: WalletCarouselPr
           // Tìm index của ví mặc định
           let selectedIndex = 0
           if (defaultWalletId) {
-            const defaultIndex = activeWallets.findIndex(w => w.id === defaultWalletId)
+            const defaultIndex = data.findIndex(w => w.id === defaultWalletId)
             if (defaultIndex !== -1) {
               selectedIndex = defaultIndex
             }
@@ -171,7 +171,6 @@ export const WalletCarousel = ({ onWalletChange, onAddWallet }: WalletCarouselPr
             className="flex items-center gap-1 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-1 text-sm font-bold text-white shadow-lg shadow-sky-500/30 transition-all hover:from-sky-600 hover:to-blue-700 hover:shadow-xl hover:shadow-sky-500/40 hover:scale-105 active:scale-95 sm:px-6 sm:py-3 sm:text-base"
             aria-label="Quản lý ví của bạn"
           >
-            <span className="text-lg font-bold sm:text-xl">+</span>
             <span>Quản lý ví của bạn</span>
           </button>
         )}

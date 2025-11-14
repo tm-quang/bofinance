@@ -25,54 +25,79 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value)
 
+const formatDate = (dateString: string) => {
+  const date = new Date(dateString)
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const year = date.getFullYear()
+  return `${day}/${month}/${year}`
+}
+
+// Component logo mờ để tái sử dụng
+const WalletLogo = ({ className = 'h-32 w-32' }: { className?: string }) => (
+  <div className="absolute right-2 top-16 -translate-y-16 z-0 opacity-15">
+    <img 
+      src="/logo-nontext.png" 
+      alt="BO.fin Logo" 
+      className={className}
+    />
+  </div>
+)
+
 const WALLET_TYPES: WalletType[] = ['Tiền mặt', 'Ngân hàng', 'Tiết kiệm', 'Tín dụng', 'Đầu tư', 'Khác']
 
 const DEFAULT_WALLET_KEY = 'bofin_default_wallet_id'
 
-// Màu sắc theo loại ví - đồng bộ với WalletCard trong Dashboard
+// Màu sắc theo loại ví - Nâng cấp với gradient đẹp hơn, hiện đại hơn, màu đậm hơn
 const getWalletTypeColors = (type: WalletType, isDefault: boolean) => {
   const colors = {
     'Tiền mặt': {
-      bg: 'from-slate-600 to-slate-800', // Giống WalletCard default
-      border: isDefault ? 'border-emerald-400' : 'border-slate-500',
+      bg: 'from-slate-900 via-slate-800 to-slate-950', // Gradient 3 màu đậm hơn nữa
+      border: isDefault ? 'border-emerald-300' : 'border-slate-400/50',
       text: 'text-white',
       badge: 'bg-emerald-500',
-      shadow: isDefault ? 'shadow-[0_8px_30px_rgba(16,185,129,0.4)]' : 'shadow-lg',
+      shadow: isDefault ? 'shadow-[0_8px_30px_rgba(16,185,129,0.5)]' : 'shadow-xl shadow-black/20',
+      glow: isDefault ? 'shadow-[0_0_40px_rgba(16,185,129,0.3)]' : '',
     },
     'Ngân hàng': {
-      bg: 'from-blue-600 to-blue-800', // Giống WalletCard
-      border: isDefault ? 'border-blue-400' : 'border-blue-500',
+      bg: 'from-blue-700 via-blue-800 to-indigo-900', // Gradient xanh dương đậm hơn nữa
+      border: isDefault ? 'border-blue-300' : 'border-blue-400/50',
       text: 'text-white',
       badge: 'bg-blue-500',
-      shadow: isDefault ? 'shadow-[0_8px_30px_rgba(59,130,246,0.4)]' : 'shadow-lg',
+      shadow: isDefault ? 'shadow-[0_8px_30px_rgba(59,130,246,0.5)]' : 'shadow-xl shadow-black/20',
+      glow: isDefault ? 'shadow-[0_0_40px_rgba(59,130,246,0.3)]' : '',
     },
     'Tiết kiệm': {
-      bg: 'from-emerald-600 to-emerald-800', // Giống WalletCard
-      border: isDefault ? 'border-emerald-400' : 'border-emerald-500',
+      bg: 'from-emerald-700 via-teal-800 to-cyan-900', // Gradient xanh lá đậm hơn nữa
+      border: isDefault ? 'border-emerald-300' : 'border-emerald-400/50',
       text: 'text-white',
       badge: 'bg-emerald-500',
-      shadow: isDefault ? 'shadow-[0_8px_30px_rgba(16,185,129,0.4)]' : 'shadow-lg',
+      shadow: isDefault ? 'shadow-[0_8px_30px_rgba(16,185,129,0.5)]' : 'shadow-xl shadow-black/20',
+      glow: isDefault ? 'shadow-[0_0_40px_rgba(16,185,129,0.3)]' : '',
     },
     'Tín dụng': {
-      bg: 'from-purple-600 to-purple-800', // Giống WalletCard
-      border: isDefault ? 'border-purple-400' : 'border-purple-500',
+      bg: 'from-purple-700 via-violet-800 to-fuchsia-900', // Gradient tím đậm hơn nữa
+      border: isDefault ? 'border-purple-300' : 'border-purple-400/50',
       text: 'text-white',
       badge: 'bg-purple-500',
-      shadow: isDefault ? 'shadow-[0_8px_30px_rgba(168,85,247,0.4)]' : 'shadow-lg',
+      shadow: isDefault ? 'shadow-[0_8px_30px_rgba(168,85,247,0.5)]' : 'shadow-xl shadow-black/20',
+      glow: isDefault ? 'shadow-[0_0_40px_rgba(168,85,247,0.3)]' : '',
     },
     'Đầu tư': {
-      bg: 'from-amber-600 to-amber-800', // Giống WalletCard
-      border: isDefault ? 'border-amber-400' : 'border-amber-500',
+      bg: 'from-amber-700 via-orange-800 to-rose-900', // Gradient vàng cam đậm hơn nữa
+      border: isDefault ? 'border-amber-300' : 'border-amber-400/50',
       text: 'text-white',
       badge: 'bg-amber-500',
-      shadow: isDefault ? 'shadow-[0_8px_30px_rgba(245,158,11,0.4)]' : 'shadow-lg',
+      shadow: isDefault ? 'shadow-[0_8px_30px_rgba(245,158,11,0.5)]' : 'shadow-xl shadow-black/20',
+      glow: isDefault ? 'shadow-[0_0_40px_rgba(245,158,11,0.3)]' : '',
     },
     'Khác': {
-      bg: 'from-slate-600 to-slate-800', // Giống WalletCard
-      border: isDefault ? 'border-slate-400' : 'border-slate-500',
+      bg: 'from-slate-800 via-gray-900 to-slate-950', // Gradient xám đậm hơn nữa
+      border: isDefault ? 'border-slate-300' : 'border-slate-400/50',
       text: 'text-white',
       badge: 'bg-slate-500',
-      shadow: isDefault ? 'shadow-[0_8px_30px_rgba(100,116,139,0.4)]' : 'shadow-lg',
+      shadow: isDefault ? 'shadow-[0_8px_30px_rgba(100,116,139,0.5)]' : 'shadow-xl shadow-black/20',
+      glow: isDefault ? 'shadow-[0_0_40px_rgba(100,116,139,0.3)]' : '',
     },
   }
   return colors[type] || colors['Khác']
@@ -103,6 +128,7 @@ export const WalletsPage = () => {
   const [editingWallet, setEditingWallet] = useState<WalletRecord | null>(null)
   const [defaultWalletId, setDefaultWalletId] = useState<string | null>(null)
   const [showCheckAnimation, setShowCheckAnimation] = useState<string | null>(null)
+  const [showHiddenWallets, setShowHiddenWallets] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     type: 'Tiền mặt' as WalletType,
@@ -140,6 +166,7 @@ export const WalletsPage = () => {
   const loadWallets = async () => {
     setIsLoading(true)
     try {
+      // Lấy cả ví active và inactive để có thể quản lý ví đã ẩn
       const data = await fetchWallets(true)
       setWallets(data)
       const savedDefaultWalletId = await getDefaultWallet()
@@ -238,29 +265,95 @@ export const WalletsPage = () => {
   }
 
   const handleDelete = async (id: string) => {
-    await showDialog({
-      message: 'Bạn có chắc muốn xóa ví này?',
-      type: 'warning',
-      title: 'Xóa ví',
-      confirmText: 'Xóa',
-      cancelText: 'Hủy',
-      onConfirm: async () => {
-        try {
-          await deleteWallet(id, false) // Soft delete
-          success('Đã xóa ví thành công!')
-          await loadWallets()
-        } catch (error) {
-          console.error('Error deleting wallet:', error)
-          showError('Không thể xóa ví. Vui lòng thử lại.')
-        }
-      },
-    })
+    // Kiểm tra xem ví có giao dịch không để hiển thị cảnh báo chính xác
+    try {
+      const { fetchTransactions } = await import('../lib/transactionService')
+      const transactions = await fetchTransactions({ wallet_id: id })
+      const transactionCount = transactions.length
+
+      const wallet = wallets.find((w) => w.id === id)
+      const walletName = wallet?.name || 'ví này'
+
+      await showDialog({
+        message: transactionCount > 0
+          ? `Xóa ví "${walletName}" và ${transactionCount} giao dịch liên quan?\n\n` +
+            `⚠️ Xóa vĩnh viễn, không thể phục hồi`
+          : `Xóa ví "${walletName}"?\n\n` +
+            `⚠️ Xóa vĩnh viễn, không thể phục hồi`,
+        type: 'error',
+        title: 'Xóa ví',
+        confirmText: 'Đồng ý xóa',
+        cancelText: 'Hủy bỏ',
+        middleText: 'Ẩn ví',
+        onConfirm: async () => {
+          try {
+            // Hard delete: xóa ví và tất cả giao dịch (do ON DELETE CASCADE)
+            await deleteWallet(id, true)
+            if (transactionCount > 0) {
+              success(`Đã xóa ví "${walletName}" và ${transactionCount} giao dịch liên quan!`)
+            } else {
+              success(`Đã xóa ví "${walletName}"!`)
+            }
+            await loadWallets()
+          } catch (error) {
+            console.error('Error deleting wallet:', error)
+            showError('Không thể xóa ví. Vui lòng thử lại.')
+          }
+        },
+        onMiddle: async () => {
+          // Soft delete: chỉ ẩn ví, giữ lại giao dịch
+          try {
+            await deleteWallet(id, false)
+            success(`Đã ẩn ví "${walletName}"!`)
+            await loadWallets()
+          } catch (error) {
+            console.error('Error hiding wallet:', error)
+            showError('Không thể ẩn ví. Vui lòng thử lại.')
+          }
+        },
+      })
+    } catch (error) {
+      console.error('Error checking transactions:', error)
+      // Fallback: vẫn cho phép xóa với cảnh báo
+      await showDialog({
+        message: `Xóa ví?\n\n⚠️ Xóa vĩnh viễn, không thể phục hồi`,
+        type: 'error',
+        title: 'Xóa ví',
+        confirmText: 'Đồng ý xóa',
+        cancelText: 'Hủy bỏ',
+        middleText: 'Ẩn ví',
+        onConfirm: async () => {
+          try {
+            await deleteWallet(id, true)
+            success('Đã xóa ví!')
+            await loadWallets()
+          } catch (error) {
+            console.error('Error deleting wallet:', error)
+            showError('Không thể xóa ví. Vui lòng thử lại.')
+          }
+        },
+        onMiddle: async () => {
+          try {
+            await deleteWallet(id, false)
+            success('Đã ẩn ví!')
+            await loadWallets()
+          } catch (error) {
+            console.error('Error hiding wallet:', error)
+            showError('Không thể ẩn ví. Vui lòng thử lại.')
+          }
+        },
+      })
+    }
   }
 
   const handleToggleActive = async (wallet: WalletRecord) => {
     try {
       await updateWallet(wallet.id, { is_active: !wallet.is_active })
-      success(wallet.is_active ? 'Đã vô hiệu hóa ví' : 'Đã kích hoạt ví')
+      if (wallet.is_active) {
+        success(`Đã ẩn ví "${wallet.name}". Ví này sẽ không hiển thị và không được tính vào số dư.`)
+      } else {
+        success(`Đã khôi phục ví "${wallet.name}". Ví này đã có thể sử dụng lại.`)
+      }
       await loadWallets()
     } catch (error) {
       console.error('Error toggling wallet:', error)
@@ -333,26 +426,23 @@ export const WalletsPage = () => {
               <p className="mt-1 text-xs text-slate-500">Tạo ví đầu tiên để bắt đầu</p>
             </div>
           ) : (
-            <div className="space-y-4">
-              {wallets.map((wallet) => {
+            <>
+              {/* Active Wallets */}
+              {(() => {
+                const activeWallets = wallets.filter((w) => w.is_active)
+                return activeWallets.length > 0 ? (
+                  <div className="space-y-4">
+                    {activeWallets.map((wallet) => {
                 const isDefault = defaultWalletId === wallet.id
                 const colors = getWalletTypeColors(wallet.type, isDefault)
                 const isNegative = wallet.balance < 0
                 
                 return (
                   <div key={wallet.id} className="relative">
-                    {/* Badge ví mặc định - đặt bên ngoài container để nổi bật */}
-                    {isDefault && (
-                      <div className={`absolute -top-3 -right-3 z-[100] flex items-center gap-1 rounded-full ${colors.badge} px-3 py-1.5 text-xs font-semibold text-white shadow-xl ring-2 ring-white/50`}>
-                        <RiCheckLine className="h-3.5 w-3.5" />
-                        <span>Mặc định</span>
-                      </div>
-                    )}
-                    
                     <div
                       className={`relative h-56 w-full overflow-hidden rounded-3xl bg-gradient-to-br ${colors.bg} p-5 ring-2 transition-all duration-300 ${
                         isDefault 
-                          ? `${colors.border} ${colors.shadow} ring-4` 
+                          ? `${colors.border} ${colors.shadow} ${colors.glow} ring-4` 
                           : `${colors.border} ${colors.shadow} ring-1`
                       } ${!wallet.is_active ? 'opacity-60' : ''}`}
                     >
@@ -370,19 +460,47 @@ export const WalletsPage = () => {
                         </div>
                       )}
 
-                      {/* Decorative waves - giống WalletCard */}
-                      <div className="absolute inset-0 overflow-hidden rounded-3xl opacity-20">
-                        <svg className="absolute bottom-0 left-0 w-full" viewBox="0 0 400 100" preserveAspectRatio="none">
+                      {/* Decorative patterns - Kiểu ATM card hiện đại */}
+                      <div className="absolute inset-0 overflow-hidden rounded-3xl">
+                        {/* Geometric patterns - Blur circles */}
+                        <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-white/5 blur-2xl"></div>
+                        <div className="absolute -right-8 top-1/2 h-32 w-32 rounded-full bg-white/5 blur-xl"></div>
+                        <div className="absolute right-0 bottom-0 h-24 w-24 rounded-full bg-white/5 blur-lg"></div>
+                        <div className="absolute -left-12 bottom-0 h-36 w-36 rounded-full bg-white/5 blur-2xl"></div>
+                        
+                        {/* Wave patterns - Đường viền mờ dưới nền */}
+                        <svg className="absolute bottom-0 left-0 w-full opacity-15" viewBox="0 0 400 180" preserveAspectRatio="none">
                           <path
-                            d="M0,50 Q100,30 200,50 T400,50 L400,100 L0,100 Z"
+                            d="M0,120 Q100,60 200,120 T400,120 L400,180 L0,180 Z"
                             fill="white"
                           />
                           <path
-                            d="M0,70 Q150,50 300,70 T400,70 L400,100 L0,100 Z"
+                            d="M0,150 Q150,90 300,150 T400,150 L400,180 L0,180 Z"
+                            fill="white"
+                            opacity="0.6"
+                          />
+                        </svg>
+                        
+                        {/* Thêm đường viền mờ thứ 2 */}
+                        <svg className="absolute bottom-0 left-0 w-full opacity-10" viewBox="0 0 400 180" preserveAspectRatio="none">
+                          <path
+                            d="M0,100 Q120,40 240,100 T400,100 L400,180 L0,180 Z"
                             fill="white"
                             opacity="0.5"
                           />
                         </svg>
+                        
+                        {/* Thêm đường viền mờ thứ 3 */}
+                        <svg className="absolute bottom-0 left-0 w-full opacity-8" viewBox="0 0 400 180" preserveAspectRatio="none">
+                          <path
+                            d="M0,130 Q80,70 160,130 T400,130 L400,180 L0,180 Z"
+                            fill="white"
+                            opacity="0.4"
+                          />
+                        </svg>
+
+                        {/* Logo mờ ở giữa 1/3 bên phải */}
+                        <WalletLogo className="h-32 w-32 object-contain" />
                       </div>
                     
                     <div className="relative z-10 flex h-full flex-col justify-between">
@@ -420,13 +538,18 @@ export const WalletsPage = () => {
 
                       {/* Description section - luôn có không gian */}
                       <div className="mt-3 min-h-[2.5rem]">
-                        {wallet.description ? (
-                          <p className={`line-clamp-2 text-xs leading-relaxed ${colors.text} opacity-60`}>
-                            {wallet.description}
-                          </p>
-                        ) : (
-                          <div className="h-10"></div>
-                        )}
+                        <div className="flex items-start justify-between gap-2">
+                          {wallet.description ? (
+                            <p className={`flex-1 line-clamp-2 text-xs leading-relaxed ${colors.text} opacity-60`}>
+                              {wallet.description}
+                            </p>
+                          ) : (
+                            <div className="flex-1 h-10"></div>
+                          )}
+                          <span className={`shrink-0 text-[10px] font-medium ${colors.text} opacity-60`}>
+                            Ngày tạo ví: {formatDate(wallet.created_at)}
+                          </span>
+                        </div>
                       </div>
 
                       {/* Bottom section */}
@@ -462,12 +585,12 @@ export const WalletsPage = () => {
                               {isDefault ? (
                                 <>
                                   <RiStarFill className="h-4 w-4" />
-                                  <span>Mặc định</span>
+                                  <span>Ví mặc định</span>
                                 </>
                               ) : (
                                 <>
                                   <RiStarLine className="h-4 w-4" />
-                                  <span>Đặt mặc định</span>
+                                  <span>Đặt làm ví mặc định</span>
                                 </>
                               )}
                             </button>
@@ -480,7 +603,151 @@ export const WalletsPage = () => {
                   </div>
                 )
               })}
-            </div>
+                  </div>
+                ) : null
+              })()}
+
+              {/* Hidden Wallets Section */}
+              {(() => {
+                const hiddenWallets = wallets.filter((w) => !w.is_active)
+                return hiddenWallets.length > 0 ? (
+                  <div className="mt-6 space-y-4">
+                    <div className="flex items-center justify-between">
+                      <h3 className="text-sm font-semibold text-slate-600">
+                        Ví đã ẩn ({hiddenWallets.length})
+                      </h3>
+                      <button
+                        onClick={() => setShowHiddenWallets(!showHiddenWallets)}
+                        className="text-xs font-medium text-sky-600 hover:text-sky-700"
+                      >
+                        {showHiddenWallets ? 'Ẩn' : 'Hiển thị'}
+                      </button>
+                    </div>
+                    {showHiddenWallets && (
+                      <div className="space-y-4">
+                        {hiddenWallets.map((wallet) => {
+                          const colors = getWalletTypeColors(wallet.type, false)
+                          const isNegative = wallet.balance < 0
+                          
+                          return (
+                            <div key={wallet.id} className="relative">
+                              <div
+                                className={`relative h-56 w-full overflow-hidden rounded-3xl bg-gradient-to-br ${colors.bg} p-5 ring-2 ring-slate-300 opacity-70 transition-all duration-300 ${colors.shadow}`}
+                              >
+                                {/* Decorative patterns - Kiểu ATM card hiện đại */}
+                                <div className="absolute inset-0 overflow-hidden rounded-3xl">
+                                  {/* Geometric patterns - Blur circles */}
+                                  <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-white/5 blur-2xl"></div>
+                                  <div className="absolute -right-8 top-1/2 h-32 w-32 rounded-full bg-white/5 blur-xl"></div>
+                                  <div className="absolute right-0 bottom-0 h-24 w-24 rounded-full bg-white/5 blur-lg"></div>
+                                  <div className="absolute -left-12 bottom-0 h-36 w-36 rounded-full bg-white/5 blur-2xl"></div>
+                                  
+                                  {/* Wave patterns - Đường viền mờ dưới nền */}
+                                  <svg className="absolute bottom-0 left-0 w-full opacity-15" viewBox="0 0 400 180" preserveAspectRatio="none">
+                                    <path
+                                      d="M0,120 Q100,60 200,120 T400,120 L400,180 L0,180 Z"
+                                      fill="white"
+                                    />
+                                    <path
+                                      d="M0,150 Q150,90 300,150 T400,150 L400,180 L0,180 Z"
+                                      fill="white"
+                                      opacity="0.6"
+                                    />
+                                  </svg>
+                                  
+                                  {/* Thêm đường viền mờ thứ 2 */}
+                                  <svg className="absolute bottom-0 left-0 w-full opacity-10" viewBox="0 0 400 180" preserveAspectRatio="none">
+                                    <path
+                                      d="M0,100 Q120,40 240,100 T400,100 L400,180 L0,180 Z"
+                                      fill="white"
+                                      opacity="0.5"
+                                    />
+                                  </svg>
+                                  
+                                  {/* Thêm đường viền mờ thứ 3 */}
+                                  <svg className="absolute bottom-0 left-0 w-full opacity-8" viewBox="0 0 400 180" preserveAspectRatio="none">
+                                    <path
+                                      d="M0,130 Q80,70 160,130 T400,130 L400,180 L0,180 Z"
+                                      fill="white"
+                                      opacity="0.4"
+                                    />
+                                  </svg>
+
+                                  {/* Logo mờ ở giữa 1/3 bên phải */}
+                                  <WalletLogo className="h-32 w-32 object-contain" />
+                                </div>
+                              
+                                <div className="relative z-10 flex h-full flex-col justify-between">
+                                  {/* Top section */}
+                                  <div className="flex items-start justify-between">
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2">
+                                        <h3 className={`truncate text-lg font-bold ${colors.text}`}>{wallet.name}</h3>
+                                        <span className="shrink-0 rounded-full bg-white/30 px-2 py-0.5 text-xs text-white backdrop-blur-sm">
+                                          Đã ẩn
+                                        </span>
+                                      </div>
+                                      <p className={`mt-1 text-sm font-medium ${colors.text} opacity-70`}>{wallet.type}</p>
+                                      <p className={`mt-2 text-2xl font-bold ${isNegative ? 'text-rose-300' : colors.text}`}>
+                                        {formatCurrency(wallet.balance)}
+                                      </p>
+                                    </div>
+                                    <div className="flex shrink-0 gap-2" onClick={(e) => e.stopPropagation()}>
+                                      <button
+                                        onClick={() => handleOpenForm(wallet)}
+                                        className="rounded-full p-2 text-white/70 transition hover:bg-white/20 hover:text-white"
+                                      >
+                                        <RiEdit2Line className="h-5 w-5" />
+                                      </button>
+                                      <button
+                                        onClick={() => handleDelete(wallet.id)}
+                                        className="rounded-full p-2 text-white/70 transition hover:bg-white/20 hover:text-rose-300"
+                                      >
+                                        <RiDeleteBin6Line className="h-5 w-5" />
+                                      </button>
+                                    </div>
+                                  </div>
+
+                                  {/* Description */}
+                                  <div className="mt-3 min-h-[2.5rem]">
+                                    <div className="flex items-start justify-between gap-2">
+                                      {wallet.description ? (
+                                        <p className={`flex-1 line-clamp-2 text-xs leading-relaxed ${colors.text} opacity-60`}>
+                                          {wallet.description}
+                                        </p>
+                                      ) : (
+                                        <div className="flex-1 h-10"></div>
+                                      )}
+                                      <span className={`shrink-0 text-[10px] font-medium ${colors.text} opacity-60`}>
+                                        Ngày tạo ví: {formatDate(wallet.created_at)}
+                                      </span>
+                                    </div>
+                                  </div>
+
+                                  {/* Bottom section */}
+                                  <div className={`mt-auto flex items-center justify-between border-t ${colors.text} border-opacity-20 pt-4`}>
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleToggleActive(wallet)
+                                      }}
+                                      className="rounded-full bg-emerald-500/90 px-4 py-2 text-xs font-semibold text-white transition hover:bg-emerald-500 shadow-sm"
+                                    >
+                                      Khôi phục
+                                    </button>
+                                    <span className={`text-xs font-medium ${colors.text} opacity-70`}>{wallet.currency}</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          )
+                        })}
+                      </div>
+                    )}
+                  </div>
+                ) : null
+              })()}
+            </>
           )}
         </div>
       </main>
@@ -595,4 +862,6 @@ export const WalletsPage = () => {
 }
 
 export default WalletsPage
+
+
 

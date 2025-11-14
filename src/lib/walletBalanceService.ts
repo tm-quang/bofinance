@@ -4,14 +4,15 @@ import type { WalletRecord } from './walletService'
 
 /**
  * Tính số dư ví từ giao dịch
- * Công thức: Số dư ban đầu (từ database) + Tổng Thu - Tổng Chi
+ * Công thức: Số dư ban đầu (initial_balance) + Tổng Thu - Tổng Chi
  * 
- * Lưu ý: wallet.balance trong database được coi là số dư ban đầu cố định.
- * Số dư hiện tại được tính động từ giao dịch.
+ * Lưu ý: wallet.initial_balance là số dư ban đầu cố định (không đổi).
+ * wallet.balance là số dư hiện tại (có thể thay đổi).
+ * Số dư hiện tại được tính động từ initial_balance + giao dịch.
  */
 export const calculateWalletBalanceFromTransactions = async (
   walletId: string,
-  baseBalance: number = 0
+  initialBalance: number = 0
 ): Promise<number> => {
   try {
     const transactions = await fetchTransactions({ wallet_id: walletId })
@@ -24,11 +25,11 @@ export const calculateWalletBalanceFromTransactions = async (
       .filter((t) => t.type === 'Chi')
       .reduce((sum, t) => sum + Number(t.amount), 0)
     
-    // Số dư hiện tại = Số dư ban đầu + Thu - Chi
-    return baseBalance + totalIncome - totalExpense
+    // Số dư hiện tại = Số dư ban đầu (initial_balance) + Thu - Chi
+    return initialBalance + totalIncome - totalExpense
   } catch (error) {
     console.error('Error calculating wallet balance:', error)
-    return baseBalance
+    return initialBalance
   }
 }
 
@@ -109,7 +110,8 @@ export const getWalletCashFlowStats = async (
     const smallestExpense = expenseAmounts.length > 0 ? Math.min(...expenseAmounts) : 0
     
     // Tính số dư hiện tại
-    const initialBalance = wallet.balance
+    // Sử dụng initial_balance làm mốc (không đổi), không dùng balance (có thể đã bị cập nhật)
+    const initialBalance = wallet.initial_balance ?? wallet.balance ?? 0
     const currentBalance = await calculateWalletBalanceFromTransactions(wallet.id, initialBalance)
     
     // Tính tỷ lệ phần trăm
@@ -198,15 +200,16 @@ export const getWalletCashFlowStats = async (
 /**
  * Tự động cập nhật số dư ví từ giao dịch
  * 
- * Lưu ý: Hàm này cập nhật wallet.balance trong database để phản ánh số dư hiện tại.
- * Tuy nhiên, khi tính toán lại, chúng ta vẫn sử dụng số dư ban đầu gốc.
+ * Logic:
+ * - Sử dụng wallet.initial_balance làm mốc (số dư ban đầu, không đổi)
+ * - Tính số dư hiện tại: currentBalance = initial_balance + totalIncome - totalExpense
+ * - Cập nhật wallet.balance = currentBalance (số dư hiện tại)
+ * - KHÔNG đụng wallet.initial_balance (luôn giữ nguyên)
  * 
- * Để tránh vòng lặp, chúng ta cần đảm bảo rằng:
- * - wallet.balance ban đầu là số dư cơ sở (base balance)
- * - Khi sync, chúng ta tính: currentBalance = baseBalance + totalIncome - totalExpense
- * - Cập nhật wallet.balance = currentBalance để hiển thị số dư hiện tại
- * 
- * Trong tương lai, có thể tách thành 2 trường: initial_balance và current_balance
+ * Điều này đảm bảo:
+ * - Số dư ban đầu luôn giữ nguyên để làm mốc tính toán
+ * - Số dư hiện tại được cập nhật chính xác từ giao dịch
+ * - Không bị trừ chi tiêu 2 lần như trước
  */
 export const syncWalletBalanceFromTransactions = async (
   walletId: string
@@ -244,25 +247,14 @@ export const syncWalletBalanceFromTransactions = async (
     .reduce((sum, t) => sum + Number(t.amount), 0)
   
   // Tính số dư hiện tại từ giao dịch
-  // Lưu ý: wallet.balance được coi là số dư ban đầu (initial balance)
-  // Số dư hiện tại = Số dư ban đầu + Tổng Thu - Tổng Chi
-  // 
-  // Vấn đề: Nếu wallet.balance đã được cập nhật trước đó, chúng ta không biết số dư ban đầu thực sự
-  // Giải pháp: Giả sử wallet.balance là số dư cơ sở và tính lại từ đầu
-  // 
-  // Trong tương lai, nên tách thành 2 trường:
-  // - initial_balance: Số dư ban đầu (không đổi)
-  // - current_balance: Số dư hiện tại (tính từ giao dịch)
-  
-  // Tính số dư hiện tại
-  // Sử dụng wallet.balance làm số dư cơ sở
-  const baseBalance = wallet.balance
-  const calculatedBalance = baseBalance + totalIncome - totalExpense
+  // Sử dụng initial_balance làm mốc (không đổi), không dùng balance (có thể đã bị cập nhật)
+  // Số dư hiện tại = Số dư ban đầu (initial_balance) + Tổng Thu - Tổng Chi
+  const initialBalance = wallet.initial_balance ?? wallet.balance ?? 0
+  const calculatedBalance = initialBalance + totalIncome - totalExpense
 
-  // Cập nhật số dư trong database
-  // Lưu ý: Điều này cập nhật wallet.balance để phản ánh số dư hiện tại
-  // Lần sync tiếp theo sẽ vẫn tính đúng vì chúng ta luôn tính từ wallet.balance + transactions
-  // Tuy nhiên, nếu có giao dịch bị xóa hoặc sửa, cần đảm bảo sync lại
+  // Cập nhật số dư hiện tại trong database
+  // Lưu ý: Chỉ cập nhật balance (số dư hiện tại), KHÔNG đụng initial_balance (số dư ban đầu)
+  // initial_balance luôn giữ nguyên để làm mốc tính toán
   const { data: updatedWallet, error: updateError } = await supabase
     .from('wallets')
     .update({ balance: calculatedBalance })

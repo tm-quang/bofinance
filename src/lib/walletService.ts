@@ -11,6 +11,7 @@ export type WalletRecord = {
   name: string
   type: WalletType
   balance: number
+  initial_balance: number // Số dư ban đầu (không đổi, dùng làm mốc tính toán)
   currency: string
   icon: string | null
   color: string | null
@@ -105,12 +106,14 @@ export const createWallet = async (payload: WalletInsert): Promise<WalletRecord>
     throw new Error('Bạn cần đăng nhập để tạo ví.')
   }
 
+  const initialBalance = payload.balance ?? 0
   const { data, error } = await supabase
     .from(TABLE_NAME)
     .insert({
       ...payload,
       user_id: user.id,
-      balance: payload.balance ?? 0,
+      balance: initialBalance,
+      initial_balance: initialBalance, // Số dư ban đầu = số dư khi tạo ví
       currency: payload.currency ?? 'VND',
     })
     .select()
@@ -178,6 +181,8 @@ export const deleteWallet = async (id: string, hardDelete = false): Promise<void
     throwIfError(error, 'Không thể vô hiệu hóa ví.')
   }
 
+  // Invalidate cache để đảm bảo danh sách ví được cập nhật
+  invalidateCache('fetchWallets')
 }
 
 // Cập nhật số dư ví

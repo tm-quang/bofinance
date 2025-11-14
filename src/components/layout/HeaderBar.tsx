@@ -119,7 +119,7 @@ const HeaderBar = (props: HeaderBarProps) => {
           )}
           <div>
             <p className="text-sm tracking-[0.25em] text-slate-500" style={{ fontFamily: "'Lobster', cursive" }}>Xin chào,</p>
-            <p className="text-lg font-semibold text-slate-900">{userName}</p>
+            <p className="text-xl font-medium text-slate-900" style={{ fontFamily: "'Lobster', cursive" }}>{userName}</p>
           </div>
         </div>
         <button className="relative flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-xl ring-1 ring-slate-100">

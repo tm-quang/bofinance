@@ -8,8 +8,10 @@ export interface DialogOptions {
   type?: DialogType
   confirmText?: string
   cancelText?: string
+  middleText?: string // Nút ở giữa (ví dụ: "Ẩn ví")
   onConfirm?: () => void | Promise<void>
-  onCancel?: () => void
+  onCancel?: () => void | Promise<void>
+  onMiddle?: () => void | Promise<void> // Handler cho nút giữa
   showCancel?: boolean
 }
 

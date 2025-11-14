@@ -31,13 +31,21 @@ export const DialogProvider = ({ children }: DialogProviderProps) => {
             setDialog(null)
           }
         },
-        onCancel: () => {
-          if (options.onCancel) {
-            options.onCancel()
+        onCancel: async () => {
+          setIsLoading(true)
+          try {
+            if (options.onCancel) {
+              await options.onCancel()
+            }
+            resolve(false)
+          } catch (error) {
+            console.error('Dialog cancel error:', error)
+            resolve(false)
+          } finally {
+            setIsLoading(false)
+            setIsOpen(false)
+            setDialog(null)
           }
-          resolve(false)
-          setIsOpen(false)
-          setDialog(null)
         },
       })
       setIsOpen(true)
@@ -91,9 +99,11 @@ export const DialogProvider = ({ children }: DialogProviderProps) => {
           type={dialog.type || 'confirm'}
           confirmText={dialog.confirmText || 'Xác nhận'}
           cancelText={dialog.cancelText || 'Hủy'}
+          middleText={dialog.middleText}
           showCancel={dialog.showCancel !== false}
           onConfirm={dialog.onConfirm}
           onCancel={dialog.onCancel}
+          onMiddle={dialog.onMiddle}
           isLoading={isLoading}
         />
       )}

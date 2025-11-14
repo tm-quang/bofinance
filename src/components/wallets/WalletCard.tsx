@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { RiStarFill } from 'react-icons/ri'
 import type { WalletRecord } from '../../lib/walletService'
 import { getWalletCashFlowStats } from '../../lib/walletBalanceService'
 
@@ -20,18 +21,31 @@ const formatPercentage = (value: number) => {
   return `${value >= 0 ? '+' : ''}${value.toFixed(1)}%`
 }
 
+// Component logo mờ để tái sử dụng
+const WalletLogo = ({ className = 'h-36 w-36' }: { className?: string }) => (
+  <div className="absolute right-3 top-14 -translate-y-12 z-0 opacity-15">
+    <img 
+      src="/logo-nontext.png" 
+      alt="BO.fin Logo" 
+      className={className}
+    />
+  </div>
+)
+
 const getWalletGradient = (type: string) => {
   switch (type) {
+    case 'Tiền mặt':
+      return 'from-slate-900 via-slate-800 to-slate-950'
     case 'Ngân hàng':
-      return 'from-blue-600 to-blue-800'
+      return 'from-blue-700 via-blue-800 to-indigo-900'
     case 'Tiết kiệm':
-      return 'from-emerald-600 to-emerald-800'
+      return 'from-emerald-700 via-teal-800 to-cyan-900'
     case 'Tín dụng':
-      return 'from-purple-600 to-purple-800'
+      return 'from-purple-700 via-violet-800 to-fuchsia-900'
     case 'Đầu tư':
-      return 'from-amber-600 to-amber-800'
+      return 'from-amber-700 via-orange-800 to-rose-900'
     default:
-      return 'from-slate-600 to-slate-800'
+      return 'from-slate-800 via-gray-900 to-slate-950'
   }
 }
 
@@ -72,12 +86,14 @@ export const WalletCard = ({ wallet, isActive = false, isDefault = false }: Wall
             .filter((t) => t.type === 'Chi')
             .reduce((sum, t) => sum + Number(t.amount), 0)
           
+          // Sử dụng initial_balance làm mốc (nếu có), nếu không thì dùng balance
+          const initialBalance = wallet.initial_balance ?? wallet.balance ?? 0
           setStats({
             income: totalIncome,
             expense: totalExpense,
             incomePercentage: 0,
             expensePercentage: 0,
-            currentBalance: wallet.balance + totalIncome - totalExpense,
+            currentBalance: initialBalance + totalIncome - totalExpense,
           })
         } catch (fallbackError) {
           console.error('Error in fallback calculation:', fallbackError)
@@ -114,19 +130,47 @@ export const WalletCard = ({ wallet, isActive = false, isDefault = false }: Wall
         style={{ boxShadow: 'none' }}
       >
 
-      {/* Decorative waves */}
-      <div className="absolute inset-0 overflow-hidden rounded-3xl opacity-20 pointer-events-none z-0">
-        <svg className="absolute bottom-0 left-0 w-full" viewBox="0 0 400 100" preserveAspectRatio="none">
+      {/* Decorative patterns - Kiểu ATM card hiện đại */}
+      <div className="absolute inset-0 overflow-hidden rounded-3xl">
+        {/* Geometric patterns - Blur circles */}
+        <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-white/5 blur-2xl"></div>
+        <div className="absolute -right-8 top-1/2 h-32 w-32 rounded-full bg-white/5 blur-xl"></div>
+        <div className="absolute right-0 bottom-0 h-24 w-24 rounded-full bg-white/5 blur-lg"></div>
+        <div className="absolute -left-12 bottom-0 h-36 w-36 rounded-full bg-white/5 blur-2xl"></div>
+        
+        {/* Wave patterns - Đường viền mờ dưới nền */}
+        <svg className="absolute bottom-0 left-0 w-full opacity-15" viewBox="0 0 400 180" preserveAspectRatio="none">
           <path
-            d="M0,50 Q100,30 200,50 T400,50 L400,100 L0,100 Z"
+            d="M0,120 Q100,60 200,120 T400,120 L400,180 L0,180 Z"
             fill="white"
           />
           <path
-            d="M0,70 Q150,50 300,70 T400,70 L400,100 L0,100 Z"
+            d="M0,150 Q150,90 300,150 T400,150 L400,180 L0,180 Z"
+            fill="white"
+            opacity="0.6"
+          />
+        </svg>
+        
+        {/* Thêm đường viền mờ thứ 2 */}
+        <svg className="absolute bottom-0 left-0 w-full opacity-10" viewBox="0 0 400 180" preserveAspectRatio="none">
+          <path
+            d="M0,100 Q120,40 240,100 T400,100 L400,180 L0,180 Z"
             fill="white"
             opacity="0.5"
           />
         </svg>
+        
+        {/* Thêm đường viền mờ thứ 3 */}
+        <svg className="absolute bottom-0 left-0 w-full opacity-8" viewBox="0 0 400 180" preserveAspectRatio="none">
+          <path
+            d="M0,130 Q80,70 160,130 T400,130 L400,180 L0,180 Z"
+            fill="white"
+            opacity="0.4"
+          />
+        </svg>
+
+        {/* Logo mờ ở giữa 1/3 bên phải */}
+        <WalletLogo className="h-24 w-24 object-contain sm:h-32 sm:w-32" />
       </div>
 
       {/* Card content */}
@@ -139,43 +183,19 @@ export const WalletCard = ({ wallet, isActive = false, isDefault = false }: Wall
             </p>
             <p className="mt-1 truncate text-base font-bold sm:text-lg">{wallet.name}</p>
           </div>
-          <div className="flex shrink-0 flex-col items-end gap-0.5">
-            <div className="flex items-center gap-2">
-              {/* Logo */}
-              <img 
-                src="/logo-nontext.png" 
-                alt="BO.fin Logo" 
-                className="h-9 w-9 shrink-0 object-contain sm:h-6 sm:w-6"
-              />
-              <span className="text-xl font-semibold text-amber-300 sm:text-xs">BO.fin</span>
-              
-              {/* Pulsing circle with ripple effect */}
-              <div className="relative flex h-6 w-6 shrink-0 items-center justify-center sm:h-7 sm:w-7">
-              {/* Ripple waves - 3 layers for smooth effect */}
-              {/* Red waves for default wallet, white for others */}
-              {isDefault ? (
-                <>
-                  <div className="absolute h-full w-full rounded-full bg-red-500/50 ripple-wave" />
-                  <div className="absolute h-full w-full rounded-full bg-red-500/40 ripple-wave-delay-1" />
-                  <div className="absolute h-full w-full rounded-full bg-red-500/30 ripple-wave-delay-2" />
-                  {/* Center circle with red glow */}
-                  <div className="relative z-10 h-3 w-3 rounded-full bg-red-500 pulse-glow-red sm:h-3.5 sm:w-3.5" />
-                </>
-              ) : (
-                <>
-                  <div className="absolute h-full w-full rounded-full bg-white/40 ripple-wave" />
-                  <div className="absolute h-full w-full rounded-full bg-white/30 ripple-wave-delay-1" />
-                  <div className="absolute h-full w-full rounded-full bg-white/20 ripple-wave-delay-2" />
-                  {/* Center circle with glow */}
-                  <div className="relative z-10 h-3 w-3 rounded-full bg-white pulse-glow sm:h-3.5 sm:w-3.5" />
-                </>
-              )}
-              </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <span className="text-xl font-semibold text-amber-300 sm:text-xs">BO.fin</span>
+            
+            {/* Pulsing circle with ripple effect */}
+            <div className="relative flex h-6 w-6 shrink-0 items-center justify-center sm:h-7 sm:w-7">
+            {/* Ripple waves - 3 layers for smooth effect */}
+            {/* White waves for all wallets */}
+            <div className="absolute h-full w-full rounded-full bg-white/40 ripple-wave" />
+            <div className="absolute h-full w-full rounded-full bg-white/30 ripple-wave-delay-1" />
+            <div className="absolute h-full w-full rounded-full bg-white/20 ripple-wave-delay-2" />
+            {/* Center circle with glow */}
+            <div className="relative z-10 h-3 w-3 rounded-full bg-white pulse-glow sm:h-3.5 sm:w-3.5" />
             </div>
-            {/* Tagline */}
-            <p className="text-[8px] font-medium text-white/60 sm:text-[8px]">
-              Theo dõi chi tiêu, tối ưu tài chính
-            </p>
           </div>
         </div>
 
@@ -184,11 +204,22 @@ export const WalletCard = ({ wallet, isActive = false, isDefault = false }: Wall
           <p className="truncate text-2xl font-bold tracking-tight sm:text-3xl">
             {formatCurrency(stats.currentBalance)}
           </p>
-          {stats.currentBalance !== wallet.balance && (
-            <p className="mt-0.5 text-xs text-white/60">
-              Số dư ban đầu: {formatCurrency(wallet.balance)}
-            </p>
-          )}
+          <div className="mt-0.5 flex items-center justify-between gap-2">
+            {(() => {
+              const initialBalance = wallet.initial_balance ?? wallet.balance ?? 0
+              return stats.currentBalance !== initialBalance && (
+                <p className="text-xs text-white/60">
+                  Số dư ban đầu: {formatCurrency(initialBalance)}
+                </p>
+              )
+            })()}
+            {isDefault && (
+              <span className="shrink-0 ml-auto flex items-center gap-1 rounded-full bg-amber-400/90 px-2 py-0.5 text-xs font-medium text-white shadow-lg backdrop-blur-sm">
+                <RiStarFill className="h-3 w-3" />
+                <span>Ví mặc định</span>
+              </span>
+            )}
+          </div>
         </div>
 
         {/* Bottom section - Income and Expense */}
@@ -222,4 +253,6 @@ export const WalletCard = ({ wallet, isActive = false, isDefault = false }: Wall
     </div>
   )
 }
+
+
 

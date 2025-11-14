@@ -269,7 +269,7 @@ export const DashboardPage = () => {
         const [transactionsData, categoriesData, walletsData] = await Promise.all([
           fetchTransactions({ limit: 5 }),
           fetchCategories(),
-          fetchWallets(),
+          fetchWallets(false), // Chỉ lấy ví active, không lấy ví đã ẩn
         ])
         // Sort by date: newest first (transaction_date desc, then created_at desc)
         const sortedTransactions = [...transactionsData].sort((a, b) => {
