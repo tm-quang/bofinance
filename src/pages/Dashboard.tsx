@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
+import { useDataPreloader } from '../hooks/useDataPreloader'
 import { RiAddLine, RiCalendarLine, RiExchangeDollarLine, RiHandCoinLine, RiHandHeartLine, RiSendPlaneFill, RiSettings3Line, RiWallet3Line } from 'react-icons/ri'
 
 import FooterNav from '../components/layout/FooterNav'
@@ -94,6 +95,7 @@ export const DashboardPage = () => {
   const navigate = useNavigate()
   const location = useLocation()
   const { success, error: showError } = useNotification()
+  useDataPreloader() // Preload data khi vào dashboard
   const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const [selectedWallet, setSelectedWallet] = useState<WalletRecord | null>(null)
@@ -263,11 +265,14 @@ export const DashboardPage = () => {
   }
 
   // Load transactions and categories - chỉ load khi cần thiết, sử dụng cache
+  // Nếu đã preload, dữ liệu sẽ được lấy từ cache ngay lập tức
+  // Chỉ load lại khi location.key thay đổi (navigate từ trang khác về)
   useEffect(() => {
     const loadData = async () => {
       setIsLoadingTransactions(true)
       try {
-        // Sử dụng cache - chỉ fetch khi cache hết hạn hoặc chưa có
+        // Sử dụng cache - nếu đã preload, sẽ lấy từ cache ngay lập tức
+        // Chỉ fetch khi cache hết hạn hoặc chưa có
         const [transactionsData, categoriesData, walletsData] = await Promise.all([
           fetchTransactions({ limit: 5 }),
           fetchCategories(),
@@ -295,10 +300,11 @@ export const DashboardPage = () => {
       }
     }
 
-    loadData()
     // Chỉ load lại khi location.key thay đổi (navigate từ trang khác về)
-    // Không load lại khi chỉ re-render
-  }, [location.key])
+    // Không load lại khi chỉ re-render hoặc khi component re-mount
+    // Nếu đã có cache, sẽ không fetch lại
+    loadData()
+  }, []) // Chỉ load một lần khi mount, cache sẽ được sử dụng
 
   // Reload transactions when a new transaction is added/updated/deleted
   const handleTransactionSuccess = () => {

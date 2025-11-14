@@ -6,8 +6,28 @@ type CacheEntry<T> = {
 
 type CacheKey = string
 
+import { getCachedUserId } from './userCache'
+
 const STORAGE_PREFIX = 'bofin_cache_'
 const STORAGE_KEY_MAP = 'bofin_cache_keys'
+
+/**
+ * Get user-specific cache prefix
+ * Cache được lưu theo user_id để tránh conflict giữa các user
+ * Sử dụng cached user để tránh fetch lại nhiều lần
+ */
+const getUserCachePrefix = async (): Promise<string> => {
+  try {
+    const userId = await getCachedUserId()
+    
+    if (userId) {
+      return `user_${userId}_`
+    }
+  } catch (error) {
+    console.warn('Error getting user cache prefix:', error)
+  }
+  return ''
+}
 
 class CacheManager {
   private cache: Map<CacheKey, CacheEntry<unknown>> = new Map()
@@ -21,8 +41,9 @@ class CacheManager {
       localStorage.setItem(testKey, 'test')
       localStorage.removeItem(testKey)
       this.storageEnabled = true
-      // Load cache from localStorage on initialization
-      this.loadFromStorage()
+      // Load cache from localStorage on initialization (async, không block)
+      // Sẽ được gọi lại sau khi user đăng nhập trong useDataPreloader
+      this.loadFromStorage().catch(console.error)
     } catch (error) {
       console.warn('localStorage not available, using in-memory cache only', error)
       this.storageEnabled = false
@@ -31,24 +52,34 @@ class CacheManager {
 
   /**
    * Load cache from localStorage
+   * Load cache cho user hiện tại (async vì cần user prefix)
    */
-  private loadFromStorage(): void {
+  async loadFromStorage(): Promise<void> {
     if (!this.storageEnabled) return
 
     try {
+      const userPrefix = await getUserCachePrefix()
+      if (!userPrefix) return // Chưa có user, không load cache
+
+      // Load tất cả keys có user prefix
       const keysJson = localStorage.getItem(STORAGE_KEY_MAP)
       if (!keysJson) return
 
-      const keys: string[] = JSON.parse(keysJson)
+      const allKeys: string[] = JSON.parse(keysJson)
       const now = Date.now()
 
-      for (const key of keys) {
-        const storageKey = STORAGE_PREFIX + key
+      for (const storageKey of allKeys) {
+        // Chỉ load keys có user prefix của user hiện tại
+        if (!storageKey.includes(userPrefix)) continue
+        
         const entryJson = localStorage.getItem(storageKey)
         if (!entryJson) continue
 
         const entry: CacheEntry<unknown> = JSON.parse(entryJson)
         const age = now - entry.timestamp
+
+        // Extract key without prefix
+        const key = storageKey.replace(STORAGE_PREFIX + userPrefix, '')
 
         // Only load non-expired entries
         if (age <= entry.ttl) {
@@ -60,7 +91,7 @@ class CacheManager {
       }
 
       // Update keys list after cleanup
-      this.saveKeysToStorage()
+      this.saveKeysToStorage().catch(console.error)
     } catch (e) {
       console.warn('Error loading cache from localStorage:', e)
     }
@@ -68,13 +99,17 @@ class CacheManager {
 
   /**
    * Save cache keys list to localStorage
+   * Lưu với user prefix để persistent theo user
    */
-  private saveKeysToStorage(): void {
+  private async saveKeysToStorage(): Promise<void> {
     if (!this.storageEnabled) return
 
     try {
+      const userPrefix = await getUserCachePrefix()
       const keys = Array.from(this.cache.keys())
-      localStorage.setItem(STORAGE_KEY_MAP, JSON.stringify(keys))
+      // Lưu keys với user prefix
+      const keysWithPrefix = keys.map(key => STORAGE_PREFIX + userPrefix + key)
+      localStorage.setItem(STORAGE_KEY_MAP, JSON.stringify(keysWithPrefix))
     } catch (e) {
       console.warn('Error saving cache keys to localStorage:', e)
     }
@@ -82,12 +117,15 @@ class CacheManager {
 
   /**
    * Save entry to localStorage
+   * Lưu với user prefix để persistent theo user
    */
-  private saveToStorage<T>(key: CacheKey, entry: CacheEntry<T>): void {
+  private async saveToStorage<T>(key: CacheKey, entry: CacheEntry<T>): Promise<void> {
     if (!this.storageEnabled) return
 
     try {
-      const storageKey = STORAGE_PREFIX + key
+      // Thêm user prefix vào storage key để persistent theo user
+      const userPrefix = await getUserCachePrefix()
+      const storageKey = STORAGE_PREFIX + userPrefix + key
       localStorage.setItem(storageKey, JSON.stringify(entry))
       this.saveKeysToStorage()
     } catch (e) {
@@ -95,7 +133,8 @@ class CacheManager {
       if (e instanceof DOMException && e.code === 22) {
         this.cleanupOldEntries()
         try {
-          const storageKey = STORAGE_PREFIX + key
+          const userPrefix = await getUserCachePrefix()
+          const storageKey = STORAGE_PREFIX + userPrefix + key
           localStorage.setItem(storageKey, JSON.stringify(entry))
           this.saveKeysToStorage()
         } catch (e2) {
@@ -110,11 +149,12 @@ class CacheManager {
   /**
    * Remove entry from localStorage
    */
-  private removeFromStorage(key: CacheKey): void {
+  private async removeFromStorage(key: CacheKey): Promise<void> {
     if (!this.storageEnabled) return
 
     try {
-      const storageKey = STORAGE_PREFIX + key
+      const userPrefix = await getUserCachePrefix()
+      const storageKey = STORAGE_PREFIX + userPrefix + key
       localStorage.removeItem(storageKey)
       this.saveKeysToStorage()
     } catch (e) {
@@ -160,19 +200,25 @@ class CacheManager {
 
   /**
    * Generate cache key from function name and parameters
+   * Tự động thêm user_id vào key nếu có user đăng nhập
    */
-  generateKey(functionName: string, params?: Record<string, unknown>): CacheKey {
-    if (!params || Object.keys(params).length === 0) {
-      return functionName
+  async generateKey(functionName: string, params?: Record<string, unknown>): Promise<CacheKey> {
+    // Lấy user_id nếu có
+    const userPrefix = await getUserCachePrefix()
+    
+    let baseKey = functionName
+    if (params && Object.keys(params).length > 0) {
+      const paramString = JSON.stringify(params, Object.keys(params).sort())
+      baseKey = `${functionName}:${paramString}`
     }
-    const paramString = JSON.stringify(params, Object.keys(params).sort())
-    return `${functionName}:${paramString}`
+    
+    return userPrefix ? `${userPrefix}${baseKey}` : baseKey
   }
 
   /**
    * Get data from cache if valid
    */
-  get<T>(key: CacheKey): T | null {
+  async get<T>(key: CacheKey): Promise<T | null> {
     // Try in-memory cache first
     const entry = this.cache.get(key)
     if (entry) {
@@ -182,7 +228,7 @@ class CacheManager {
       if (age > entry.ttl) {
         // Cache expired
         this.cache.delete(key)
-        this.removeFromStorage(key)
+        await this.removeFromStorage(key)
         return null
       }
 
@@ -192,7 +238,8 @@ class CacheManager {
     // Try localStorage if not in memory
     if (this.storageEnabled) {
       try {
-        const storageKey = STORAGE_PREFIX + key
+        const userPrefix = await getUserCachePrefix()
+        const storageKey = STORAGE_PREFIX + userPrefix + key
         const entryJson = localStorage.getItem(storageKey)
         if (!entryJson) return null
 
@@ -202,7 +249,7 @@ class CacheManager {
 
         if (age > entry.ttl) {
           // Cache expired
-          this.removeFromStorage(key)
+          await this.removeFromStorage(key)
           return null
         }
 
@@ -221,7 +268,7 @@ class CacheManager {
   /**
    * Set data in cache
    */
-  set<T>(key: CacheKey, data: T, ttl?: number): void {
+  async set<T>(key: CacheKey, data: T, ttl?: number): Promise<void> {
     const entry: CacheEntry<T> = {
       data,
       timestamp: Date.now(),
@@ -231,21 +278,49 @@ class CacheManager {
     // Save to memory
     this.cache.set(key, entry)
 
-    // Save to localStorage
-    this.saveToStorage(key, entry)
+    // Save to localStorage (async)
+    await this.saveToStorage(key, entry)
   }
 
   /**
    * Invalidate cache by key pattern
    */
-  invalidate(pattern: string | RegExp): void {
+  async invalidate(pattern: string | RegExp): Promise<void> {
     const keysToRemove: string[] = []
 
     if (typeof pattern === 'string') {
-      // Exact match or prefix match
+      // Exact match or prefix match - cần match cả với và không có user prefix
+      const userPrefix = await getUserCachePrefix()
+      const patternWithPrefix = userPrefix ? `${userPrefix}${pattern}` : pattern
+      
       for (const key of this.cache.keys()) {
-        if (key === pattern || key.startsWith(pattern + ':')) {
+        // Match với pattern (có thể có hoặc không có user prefix)
+        if (key === pattern || key.startsWith(pattern + ':') || 
+            key === patternWithPrefix || key.startsWith(patternWithPrefix + ':')) {
           keysToRemove.push(key)
+        }
+      }
+      
+      // Also check localStorage for keys with user prefix
+      if (this.storageEnabled) {
+        try {
+          const keysJson = localStorage.getItem(STORAGE_KEY_MAP)
+          if (keysJson) {
+            const allKeys: string[] = JSON.parse(keysJson)
+            for (const storageKey of allKeys) {
+              // Extract key without prefix
+              const keyWithoutPrefix = storageKey.replace(STORAGE_PREFIX, '').replace(userPrefix, '')
+              if (keyWithoutPrefix === pattern || keyWithoutPrefix.startsWith(pattern + ':')) {
+                // Extract original key from storage key
+                const originalKey = storageKey.replace(STORAGE_PREFIX + userPrefix, '')
+                if (!keysToRemove.includes(originalKey)) {
+                  keysToRemove.push(originalKey)
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Error reading cache keys for invalidation:', e)
         }
       }
     } else {
@@ -260,28 +335,32 @@ class CacheManager {
     // Remove from both memory and storage
     for (const key of keysToRemove) {
       this.cache.delete(key)
-      this.removeFromStorage(key)
+      await this.removeFromStorage(key)
     }
   }
 
   /**
    * Clear all cache
    */
-  clear(): void {
+  async clear(): Promise<void> {
     // Clear memory
     this.cache.clear()
 
-    // Clear localStorage
+    // Clear localStorage cho user hiện tại
     if (this.storageEnabled) {
       try {
+        const userPrefix = await getUserCachePrefix()
         const keysJson = localStorage.getItem(STORAGE_KEY_MAP)
         if (keysJson) {
-          const keys: string[] = JSON.parse(keysJson)
-          for (const key of keys) {
-            localStorage.removeItem(STORAGE_PREFIX + key)
+          const allKeys: string[] = JSON.parse(keysJson)
+          // Chỉ xóa keys của user hiện tại
+          for (const storageKey of allKeys) {
+            if (userPrefix && storageKey.includes(userPrefix)) {
+              localStorage.removeItem(storageKey)
+            }
           }
         }
-        localStorage.removeItem(STORAGE_KEY_MAP)
+        // Không xóa STORAGE_KEY_MAP vì có thể có keys của user khác
       } catch (e) {
         console.warn('Error clearing localStorage cache:', e)
       }
@@ -334,25 +413,25 @@ export function withCache<T extends (...args: unknown[]) => Promise<unknown>>(
   const ttl = options?.ttl || cacheManager.getDefaultTTL()
 
   return (async (...args: Parameters<T>) => {
-    const keyGenerator = options?.keyGenerator || ((args: Parameters<T>) => {
+    const keyGenerator = options?.keyGenerator || (async (args: Parameters<T>) => {
       const params: Record<string, unknown> = {}
       args.forEach((arg, index) => {
         if (arg !== null && arg !== undefined) {
           params[`arg${index}`] = arg
         }
       })
-      return cacheManager.generateKey(functionName, params)
+      return await cacheManager.generateKey(functionName, params)
     })
 
-    const cacheKey = keyGenerator(args)
-    const cached = cacheManager.get<ReturnType<T>>(cacheKey)
+    const cacheKey = await keyGenerator(args)
+    const cached = await cacheManager.get<ReturnType<T>>(cacheKey)
 
     if (cached !== null) {
       return cached
     }
 
     const result = await fn(...args)
-    cacheManager.set(cacheKey, result, ttl)
+    await cacheManager.set(cacheKey, result, ttl)
 
     return result
   }) as T
@@ -361,15 +440,15 @@ export function withCache<T extends (...args: unknown[]) => Promise<unknown>>(
 /**
  * Invalidate cache for specific service
  */
-export function invalidateCache(serviceName: string): void {
-  cacheManager.invalidate(serviceName)
+export async function invalidateCache(serviceName: string): Promise<void> {
+  await cacheManager.invalidate(serviceName)
 }
 
 /**
  * Invalidate all cache
  */
-export function clearAllCache(): void {
-  cacheManager.clear()
+export async function clearAllCache(): Promise<void> {
+  await cacheManager.clear()
 }
 
 /**
@@ -387,17 +466,20 @@ export async function cacheFirstWithRefresh<T>(
   ttl?: number,
   staleThreshold?: number
 ): Promise<T> {
-  // Get cached data
-  const cached = cacheManager.get<T>(key)
+  // Get cached data (async)
+  const cached = await cacheManager.get<T>(key)
   
   // If we have valid cached data
   if (cached !== null) {
+    // Debug: Log cache hit
+    console.log(`[Cache HIT] ${key.substring(0, 50)}...`)
+    
     // Check if cache is stale (but not expired)
     if (cacheManager.isStale(key, staleThreshold)) {
       // Refresh in background (don't await)
       fetchFn()
         .then((freshData) => {
-          cacheManager.set(key, freshData, ttl)
+          cacheManager.set(key, freshData, ttl).catch(console.error)
         })
         .catch((error) => {
           console.warn('Background cache refresh failed:', error)
@@ -409,9 +491,12 @@ export async function cacheFirstWithRefresh<T>(
     return cached
   }
   
+  // Debug: Log cache miss
+  console.log(`[Cache MISS] ${key.substring(0, 50)}... - Fetching fresh data`)
+  
   // No cache, fetch fresh data
   const freshData = await fetchFn()
-  cacheManager.set(key, freshData, ttl)
+  await cacheManager.set(key, freshData, ttl)
   return freshData
 }
 

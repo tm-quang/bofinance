@@ -60,6 +60,8 @@ export const WalletCard = ({ wallet, isActive = false, isDefault = false }: Wall
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    // Chỉ load stats khi wallet.id thay đổi, không phải khi wallet object thay đổi
+    // Điều này tránh việc load lại liên tục khi component re-render
     const loadStats = async () => {
       try {
         // Load stats cho tất cả thời gian (không giới hạn ngày) để hiển thị tổng hợp
@@ -113,7 +115,8 @@ export const WalletCard = ({ wallet, isActive = false, isDefault = false }: Wall
     // Luôn load stats để hiển thị số liệu, không chỉ khi isActive
     // isActive chỉ ảnh hưởng đến việc hiển thị animation/scale
     loadStats()
-  }, [wallet])
+    // Chỉ load lại khi wallet.id hoặc wallet.balance thay đổi, không phải khi wallet object thay đổi
+  }, [wallet.id, wallet.balance])
 
   const gradient = getWalletGradient(wallet.type)
 

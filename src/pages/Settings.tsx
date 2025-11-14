@@ -32,6 +32,7 @@ import { useDialog } from '../contexts/dialogContext.helpers'
 import { getSupabaseClient } from '../lib/supabaseClient'
 import { clearAllCache } from '../lib/cache'
 import { useNotification } from '../contexts/notificationContext.helpers'
+import { clearUserCache } from '../lib/userCache'
 
 type ToggleSetting = {
   id: string
@@ -201,6 +202,14 @@ const SettingsPage = () => {
       const supabase = getSupabaseClient()
       // Clear welcome modal flag when logging out
       sessionStorage.removeItem('showWelcomeModal')
+      
+      // Clear cache và preload timestamp khi logout
+      const { clearAllCache } = await import('../lib/cache')
+      const { clearPreloadTimestamp } = await import('../lib/dataPreloader')
+      await clearAllCache()
+      await clearPreloadTimestamp()
+      clearUserCache() // Clear user cache khi logout
+      
       await supabase.auth.signOut()
       navigate('/login')
     })
@@ -209,7 +218,9 @@ const SettingsPage = () => {
   const handleReloadCache = async () => {
     await showConfirm('Bạn có muốn xóa toàn bộ cache và tải lại dữ liệu?', async () => {
       try {
-        clearAllCache()
+        await clearAllCache()
+        const { clearPreloadTimestamp } = await import('../lib/dataPreloader')
+        await clearPreloadTimestamp()
         success('Đã xóa cache thành công! Dữ liệu sẽ được tải lại khi bạn quay lại các trang.')
         // Reload page để tải lại dữ liệu
         window.location.reload()
@@ -238,6 +249,7 @@ const SettingsPage = () => {
 
         {/* Account Info Section */}
         <section className="rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
+          <div className="flex flex-col gap-4">
           <div className="flex items-center gap-4">
             {profile?.avatar_url ? (
               <img
@@ -256,14 +268,8 @@ const SettingsPage = () => {
               </h3>
               <p className="text-xs text-slate-500 sm:text-sm">{profile?.email || ''}</p>
             </div>
-            <div className="flex flex-col gap-2">
-              <button
-                type="button"
-                onClick={() => setIsAccountModalOpen(true)}
-                className="rounded-xl border-2 border-slate-200 bg-white px-4 py-2 text-xs font-semibold text-slate-700 transition hover:border-sky-300 hover:bg-sky-50 hover:text-sky-700 sm:px-5 sm:py-2.5 sm:text-sm"
-              >
-                Chỉnh sửa
-              </button>
+            </div>
+            <div className="flex justify-end gap-2">
               <button
                 type="button"
                 onClick={handleReloadCache}
@@ -271,7 +277,7 @@ const SettingsPage = () => {
               >
                 <span className="flex items-center justify-center gap-1.5">
                   <RiRefreshLine className="h-4 w-4" />
-                  Làm mới cache
+                  Reload
                 </span>
               </button>
               <button

@@ -1,6 +1,8 @@
 import { fetchTransactions } from './transactionService'
 import { getSupabaseClient } from './supabaseClient'
+import { getCachedUser } from './userCache'
 import type { WalletRecord } from './walletService'
+import { cacheFirstWithRefresh, cacheManager } from './cache'
 
 /**
  * Tính số dư ví từ giao dịch
@@ -80,15 +82,23 @@ export const getWalletCashFlowStats = async (
   startDate?: string,
   endDate?: string
 ): Promise<WalletCashFlowStats> => {
-  try {
-    const filters: { wallet_id: string; start_date?: string; end_date?: string } = {
-      wallet_id: wallet.id,
-    }
-    
-    if (startDate) filters.start_date = startDate
-    if (endDate) filters.end_date = endDate
-    
-    const transactions = await fetchTransactions(filters)
+  // Tạo cache key dựa trên wallet.id và date range
+  const cacheKey = await cacheManager.generateKey('getWalletCashFlowStats', {
+    walletId: wallet.id,
+    startDate,
+    endDate,
+  })
+
+  const fetchStats = async (): Promise<WalletCashFlowStats> => {
+    try {
+      const filters: { wallet_id: string; start_date?: string; end_date?: string } = {
+        wallet_id: wallet.id,
+      }
+      
+      if (startDate) filters.start_date = startDate
+      if (endDate) filters.end_date = endDate
+      
+      const transactions = await fetchTransactions(filters)
     
     const incomeTransactions = transactions.filter((t) => t.type === 'Thu')
     const expenseTransactions = transactions.filter((t) => t.type === 'Chi')
@@ -167,34 +177,38 @@ export const getWalletCashFlowStats = async (
     }
     
     return stats
-  } catch (error) {
-    console.error('Error getting wallet cash flow stats:', error)
-    // Return default stats
-    return {
-      currentBalance: wallet.balance,
-      initialBalance: wallet.balance,
-      totalIncome: 0,
-      incomeCount: 0,
-      averageIncome: 0,
-      largestIncome: 0,
-      smallestIncome: 0,
-      totalExpense: 0,
-      expenseCount: 0,
-      averageExpense: 0,
-      largestExpense: 0,
-      smallestExpense: 0,
-      incomePercentage: 0,
-      expensePercentage: 0,
-      expenseToIncomeRatio: 0,
-      netFlow: 0,
-      savingsRate: 0,
-      expenseRate: 0,
-      dailyAverageIncome: 0,
-      dailyAverageExpense: 0,
-      monthlyProjectedIncome: 0,
-      monthlyProjectedExpense: 0,
+    } catch (error) {
+      console.error('Error getting wallet cash flow stats:', error)
+      // Return default stats
+      return {
+        currentBalance: wallet.balance,
+        initialBalance: wallet.balance,
+        totalIncome: 0,
+        incomeCount: 0,
+        averageIncome: 0,
+        largestIncome: 0,
+        smallestIncome: 0,
+        totalExpense: 0,
+        expenseCount: 0,
+        averageExpense: 0,
+        largestExpense: 0,
+        smallestExpense: 0,
+        incomePercentage: 0,
+        expensePercentage: 0,
+        expenseToIncomeRatio: 0,
+        netFlow: 0,
+        savingsRate: 0,
+        expenseRate: 0,
+        dailyAverageIncome: 0,
+        dailyAverageExpense: 0,
+        monthlyProjectedIncome: 0,
+        monthlyProjectedExpense: 0,
+      }
     }
   }
+
+  // Sử dụng cache với TTL 24 giờ cho session cache, stale threshold 12 giờ
+  return cacheFirstWithRefresh(cacheKey, fetchStats, 24 * 60 * 60 * 1000, 12 * 60 * 60 * 1000)
 }
 
 /**
@@ -215,9 +229,7 @@ export const syncWalletBalanceFromTransactions = async (
   walletId: string
 ): Promise<WalletRecord> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để cập nhật số dư ví.')
@@ -276,9 +288,7 @@ export const syncWalletBalanceFromTransactions = async (
  */
 export const syncAllWalletBalances = async (): Promise<void> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhật để cập nhật số dư ví.')

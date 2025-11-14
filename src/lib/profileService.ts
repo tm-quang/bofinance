@@ -2,6 +2,8 @@ import type { PostgrestError, AuthError } from '@supabase/supabase-js'
 
 import { getSupabaseClient } from './supabaseClient'
 import { uploadToCloudinary } from './cloudinaryService'
+import { invalidateCache } from './cache'
+import { getCachedUser } from './userCache'
 
 export type ProfileRecord = {
   id: string
@@ -32,9 +34,7 @@ const throwIfError = (error: PostgrestError | AuthError | null, fallbackMessage:
 // Lấy thông tin profile của user hiện tại
 export const getCurrentProfile = async (): Promise<ProfileRecord | null> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     return null
@@ -92,9 +92,7 @@ export const getCurrentProfile = async (): Promise<ProfileRecord | null> => {
 // Cập nhật thông tin cá nhân
 export const updateProfile = async (updates: ProfileUpdate): Promise<ProfileRecord> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để cập nhật thông tin.')
@@ -113,6 +111,9 @@ export const updateProfile = async (updates: ProfileUpdate): Promise<ProfileReco
     throw new Error('Không nhận được dữ liệu sau khi cập nhật.')
   }
 
+  // Invalidate cache khi profile được cập nhật
+  await invalidateCache('getCurrentProfile')
+
   return data
 }
 
@@ -122,9 +123,7 @@ export const changePassword = async (
   newPassword: string
 ): Promise<void> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để đổi mật khẩu.')
@@ -150,10 +149,7 @@ export const changePassword = async (
 
 // Upload avatar và cập nhật URL
 export const uploadAvatar = async (file: File): Promise<string> => {
-  const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để upload avatar.')
@@ -185,10 +181,7 @@ export const uploadAvatar = async (file: File): Promise<string> => {
 
 // Xóa avatar
 export const deleteAvatar = async (): Promise<void> => {
-  const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để xóa avatar.')

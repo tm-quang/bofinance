@@ -2,6 +2,7 @@ import type { PostgrestError } from '@supabase/supabase-js'
 
 import { getSupabaseClient } from './supabaseClient'
 import { invalidateCache, cacheFirstWithRefresh, cacheManager } from './cache'
+import { getCachedUser } from './userCache'
 
 export type WalletType = 'Tiền mặt' | 'Ngân hàng' | 'Tiết kiệm' | 'Tín dụng' | 'Đầu tư' | 'Khác'
 
@@ -47,16 +48,13 @@ const throwIfError = (error: PostgrestError | null, fallbackMessage: string): vo
 // Lấy tất cả ví của user hiện tại
 export const fetchWallets = async (includeInactive = false): Promise<WalletRecord[]> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để xem ví.')
   }
 
-  const cacheKey = cacheManager.generateKey('fetchWallets', {
-    userId: user.id,
+  const cacheKey = await cacheManager.generateKey('fetchWallets', {
     includeInactive,
   })
 
@@ -78,16 +76,17 @@ export const fetchWallets = async (includeInactive = false): Promise<WalletRecor
     return data ?? []
   }
 
-  // Cache với TTL 10 phút, stale threshold 5 phút (refresh trong background sau 5 phút)
-  return cacheFirstWithRefresh(cacheKey, fetchFromSupabase, 10 * 60 * 1000, 5 * 60 * 1000)
+  // Cache với TTL 24 giờ cho session cache (persistent trong phiên đăng nhập)
+  // Stale threshold 12 giờ (refresh trong background sau 12 giờ)
+  const ttl = 24 * 60 * 60 * 1000 // 24 giờ
+  const staleThreshold = 12 * 60 * 60 * 1000 // 12 giờ
+  return cacheFirstWithRefresh(cacheKey, fetchFromSupabase, ttl, staleThreshold)
 }
 
 // Lấy một ví theo ID
 export const getWalletById = async (id: string): Promise<WalletRecord | null> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để xem ví.')
@@ -108,9 +107,7 @@ export const getWalletById = async (id: string): Promise<WalletRecord | null> =>
 // Tạo ví mới
 export const createWallet = async (payload: WalletInsert): Promise<WalletRecord> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để tạo ví.')
@@ -136,7 +133,7 @@ export const createWallet = async (payload: WalletInsert): Promise<WalletRecord>
   }
 
   // Invalidate cache để đảm bảo danh sách ví được cập nhật
-  invalidateCache('fetchWallets')
+  await invalidateCache('fetchWallets')
 
   return data
 }
@@ -144,9 +141,7 @@ export const createWallet = async (payload: WalletInsert): Promise<WalletRecord>
 // Cập nhật ví
 export const updateWallet = async (id: string, updates: WalletUpdate): Promise<WalletRecord> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để cập nhật ví.')
@@ -167,7 +162,7 @@ export const updateWallet = async (id: string, updates: WalletUpdate): Promise<W
   }
 
   // Invalidate cache để đảm bảo danh sách ví được cập nhật
-  invalidateCache('fetchWallets')
+  await invalidateCache('fetchWallets')
 
   return data
 }
@@ -175,9 +170,7 @@ export const updateWallet = async (id: string, updates: WalletUpdate): Promise<W
 // Xóa ví (soft delete bằng cách set is_active = false)
 export const deleteWallet = async (id: string, hardDelete = false): Promise<void> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để xóa ví.')
@@ -196,10 +189,10 @@ export const deleteWallet = async (id: string, hardDelete = false): Promise<void
   }
 
   // Invalidate cache để đảm bảo danh sách ví được cập nhật
-  invalidateCache('fetchWallets')
+  await invalidateCache('fetchWallets')
   
   // Also invalidate transaction stats since wallet balance changed
-  invalidateCache('getTransactionStats')
+  await invalidateCache('getTransactionStats')
 }
 
 // Cập nhật số dư ví
@@ -216,9 +209,7 @@ export const getTotalBalance = async (): Promise<number> => {
 // Lưu ví mặc định vào database
 export const setDefaultWallet = async (walletId: string): Promise<void> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để đặt ví mặc định.')
@@ -256,24 +247,31 @@ export const setDefaultWallet = async (walletId: string): Promise<void> => {
     }
   } else {
     // Invalidate cache để đảm bảo dữ liệu mới nhất
-    invalidateCache('fetchWallets')
+    await invalidateCache('fetchWallets')
   }
   
   // Also invalidate related caches
-  invalidateCache('getDefaultWallet')
+  await invalidateCache('getDefaultWallet')
 }
 
 // Lấy ví mặc định từ database
 export const getDefaultWallet = async (): Promise<string | null> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     return null
   }
 
+  // Sử dụng cache để tránh fetch lại nhiều lần
+  const cacheKey = await cacheManager.generateKey('getDefaultWallet', {})
+  const cached = await cacheManager.get<string | null>(cacheKey)
+  
+  if (cached !== null) {
+    return cached
+  }
+
+  // Fetch từ database
   const { data, error } = await supabase
     .from('user_preferences')
     .select('value')
@@ -281,15 +279,27 @@ export const getDefaultWallet = async (): Promise<string | null> => {
     .eq('key', 'default_wallet_id')
     .single()
 
+  let result: string | null = null
+
   if (error || !data) {
+    // Nếu lỗi 406 (Not Acceptable), có thể table không tồn tại
+    if (error?.code === 'PGRST116' || error?.message?.includes('406')) {
+      console.warn('user_preferences table may not exist, using localStorage fallback')
+    }
+    
     // Fallback về localStorage
     try {
-      return localStorage.getItem('bofin_default_wallet_id')
+      result = localStorage.getItem('bofin_default_wallet_id')
     } catch {
-      return null
+      result = null
     }
+  } else {
+    result = data.value as string
   }
 
-  return data.value as string
+  // Cache kết quả với TTL 24 giờ
+  await cacheManager.set(cacheKey, result, 24 * 60 * 60 * 1000)
+  
+  return result
 }
 

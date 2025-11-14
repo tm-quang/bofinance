@@ -3,6 +3,7 @@ import type { PostgrestError } from '@supabase/supabase-js'
 import { getSupabaseClient } from './supabaseClient'
 import { syncWalletBalanceFromTransactions } from './walletBalanceService'
 import { cacheFirstWithRefresh, cacheManager, invalidateCache } from './cache'
+import { getCachedUser } from './userCache'
 
 export type TransactionType = 'Thu' | 'Chi'
 
@@ -66,16 +67,13 @@ export const fetchTransactions = async (
   filters?: TransactionFilters
 ): Promise<TransactionRecord[]> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để xem giao dịch.')
   }
 
-  const cacheKey = cacheManager.generateKey('transactions', {
-    userId: user.id,
+  const cacheKey = await cacheManager.generateKey('transactions', {
     ...filters,
   })
 
@@ -122,15 +120,14 @@ export const fetchTransactions = async (
     return data ?? []
   }
 
-  return cacheFirstWithRefresh(cacheKey, fetchFromSupabase, 60 * 1000, 20 * 1000)
+  // Cache với TTL 24 giờ cho session cache
+  return cacheFirstWithRefresh(cacheKey, fetchFromSupabase, 24 * 60 * 60 * 1000, 12 * 60 * 60 * 1000)
 }
 
 // Lấy một giao dịch theo ID
 export const getTransactionById = async (id: string): Promise<TransactionRecord | null> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để xem giao dịch.')
@@ -151,9 +148,7 @@ export const getTransactionById = async (id: string): Promise<TransactionRecord 
 // Tạo giao dịch mới
 export const createTransaction = async (payload: TransactionInsert): Promise<TransactionRecord> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để tạo giao dịch.')
@@ -180,8 +175,10 @@ export const createTransaction = async (payload: TransactionInsert): Promise<Tra
     console.warn('Error syncing wallet balance after transaction creation:', error)
   })
 
-  invalidateCache('transactions')
-  invalidateCache('getTransactionStats')
+  await invalidateCache('transactions')
+  await invalidateCache('getTransactionStats')
+  // Invalidate wallet cash flow stats cache vì có giao dịch mới
+  await invalidateCache('getWalletCashFlowStats')
 
   return data
 }
@@ -192,9 +189,7 @@ export const updateTransaction = async (
   updates: TransactionUpdate
 ): Promise<TransactionRecord> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để cập nhật giao dịch.')
@@ -225,6 +220,8 @@ export const updateTransaction = async (
 
   invalidateCache('transactions')
   invalidateCache('getTransactionStats')
+  // Invalidate wallet cash flow stats cache vì có giao dịch được cập nhật
+  invalidateCache('getWalletCashFlowStats')
 
   return data
 }
@@ -232,9 +229,7 @@ export const updateTransaction = async (
 // Xóa giao dịch
 export const deleteTransaction = async (id: string): Promise<void> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để xóa giao dịch.')
@@ -267,6 +262,8 @@ export const deleteTransaction = async (id: string): Promise<void> => {
 
   invalidateCache('transactions')
   invalidateCache('getTransactionStats')
+  // Invalidate wallet cash flow stats cache vì có giao dịch bị xóa
+  invalidateCache('getWalletCashFlowStats')
 }
 
 // Lấy thống kê giao dịch
@@ -281,16 +278,13 @@ export const getTransactionStats = async (
   transaction_count: number
 }> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để xem thống kê.')
   }
 
-  const cacheKey = cacheManager.generateKey('getTransactionStats', {
-    userId: user.id,
+  const cacheKey = await cacheManager.generateKey('getTransactionStats', {
     startDate,
     endDate,
     walletId,
@@ -333,8 +327,8 @@ export const getTransactionStats = async (
         transaction_count: transactions.length,
       }
     },
-    2 * 60 * 1000,
-    45 * 1000
+    24 * 60 * 60 * 1000, // 24 giờ
+    12 * 60 * 60 * 1000  // 12 giờ stale threshold
   )
 }
 

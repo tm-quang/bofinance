@@ -2,6 +2,7 @@ import type { PostgrestError } from '@supabase/supabase-js'
 
 import { getSupabaseClient } from './supabaseClient'
 import { cacheFirstWithRefresh, cacheManager, invalidateCache } from './cache'
+import { getCachedUser } from './userCache'
 
 export type CategoryType = 'Chi tiêu' | 'Thu nhập'
 
@@ -35,16 +36,15 @@ const throwIfError = (error: PostgrestError | null, fallbackMessage: string): vo
 
 export const fetchCategories = async (): Promise<CategoryRecord[]> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để xem danh mục.')
   }
 
-  const cacheKey = cacheManager.generateKey('categories', { userId: user.id })
+  const cacheKey = await cacheManager.generateKey('categories', {})
 
+  // Cache với TTL 24 giờ cho session cache
   return cacheFirstWithRefresh(
     cacheKey,
     async () => {
@@ -58,15 +58,14 @@ export const fetchCategories = async (): Promise<CategoryRecord[]> => {
 
       return data ?? []
     },
-    2 * 60 * 1000
+    24 * 60 * 60 * 1000, // 24 giờ
+    12 * 60 * 60 * 1000  // 12 giờ stale threshold
   )
 }
 
 export const createCategory = async (payload: CategoryInsert): Promise<CategoryRecord> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để tạo danh mục.')
@@ -87,7 +86,7 @@ export const createCategory = async (payload: CategoryInsert): Promise<CategoryR
     throw new Error('Không nhận được dữ liệu danh mục sau khi tạo.')
   }
 
-  invalidateCache('categories')
+  await invalidateCache('categories')
 
   return data
 }
@@ -97,9 +96,7 @@ export const updateCategory = async (
   updates: CategoryUpdate
 ): Promise<CategoryRecord> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để cập nhật danh mục.')
@@ -119,16 +116,14 @@ export const updateCategory = async (
     throw new Error('Không nhận được dữ liệu danh mục sau khi cập nhật.')
   }
 
-  invalidateCache('categories')
+  await invalidateCache('categories')
 
   return data
 }
 
 export const deleteCategory = async (id: string): Promise<void> => {
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để xoá danh mục.')
@@ -142,6 +137,6 @@ export const deleteCategory = async (id: string): Promise<void> => {
 
   throwIfError(error, 'Không thể xoá danh mục.')
 
-  invalidateCache('categories')
+  await invalidateCache('categories')
 }
 

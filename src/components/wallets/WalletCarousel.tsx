@@ -133,7 +133,13 @@ export const WalletCarousel = ({ onWalletChange, onAddWallet }: WalletCarouselPr
             const isDefault = defaultWalletId === wallet.id
             return (
               <div key={wallet.id} className="min-w-full flex-shrink-0">
-                <WalletCard wallet={wallet} isActive={index === currentIndex} isDefault={isDefault} />
+                {/* Sử dụng wallet.id làm key để tránh re-render không cần thiết */}
+                <WalletCard 
+                  key={wallet.id}
+                  wallet={wallet} 
+                  isActive={index === currentIndex} 
+                  isDefault={isDefault} 
+                />
               </div>
             )
           })}

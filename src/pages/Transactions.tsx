@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useDataPreloader } from '../hooks/useDataPreloader'
 import {
   RiAddLine,
   RiArrowDownCircleLine,
@@ -31,6 +32,7 @@ const ITEMS_PER_PAGE = 20
 
 const TransactionsPage = () => {
   const { success, error: showError } = useNotification()
+  useDataPreloader() // Preload data khi vào trang
   const [allTransactions, setAllTransactions] = useState<TransactionRecord[]>([])
   const [categories, setCategories] = useState<CategoryRecord[]>([])
   const [wallets, setWallets] = useState<WalletRecord[]>([])
@@ -81,10 +83,10 @@ const TransactionsPage = () => {
         setIsLoading(false)
       }
     }
+    // Chỉ load một lần khi mount, cache sẽ được sử dụng
+    // Nếu đã preload, dữ liệu sẽ lấy từ cache ngay lập tức
     loadData()
-    // Chỉ load lại khi navigate từ trang khác về (location.key thay đổi)
-    // Cache sẽ được sử dụng nếu còn valid
-  }, [])
+  }, []) // Chỉ load một lần, cache sẽ được sử dụng cho các lần sau
 
   // Filter and paginate transactions
   const filteredTransactions = useMemo(() => {

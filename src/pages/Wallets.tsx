@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { RiAddLine, RiEdit2Line, RiDeleteBin6Line, RiWallet3Line, RiCheckLine, RiStarLine, RiStarFill } from 'react-icons/ri'
+import { useDataPreloader } from '../hooks/useDataPreloader'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
@@ -122,8 +123,10 @@ const saveDefaultWalletId = (walletId: string): void => {
 export const WalletsPage = () => {
   const { success, error: showError } = useNotification()
   const { showDialog } = useDialog()
+  useDataPreloader() // Preload data khi vào trang
   const [wallets, setWallets] = useState<WalletRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isLoadingInactive, setIsLoadingInactive] = useState(false)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingWallet, setEditingWallet] = useState<WalletRecord | null>(null)
   const [defaultWalletId, setDefaultWalletId] = useState<string | null>(null)
@@ -138,49 +141,54 @@ export const WalletsPage = () => {
   })
 
   useEffect(() => {
+    // Chỉ load một lần khi mount, cache sẽ được sử dụng
+    // Nếu đã preload, dữ liệu sẽ lấy từ cache ngay lập tức
     loadWallets()
-    // Load default wallet ID from database
-    const loadDefaultWallet = async () => {
-      try {
-        const savedDefaultWalletId = await getDefaultWallet()
-        if (savedDefaultWalletId) {
-          setDefaultWalletId(savedDefaultWalletId)
-          saveDefaultWalletId(savedDefaultWalletId)
-        } else {
-          const localDefaultWalletId = getDefaultWalletId()
-          if (localDefaultWalletId) {
-            setDefaultWalletId(localDefaultWalletId)
-          }
-        }
-      } catch (error) {
-        console.error('Error loading default wallet:', error)
-        const localDefaultWalletId = getDefaultWalletId()
-        if (localDefaultWalletId) {
-          setDefaultWalletId(localDefaultWalletId)
-        }
-      }
-    }
-    loadDefaultWallet()
-    // Chỉ load lại khi navigate từ trang khác về (location.key thay đổi)
-  }, [])
+  }, []) // Chỉ load một lần, cache sẽ được sử dụng cho các lần sau
 
   const loadWallets = async () => {
     setIsLoading(true)
     try {
-      // Lấy cả ví active và inactive để có thể quản lý ví đã ẩn
-      const data = await fetchWallets(true)
-      setWallets(data)
-      const savedDefaultWalletId = await getDefaultWallet()
-      if (savedDefaultWalletId) {
-        setDefaultWalletId(savedDefaultWalletId)
-        saveDefaultWalletId(savedDefaultWalletId)
+      // Tối ưu: Load song song các operations không phụ thuộc
+      // Load active wallets trước để hiển thị nhanh, sau đó load inactive
+      const [activeWallets, defaultWalletIdResult] = await Promise.all([
+        fetchWallets(false), // Load active wallets trước (nhanh hơn)
+        getDefaultWallet().catch(() => null), // Load default wallet song song
+      ])
+      
+      // Hiển thị active wallets ngay lập tức (progressive loading)
+      setWallets(activeWallets)
+      setIsLoading(false) // Cho phép hiển thị ngay
+      
+      // Xử lý default wallet
+      if (defaultWalletIdResult) {
+        setDefaultWalletId(defaultWalletIdResult)
+        saveDefaultWalletId(defaultWalletIdResult)
       } else {
         const localDefaultWalletId = getDefaultWalletId()
+        if (localDefaultWalletId) {
         setDefaultWalletId(localDefaultWalletId)
       }
+      }
+      
+      // Load inactive wallets trong background (không block UI)
+      setIsLoadingInactive(true)
+      fetchWallets(true)
+        .then((allWallets) => {
+          // Chỉ cập nhật nếu có thay đổi (có inactive wallets)
+          if (allWallets.length !== activeWallets.length) {
+            setWallets(allWallets)
+          }
+        })
+        .catch((error) => {
+          console.error('Error loading inactive wallets:', error)
+          // Không ảnh hưởng đến UI, vì active wallets đã hiển thị
+        })
+        .finally(() => {
+          setIsLoadingInactive(false)
+        })
     } catch (error) {
       console.error('Error loading wallets:', error)
-    } finally {
       setIsLoading(false)
     }
   }
@@ -616,6 +624,9 @@ export const WalletsPage = () => {
                     <div className="flex items-center justify-between">
                       <h3 className="text-sm font-semibold text-slate-600">
                         Ví đã ẩn ({hiddenWallets.length})
+                        {isLoadingInactive && (
+                          <span className="ml-2 text-xs text-slate-400">(Đang tải...)</span>
+                        )}
                       </h3>
                       <button
                         onClick={() => setShowHiddenWallets(!showHiddenWallets)}
