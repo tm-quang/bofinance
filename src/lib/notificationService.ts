@@ -3,6 +3,8 @@
  * Handles browser notifications with sound for reminders
  */
 
+import { playNotificationSound as playCustomNotificationSound } from './notificationSoundService'
+
 // Request notification permission
 export const requestNotificationPermission = async (): Promise<boolean> => {
   if (!('Notification' in window)) {
@@ -30,33 +32,6 @@ export const hasNotificationPermission = (): boolean => {
   return Notification.permission === 'granted'
 }
 
-// Play notification sound
-const playNotificationSound = () => {
-  try {
-    // Create audio context for notification sound
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
-    const oscillator = audioContext.createOscillator()
-    const gainNode = audioContext.createGain()
-
-    oscillator.connect(gainNode)
-    gainNode.connect(audioContext.destination)
-
-    // Set frequency and type for a pleasant notification sound
-    oscillator.frequency.value = 800
-    oscillator.type = 'sine'
-
-    // Fade in and out
-    gainNode.gain.setValueAtTime(0, audioContext.currentTime)
-    gainNode.gain.linearRampToValueAtTime(0.3, audioContext.currentTime + 0.01)
-    gainNode.gain.linearRampToValueAtTime(0, audioContext.currentTime + 0.3)
-
-    oscillator.start(audioContext.currentTime)
-    oscillator.stop(audioContext.currentTime + 0.3)
-  } catch (error) {
-    console.warn('Could not play notification sound:', error)
-  }
-}
-
 // Send browser notification
 export const sendNotification = async (
   title: string,
@@ -71,8 +46,8 @@ export const sendNotification = async (
   }
 
   try {
-    // Play sound
-    playNotificationSound()
+    // Play sound (uses custom sound preference if set)
+    playCustomNotificationSound()
 
     // Create notification
     const notification = new Notification(title, {

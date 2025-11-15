@@ -114,7 +114,7 @@ export const fetchReminders = async (filters?: ReminderFilters): Promise<Reminde
 }
 
 /**
- * Get reminder by ID
+ * Get reminder by ID with caching
  */
 export const getReminderById = async (id: string): Promise<ReminderRecord | null> => {
   const user = await getCachedUser()
@@ -122,22 +122,30 @@ export const getReminderById = async (id: string): Promise<ReminderRecord | null
     throw new Error('User not authenticated')
   }
 
-  const supabase = getSupabaseClient()
-  const { data, error } = await supabase
-    .from('reminders')
-    .select('*')
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .single()
+  const cacheKey = `${CACHE_KEY}:${user.id}:byId:${id}`
 
-  if (error) {
-    if (error.code === 'PGRST116') {
-      return null
-    }
-    throw error
-  }
+  return cacheFirstWithRefresh(
+    cacheKey,
+    async () => {
+      const supabase = getSupabaseClient()
+      const { data, error } = await supabase
+        .from('reminders')
+        .select('*')
+        .eq('id', id)
+        .eq('user_id', user.id)
+        .single()
 
-  return data as ReminderRecord
+      if (error) {
+        if (error.code === 'PGRST116') {
+          return null
+        }
+        throw error
+      }
+
+      return data as ReminderRecord
+    },
+    CACHE_TTL
+  )
 }
 
 /**
@@ -251,31 +259,59 @@ export const skipReminder = async (id: string): Promise<ReminderRecord> => {
 }
 
 /**
- * Get reminders for today
+ * Get reminders for today with caching
+ * Cache TTL is shorter (1 minute) since it's date-dependent
  */
 export const getTodayReminders = async (): Promise<ReminderRecord[]> => {
+  const user = await getCachedUser()
+  if (!user) {
+    throw new Error('User not authenticated')
+  }
+
   const today = new Date().toISOString().split('T')[0]
-  const allReminders = await fetchReminders({
-    status: 'pending',
-    is_active: true,
-  })
-  return allReminders.filter((r) => r.reminder_date === today)
+  const cacheKey = `${CACHE_KEY}:${user.id}:today:${today}`
+
+  return cacheFirstWithRefresh(
+    cacheKey,
+    async () => {
+      const allReminders = await fetchReminders({
+        status: 'pending',
+        is_active: true,
+      })
+      return allReminders.filter((r) => r.reminder_date === today)
+    },
+    1 * 60 * 1000 // 1 minute cache for today's reminders
+  )
 }
 
 /**
- * Get upcoming reminders
+ * Get upcoming reminders with caching
+ * Cache TTL is shorter (2 minutes) since it's date-dependent
  */
 export const getUpcomingReminders = async (days: number = 7): Promise<ReminderRecord[]> => {
+  const user = await getCachedUser()
+  if (!user) {
+    throw new Error('User not authenticated')
+  }
+
   const today = new Date().toISOString().split('T')[0]
   const futureDate = new Date()
   futureDate.setDate(futureDate.getDate() + days)
   const futureDateStr = futureDate.toISOString().split('T')[0]
 
-  return fetchReminders({
-    start_date: today,
-    end_date: futureDateStr,
-    status: 'pending',
-    is_active: true,
-  })
+  const cacheKey = `${CACHE_KEY}:${user.id}:upcoming:${today}:${futureDateStr}`
+
+  return cacheFirstWithRefresh(
+    cacheKey,
+    async () => {
+      return fetchReminders({
+        start_date: today,
+        end_date: futureDateStr,
+        status: 'pending',
+        is_active: true,
+      })
+    },
+    2 * 60 * 1000 // 2 minutes cache for upcoming reminders
+  )
 }
 

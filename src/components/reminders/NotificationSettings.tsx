@@ -1,10 +1,19 @@
-import { useState, useEffect } from 'react'
-import { FaBell, FaBellSlash, FaInfoCircle } from 'react-icons/fa'
+import { useState, useEffect, useRef } from 'react'
+import { FaBell, FaBellSlash, FaInfoCircle, FaMusic, FaUpload, FaTrash } from 'react-icons/fa'
 import {
   requestNotificationPermission,
   hasNotificationPermission,
   sendReminderNotification,
 } from '../../lib/notificationService'
+import {
+  getSoundPreference,
+  saveSoundPreference,
+  getDefaultSounds,
+  playNotificationSound,
+  fileToDataUrl,
+  validateAudioFile,
+  type SoundPreference,
+} from '../../lib/notificationSoundService'
 import { useNotification } from '../../contexts/notificationContext.helpers'
 
 type NotificationSettingsProps = {
@@ -15,6 +24,9 @@ export const NotificationSettings = ({ className = '' }: NotificationSettingsPro
   const { success, error: showError } = useNotification()
   const [hasPermission, setHasPermission] = useState(false)
   const [isRequesting, setIsRequesting] = useState(false)
+  const [soundPreference, setSoundPreference] = useState<SoundPreference>({ type: 'default' })
+  const [showSoundSettings, setShowSoundSettings] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const checkPermission = () => {
@@ -24,6 +36,9 @@ export const NotificationSettings = ({ className = '' }: NotificationSettingsPro
     checkPermission()
     // Check permission periodically in case user changes it in browser settings
     const interval = setInterval(checkPermission, 2000)
+    
+    // Load sound preference
+    setSoundPreference(getSoundPreference())
     
     return () => clearInterval(interval)
   }, [])
@@ -61,6 +76,58 @@ export const NotificationSettings = ({ className = '' }: NotificationSettingsPro
     }
   }
 
+  const handleTestSound = () => {
+    playNotificationSound()
+  }
+
+  const handleSelectSyntheticSound = (soundId: string) => {
+    const newPreference: SoundPreference = {
+      type: 'synthetic',
+      soundId,
+    }
+    setSoundPreference(newPreference)
+    saveSoundPreference(newPreference)
+    playNotificationSound()
+    success('Đã đổi âm thanh thành công!')
+  }
+
+  const handleUploadSound = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+
+    const validation = validateAudioFile(file)
+    if (!validation.valid) {
+      showError(validation.error || 'File không hợp lệ')
+      return
+    }
+
+    try {
+      const dataUrl = await fileToDataUrl(file)
+      const newPreference: SoundPreference = {
+        type: 'custom',
+        customSoundData: dataUrl,
+      }
+      setSoundPreference(newPreference)
+      saveSoundPreference(newPreference)
+      playNotificationSound()
+      success('Đã tải lên và áp dụng âm thanh mới!')
+    } catch (error) {
+      showError('Không thể tải lên file âm thanh')
+    }
+
+    // Reset input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = ''
+    }
+  }
+
+  const handleRemoveCustomSound = () => {
+    const newPreference: SoundPreference = { type: 'default' }
+    setSoundPreference(newPreference)
+    saveSoundPreference(newPreference)
+    success('Đã xóa âm thanh tùy chỉnh, quay về mặc định')
+  }
+
   if (hasPermission) {
     return (
       <div className={`space-y-2 ${className}`}>
@@ -69,14 +136,106 @@ export const NotificationSettings = ({ className = '' }: NotificationSettingsPro
             <FaBell className="h-4 w-4 text-emerald-600" />
             <span className="text-xs font-medium text-emerald-700">Thông báo đã bật</span>
           </div>
-          <button
-            type="button"
-            onClick={handleTestNotification}
-            className="rounded-lg bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-200 active:scale-95"
-          >
-            Test
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowSoundSettings(!showSoundSettings)}
+              className="rounded-lg bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-200 active:scale-95"
+              title="Cài đặt âm thanh"
+            >
+              <FaMusic className="h-3 w-3" />
+            </button>
+            <button
+              type="button"
+              onClick={handleTestNotification}
+              className="rounded-lg bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-200 active:scale-95"
+            >
+              Test
+            </button>
+          </div>
         </div>
+
+        {/* Sound Settings */}
+        {showSoundSettings && (
+          <div className="rounded-xl border-2 border-emerald-200 bg-white p-4 space-y-4">
+            <div className="flex items-center justify-between">
+              <h3 className="text-sm font-bold text-slate-900">Cài đặt âm thanh</h3>
+              <button
+                type="button"
+                onClick={handleTestSound}
+                className="rounded-lg bg-sky-100 px-3 py-1.5 text-xs font-semibold text-sky-700 transition hover:bg-sky-200 active:scale-95"
+              >
+                Phát thử
+              </button>
+            </div>
+
+            {/* Default Sounds */}
+            <div>
+              <label className="mb-2 block text-xs font-medium text-slate-600">
+                Âm thanh có sẵn
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                {getDefaultSounds().map((sound) => {
+                  const isSelected =
+                    soundPreference.type === 'synthetic' && soundPreference.soundId === sound.id
+                  return (
+                    <button
+                      key={sound.id}
+                      type="button"
+                      onClick={() => handleSelectSyntheticSound(sound.id)}
+                      className={`rounded-lg border-2 px-3 py-2 text-xs font-medium transition ${
+                        isSelected
+                          ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                      }`}
+                    >
+                      {sound.name}
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Custom Sound Upload */}
+            <div>
+              <label className="mb-2 block text-xs font-medium text-slate-600">
+                Tải lên âm thanh tùy chỉnh
+              </label>
+              <div className="space-y-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="audio/*"
+                  onChange={handleUploadSound}
+                  className="hidden"
+                  id="sound-upload"
+                />
+                <label
+                  htmlFor="sound-upload"
+                  className="flex items-center justify-center gap-2 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 px-4 py-3 text-xs font-medium text-slate-700 transition hover:border-slate-400 hover:bg-slate-100 cursor-pointer"
+                >
+                  <FaUpload className="h-4 w-4" />
+                  Chọn file âm thanh (MP3, WAV, OGG)
+                </label>
+                {soundPreference.type === 'custom' && (
+                  <div className="flex items-center justify-between rounded-lg bg-emerald-50 px-3 py-2">
+                    <span className="text-xs font-medium text-emerald-700">
+                      Đã tải lên âm thanh tùy chỉnh
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleRemoveCustomSound}
+                      className="rounded p-1 text-emerald-700 transition hover:bg-emerald-100"
+                      title="Xóa âm thanh tùy chỉnh"
+                    >
+                      <FaTrash className="h-3 w-3" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     )
   }
