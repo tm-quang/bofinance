@@ -4,6 +4,7 @@ import './index.css'
 import App from './App.tsx'
 import { initNativeAppBehavior, setupInstallPrompt, addHapticFeedback, optimizePerformance } from './utils/nativeAppBehavior'
 import { setupConsoleOverride } from './utils/consoleOverride'
+import { registerServiceWorker } from './lib/serviceWorkerManager'
 import './utils/checkCloudinaryConfig' // Auto-check Cloudinary config in dev mode
 
 // Override console to prevent sensitive data leaks
@@ -14,6 +15,13 @@ initNativeAppBehavior()
 setupInstallPrompt()
 addHapticFeedback()
 optimizePerformance()
+
+// Register service worker for PWA background notifications
+if ('serviceWorker' in navigator) {
+  registerServiceWorker().catch((error) => {
+    console.error('Failed to register service worker:', error)
+  })
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

@@ -20,7 +20,8 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'autoUpdate',
+      registerType: 'prompt', // Manual registration - we'll register our custom SW manually
+      injectRegister: false, // Don't auto-register, we'll do it manually in main.tsx
       includeAssets: ['vite.svg', 'icon-192x192.png', 'icon-512x512.png', 'bogin-logo.png', 'logo-nontext.png'],
       manifest: {
         name: 'BOfin App',

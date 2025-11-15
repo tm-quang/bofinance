@@ -433,8 +433,8 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
               </label>
               <CustomSelect
                 options={filteredCategories.map((category) => ({
-                  value: category.id,
-                  label: category.name,
+                    value: category.id,
+                    label: category.name,
                   icon: categoryIcons[category.id] || undefined,
                 }))}
                 value={formState.category_id}

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useDataPreloader } from '../hooks/useDataPreloader'
-import { FaPlus, FaCalendar, FaExchangeAlt, FaHandHoldingUsd, FaHandHoldingHeart, FaPaperPlane, FaCog, FaWallet, FaFolder } from 'react-icons/fa'
+import { FaPlus, FaCalendar, FaExchangeAlt, FaHandHoldingHeart, FaPaperPlane, FaCog, FaWallet, FaFolder, FaChevronLeft, FaChevronRight } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
@@ -20,7 +20,7 @@ import { fetchTransactions, deleteTransaction, type TransactionRecord } from '..
 import { fetchWallets, type WalletRecord } from '../lib/walletService'
 import { getDefaultWallet, setDefaultWallet } from '../lib/walletService'
 import { getCurrentProfile, type ProfileRecord } from '../lib/profileService'
-import { type ReminderRecord } from '../lib/reminderService'
+import { fetchReminders, type ReminderRecord } from '../lib/reminderService'
 import { useNotification } from '../contexts/notificationContext.helpers'
 
 const formatCurrency = (value: number) =>
@@ -123,7 +123,9 @@ export const DashboardPage = () => {
   const [showWelcomeModal, setShowWelcomeModal] = useState(false)
   const [profile, setProfile] = useState<ProfileRecord | null>(null)
   const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
-  const [todayReminders] = useState<ReminderRecord[]>([])
+  const [selectedDate, setSelectedDate] = useState<Date>(new Date()) // Default to today
+  const [selectedDateReminders, setSelectedDateReminders] = useState<ReminderRecord[]>([])
+  const [isLoadingDateData, setIsLoadingDateData] = useState(false)
   
   // Long press handler refs
   const longPressTimerRef = useRef<number | null>(null)
@@ -531,6 +533,146 @@ export const DashboardPage = () => {
     return wallet?.name || 'Không xác định'
   }
 
+  // Format date to YYYY-MM-DD (avoid timezone issues)
+  const formatDateToString = (date: Date): string => {
+    const year = date.getFullYear()
+    const month = String(date.getMonth() + 1).padStart(2, '0')
+    const day = String(date.getDate()).padStart(2, '0')
+    return `${year}-${month}-${day}`
+  }
+
+  // Load reminders for selected date
+  useEffect(() => {
+    let isCancelled = false
+    
+    const loadDateData = async () => {
+      setIsLoadingDateData(true)
+      try {
+        const dateStr = formatDateToString(selectedDate)
+        
+        // Fetch reminders for selected date
+        const allReminders = await fetchReminders({ is_active: true })
+        if (isCancelled) return
+        
+        const dateReminders = allReminders.filter(
+          (r) => r.reminder_date === dateStr && r.status === 'pending'
+        )
+        setSelectedDateReminders(dateReminders)
+      } catch (error) {
+        console.error('Error loading date data:', error)
+      } finally {
+        if (!isCancelled) {
+          setIsLoadingDateData(false)
+        }
+      }
+    }
+    
+    loadDateData()
+    
+    return () => {
+      isCancelled = true
+    }
+  }, [selectedDate])
+
+  // Auto-update to today when date changes (check every minute)
+  // Use ref to track if we're viewing today to avoid infinite loops
+  const isViewingTodayRef = useRef(true)
+  const selectedDateRef = useRef(selectedDate)
+  
+  // Update refs when selectedDate changes
+  useEffect(() => {
+    selectedDateRef.current = selectedDate
+    const now = new Date()
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    const selected = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate())
+    isViewingTodayRef.current = selected.getTime() === today.getTime()
+  }, [selectedDate])
+
+  useEffect(() => {
+    const checkDateChange = () => {
+      // Only check if we're currently viewing today
+      if (!isViewingTodayRef.current) {
+        return
+      }
+
+      const now = new Date()
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+      const todayStr = formatDateToString(today)
+      
+      // Get last checked date from localStorage
+      const lastChecked = localStorage.getItem('lastDateCheck')
+      const lastCheckedStr = lastChecked ? formatDateToString(new Date(lastChecked)) : null
+      
+      // Only update if date actually changed and we're still viewing today
+      if (lastCheckedStr !== todayStr && isViewingTodayRef.current) {
+        // Date changed, update to new today
+        const newToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+        setSelectedDate(newToday)
+        localStorage.setItem('lastDateCheck', now.toISOString())
+        isViewingTodayRef.current = true
+      }
+    }
+    
+    // Don't check immediately, wait a bit to avoid initial loop
+    const initialTimeout = setTimeout(() => {
+      checkDateChange()
+    }, 2000)
+    
+    // Then check every minute
+    const interval = setInterval(checkDateChange, 60000) // Check every minute
+    
+    return () => {
+      clearTimeout(initialTimeout)
+      clearInterval(interval)
+    }
+  }, []) // Empty dependency array - only run once on mount
+
+  // Format date for display
+  const formatSelectedDate = (date: Date) => {
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const yesterday = new Date(today)
+    yesterday.setDate(yesterday.getDate() - 1)
+    const tomorrow = new Date(today)
+    tomorrow.setDate(tomorrow.getDate() + 1)
+    
+    const selected = new Date(date)
+    selected.setHours(0, 0, 0, 0)
+    
+    if (selected.getTime() === today.getTime()) {
+      return 'Hôm nay'
+    } else if (selected.getTime() === yesterday.getTime()) {
+      return 'Hôm qua'
+    } else if (selected.getTime() === tomorrow.getTime()) {
+      return 'Ngày mai'
+    } else {
+      return date.toLocaleDateString('vi-VN', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+      })
+    }
+  }
+
+  // Navigate to previous day
+  const goToPreviousDay = () => {
+    const newDate = new Date(selectedDate)
+    newDate.setDate(newDate.getDate() - 1)
+    setSelectedDate(newDate)
+  }
+
+  // Navigate to next day
+  const goToNextDay = () => {
+    const newDate = new Date(selectedDate)
+    newDate.setDate(newDate.getDate() + 1)
+    setSelectedDate(newDate)
+  }
+
+  // Go to today
+  const goToToday = () => {
+    setSelectedDate(new Date())
+  }
+
   // Get wallet color based on ID (consistent color for same wallet)
   const getWalletColor = (walletId: string) => {
     // Array of beautiful color combinations
@@ -572,44 +714,92 @@ export const DashboardPage = () => {
         {/* Transaction Chart - Sử dụng ví mặc định */}
         <TransactionChart walletId={defaultWalletId || undefined} />
 
-        {/* Today's Reminders */}
-        {todayReminders.length > 0 && (
-          <section className="rounded-3xl bg-gradient-to-br from-amber-50 via-white to-white p-5 shadow-lg ring-1 ring-amber-100">
-            <div className="flex items-center justify-between mb-4">
-              <div>
-                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">
-                  Kế hoạch hôm nay
-                </h3>
-                <p className="mt-1 text-xs text-slate-500">
-                  {todayReminders.length} nhắc nhở trong ngày
+        {/* Date Navigation and Plan Section */}
+        <section className="rounded-3xl bg-gradient-to-br from-amber-50 via-white to-white p-5 shadow-lg ring-1 ring-amber-100">
+          {/* Date Navigation Header */}
+          <div className="flex items-center justify-between mb-4">
+            <button
+              type="button"
+              onClick={goToPreviousDay}
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-600 transition hover:bg-slate-100 active:scale-95"
+            >
+              <FaChevronLeft className="h-4 w-4" />
+            </button>
+            
+            <div className="flex-1 text-center">
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">
+                Kế hoạch {formatSelectedDate(selectedDate)}
+              </h3>
+              <div className="mt-1 flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  onClick={goToToday}
+                  className="rounded-lg bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:bg-amber-200"
+                >
+                  Hôm nay
+                </button>
+                <p className="text-xs text-slate-500">
+                  {selectedDateReminders.length} sự kiện
                 </p>
               </div>
+            </div>
+            
+            <button
+              type="button"
+              onClick={goToNextDay}
+              className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-600 transition hover:bg-slate-100 active:scale-95"
+            >
+              <FaChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+
+          {/* Reminders List */}
+          {isLoadingDateData ? (
+            <div className="py-4 text-center text-sm text-slate-500">Đang tải...</div>
+          ) : selectedDateReminders.length === 0 ? (
+            <div className="py-8 text-center">
+              <FaCalendar className="mx-auto h-12 w-12 text-slate-300" />
+              <p className="mt-3 text-sm font-medium text-slate-500">
+                Không có kế hoạch
+              </p>
               <button
+                type="button"
                 onClick={() => navigate('/reminders')}
-                className="text-xs font-semibold text-amber-600 transition hover:text-amber-700 hover:underline"
+                className="mt-3 rounded-lg bg-amber-100 px-4 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-200"
               >
-                Xem tất cả
+                Tạo nhắc nhở
               </button>
             </div>
+          ) : (
             <div className="space-y-2">
-              {todayReminders.slice(0, 2).map((reminder) => {
+              {selectedDateReminders.map((reminder) => {
                 const categoryInfo = getCategoryInfo(reminder.category_id || '')
+                const isNote = !reminder.amount && !reminder.category_id && !reminder.wallet_id
                 const isIncome = reminder.type === 'Thu'
+                const reminderColor = reminder.color || (isNote ? 'amber' : isIncome ? 'emerald' : 'rose')
+                const colorClasses: Record<string, { bg: string; icon: string }> = {
+                  amber: { bg: 'bg-amber-500', icon: 'bg-amber-500' },
+                  emerald: { bg: 'bg-emerald-500', icon: 'bg-emerald-500' },
+                  rose: { bg: 'bg-rose-500', icon: 'bg-rose-500' },
+                  sky: { bg: 'bg-sky-500', icon: 'bg-sky-500' },
+                  blue: { bg: 'bg-blue-500', icon: 'bg-blue-500' },
+                  purple: { bg: 'bg-purple-500', icon: 'bg-purple-500' },
+                  indigo: { bg: 'bg-indigo-500', icon: 'bg-indigo-500' },
+                  pink: { bg: 'bg-pink-500', icon: 'bg-pink-500' },
+                  orange: { bg: 'bg-orange-500', icon: 'bg-orange-500' },
+                  teal: { bg: 'bg-teal-500', icon: 'bg-teal-500' },
+                }
+                const colorClass = colorClasses[reminderColor] || colorClasses.amber
+                
                 return (
                   <div
                     key={reminder.id}
                     onClick={() => navigate('/reminders')}
-                    className={`rounded-2xl p-3 cursor-pointer transition hover:shadow-md ${
-                      isIncome
-                        ? 'bg-gradient-to-r from-emerald-50 to-emerald-100/50'
-                        : 'bg-gradient-to-r from-rose-50 to-rose-100/50'
-                    }`}
+                    className={`rounded-2xl p-3 cursor-pointer transition hover:shadow-md ${colorClass.bg} bg-opacity-10`}
                   >
                     <div className="flex items-center gap-3">
                       <div
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                          isIncome ? 'bg-emerald-500' : 'bg-rose-500'
-                        }`}
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${colorClass.icon} text-white`}
                       >
                         {categoryInfo.icon ? (
                           <span className="text-white">{categoryInfo.icon}</span>
@@ -618,12 +808,24 @@ export const DashboardPage = () => {
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <h4 className="font-semibold text-slate-900 text-sm truncate">
-                          {reminder.title}
-                        </h4>
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-semibold text-slate-900 text-sm truncate">
+                            {reminder.title}
+                          </h4>
+                          {isNote && (
+                            <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-xs font-medium text-slate-600">
+                              Ghi chú
+                            </span>
+                          )}
+                        </div>
                         {reminder.amount && (
                           <p className="text-xs text-slate-600 mt-0.5">
                             {formatCurrency(reminder.amount)}
+                          </p>
+                        )}
+                        {reminder.reminder_time && (
+                          <p className="text-xs text-slate-500 mt-0.5">
+                            {reminder.reminder_time}
                           </p>
                         )}
                       </div>
@@ -632,8 +834,21 @@ export const DashboardPage = () => {
                 )
               })}
             </div>
-          </section>
-        )}
+          )}
+
+          {/* View All Button */}
+          {selectedDateReminders.length > 0 && (
+            <div className="mt-4 text-center">
+              <button
+                type="button"
+                onClick={() => navigate('/reminders')}
+                className="text-xs font-semibold text-amber-600 transition hover:text-amber-700 hover:underline"
+              >
+                Xem tất cả
+              </button>
+            </div>
+          )}
+        </section>
 
         <section className="rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-white p-5 shadow-lg ring-1 ring-slate-100">
           <div className="flex items-center justify-between mb-6">
@@ -813,21 +1028,6 @@ export const DashboardPage = () => {
           </div>
         </section>
 
-        <section className="rounded-3xl bg-white p-5 shadow-[0_22px_60px_rgba(15,40,80,0.1)] ring-1 ring-slate-100">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">
-                Kế hoạch hôm nay
-              </p>
-              <p className="text-sm text-slate-500">
-                Đóng tiền bảo hiểm sức khoẻ và kiểm tra lại hạn mức ăn uống.
-              </p>
-            </div>
-            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-slate-50 text-xl text-slate-600 shadow-[0_12px_28px_rgba(15,40,80,0.12)]">
-              <FaHandHoldingUsd />
-            </span>
-          </div>
-        </section>
         </div>
       </main>
 

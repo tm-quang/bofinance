@@ -21,7 +21,7 @@ type TabItem = {
 }
 
 const tabs: TabItem[] = [
-  { id: 'home', label: 'Trang chủ', icon: FaHome, path: '/dashboard' },
+  { id: 'home', label: 'Tổng quan', icon: FaHome, path: '/dashboard' },
   { id: 'budgets', label: 'Ngân sách', icon: FaWallet, path: '/budgets' },
   { id: 'add', label: '', icon: FaPlus, prominent: true },
   { id: 'reports', label: 'Báo cáo', icon: FaChartBar, path: '/reports' },
@@ -95,13 +95,13 @@ export const FooterNav = ({ onAddClick }: FooterNavProps) => {
                   <span
                     className={`flex h-10 w-10 items-center justify-center rounded-full text-lg transition-all ${
                       active
-                        ? 'bg-blue-800 text-white shadow-md'
+                        ? 'bg-blue-800 text-white shadow-md animate-zoom'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
                     }`}
                   >
-                    <Icon className="h-6 w-6" />
+                    <Icon className={`h-6 w-6 ${active ? 'animate-zoom' : ''}`} />
                   </span>
-                  <span className="leading-tight">{label}</span>
+                  <span className={`leading-tight inline-block ${active ? 'animate-zoom-text' : ''}`}>{label}</span>
                 </button>
               )
             })}

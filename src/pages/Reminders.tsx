@@ -23,7 +23,8 @@ import { useNotification } from '../contexts/notificationContext.helpers'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
 import { getIconNode } from '../utils/iconLoader'
 import { formatVNDDisplay } from '../utils/currencyInput'
-import { requestNotificationPermission, checkAndSendReminderNotifications } from '../lib/notificationService'
+import { requestNotificationPermission } from '../lib/notificationService'
+import { startPeriodicReminderCheck, checkRemindersAndNotify } from '../lib/serviceWorkerManager'
 
 
 const RemindersPage = () => {
@@ -50,19 +51,20 @@ const RemindersPage = () => {
     requestNotificationPermission()
   }, [])
 
-  // Check for due reminders every minute
+  // Start periodic reminder checking via Service Worker (works in background)
   useEffect(() => {
     if (reminders.length === 0) return
 
-    const checkInterval = setInterval(() => {
-      checkAndSendReminderNotifications(reminders)
-    }, 60000) // Check every minute
+    // Start Service Worker periodic checking (works even when browser is closed)
+    startPeriodicReminderCheck()
+    
+    // Also check immediately when reminders change
+    checkRemindersAndNotify().catch(console.error)
 
-    // Also check immediately
-    checkAndSendReminderNotifications(reminders)
-
-    return () => clearInterval(checkInterval)
-  }, [reminders])
+    return () => {
+      // Service Worker continues running in background
+    }
+  }, [reminders.length])
 
   const loadData = async () => {
     setIsLoading(true)

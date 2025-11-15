@@ -14,6 +14,8 @@ export default {
         'gradient-xy': 'gradient-xy 20s ease infinite',
         blob: 'blob 7s infinite',
         shine: 'shine 1.8s linear infinite',
+        zoom: 'zoom 0.6s ease-in-out infinite',
+        'zoom-text': 'zoom-text 0.6s ease-in-out infinite',
       },
       keyframes: {
         'gradient-xy': {
@@ -28,6 +30,14 @@ export default {
         shine: {
           '0%': { transform: 'translateX(-100%)' },
           '100%': { transform: 'translateX(100%)' },
+        },
+        zoom: {
+          '0%, 100%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(1.15)' },
+        },
+        'zoom-text': {
+          '0%, 100%': { transform: 'scale(1)' },
+          '50%': { transform: 'scale(1.2)' },
         },
       },
     },

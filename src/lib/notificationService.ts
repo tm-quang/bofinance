@@ -4,6 +4,7 @@
  */
 
 import { playNotificationSound as playCustomNotificationSound } from './notificationSoundService'
+import { sendNotificationViaSW, getServiceWorkerRegistration } from './serviceWorkerManager'
 
 // Request notification permission
 export const requestNotificationPermission = async (): Promise<boolean> => {
@@ -32,7 +33,7 @@ export const hasNotificationPermission = (): boolean => {
   return Notification.permission === 'granted'
 }
 
-// Send browser notification
+// Send browser notification (works even when browser is closed via Service Worker)
 export const sendNotification = async (
   title: string,
   options?: NotificationOptions
@@ -49,7 +50,24 @@ export const sendNotification = async (
     // Play sound (uses custom sound preference if set)
     playCustomNotificationSound()
 
-    // Create notification
+    // Try to use Service Worker for background notifications
+    const swRegistration = getServiceWorkerRegistration()
+    if (swRegistration && swRegistration.active) {
+      // Use Service Worker notification (works even when browser is closed)
+      await sendNotificationViaSW(title, {
+        icon: '/bogin-logo.png',
+        badge: '/bogin-logo.png',
+        tag: 'reminder',
+        requireInteraction: false,
+        silent: false,
+        ...options,
+        // @ts-ignore - vibrate is supported in Service Worker notifications
+        vibrate: [200, 100, 200],
+      })
+      return null // Service Worker handles the notification
+    }
+
+    // Fallback to regular notification (only works when browser is open)
     const notification = new Notification(title, {
       icon: '/bogin-logo.png', // App icon
       badge: '/bogin-logo.png',
