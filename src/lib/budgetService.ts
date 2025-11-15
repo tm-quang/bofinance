@@ -265,7 +265,7 @@ export const createBudget = async (payload: BudgetInsert): Promise<BudgetRecord>
   const categories = await fetchCategories()
   const category = categories.find((c) => c.id === payload.category_id)
   if (!category || category.type !== 'Chi tiêu') {
-    throw new Error('Ngân sách chỉ có thể đặt cho danh mục "Chi tiêu".')
+    throw new Error('Ngân sách chỉ có thể đặt cho hạng mục "Chi tiêu".')
   }
 
   // Check for duplicate active budget
@@ -289,7 +289,7 @@ export const createBudget = async (payload: BudgetInsert): Promise<BudgetRecord>
   })
 
   if (hasOverlap) {
-    throw new Error('Đã có ngân sách active cho danh mục này trong khoảng thời gian này.')
+    throw new Error('Đã có ngân sách active cho hạng mục này trong khoảng thời gian này.')
   }
 
   const { data, error } = await supabase

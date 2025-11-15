@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { FaWallet } from 'react-icons/fa'
 import { fetchWallets, getDefaultWallet, type WalletRecord } from '../../lib/walletService'
 import { WalletCardSkeleton } from '../skeletons'
 import { WalletCard } from './WalletCard'
@@ -98,6 +99,9 @@ export const WalletCarousel = ({ onWalletChange, onAddWallet }: WalletCarouselPr
   if (wallets.length === 0) {
     return (
       <div className="flex h-48 flex-col items-center justify-center rounded-3xl bg-slate-100">
+        <div className="mb-4 rounded-full bg-white p-3">
+          <FaWallet className="h-6 w-6 text-slate-400" />
+        </div>
         <p className="mb-4 text-sm text-slate-500">Chưa có ví nào</p>
         {onAddWallet && (
           <button

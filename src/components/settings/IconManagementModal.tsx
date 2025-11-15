@@ -275,7 +275,7 @@ export const IconManagementModal = ({ isOpen, onClose }: IconManagementModalProp
         <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50 px-4 sm:px-6 py-4 sm:py-5">
           <div className="min-w-0 flex-1">
             <h2 className="text-lg sm:text-xl font-bold text-slate-900">Quản lý Icons</h2>
-            <p className="mt-1 text-xs sm:text-sm text-slate-500">Quản lý icons cho danh mục</p>
+            <p className="mt-1 text-xs sm:text-sm text-slate-500">Quản lý icons cho hạng mục</p>
           </div>
           <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <button

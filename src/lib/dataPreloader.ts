@@ -6,7 +6,8 @@
 
 import { fetchWallets } from './walletService'
 import { fetchTransactions } from './transactionService'
-import { fetchCategories } from './categoryService'
+import { fetchCategories, fetchCategoriesHierarchical } from './categoryService'
+import { fetchIcons } from './iconService'
 import { getCurrentProfile } from './profileService'
 import { getDefaultWallet } from './walletService'
 import { cacheManager } from './cache'
@@ -72,10 +73,13 @@ export const preloadAllData = async (onProgress?: (status: PreloadStatus) => voi
       await cacheManager.set(defaultWalletKey, defaultWalletId, 24 * 60 * 60 * 1000)
     }
 
-    // Step 4: Load Categories
-    updateProgress('Đang tải danh mục...')
-    await fetchCategories()
-    // Cache đã được set trong fetchCategories
+    // Step 4: Load Categories (flat và hierarchical) và Icons
+    updateProgress('Đang tải hạng mục...')
+    await Promise.all([
+      fetchCategories(), // Cache đã được set trong fetchCategories
+      fetchCategoriesHierarchical(), // Cache đã được set trong fetchCategoriesHierarchical
+      fetchIcons({ is_active: true }), // Preload icons để populate iconCacheMap
+    ])
 
     // Step 5: Load Recent Transactions (limit để không quá nặng)
     updateProgress('Đang tải giao dịch gần đây...')

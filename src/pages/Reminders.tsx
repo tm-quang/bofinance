@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { FaCalendar, FaCheck, FaTimes, FaEdit, FaTrash, FaPlus, FaBell, FaBellSlash } from 'react-icons/fa'
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
@@ -7,7 +8,6 @@ import { ReminderCalendar } from '../components/reminders/ReminderCalendar'
 import { NoteModal } from '../components/reminders/NoteModal'
 import { CalendarActionSheet } from '../components/reminders/CalendarActionSheet'
 import { NotificationSettings } from '../components/reminders/NotificationSettings'
-import { TransactionModal } from '../components/transactions/TransactionModal'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import {
   fetchReminders,
@@ -28,6 +28,7 @@ import { startPeriodicReminderCheck, checkRemindersAndNotify } from '../lib/serv
 
 
 const RemindersPage = () => {
+  const navigate = useNavigate()
   const { success, error: showError } = useNotification()
   const [reminders, setReminders] = useState<ReminderRecord[]>([])
   const [categories, setCategories] = useState<CategoryRecord[]>([])
@@ -36,8 +37,7 @@ const RemindersPage = () => {
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingReminder, setEditingReminder] = useState<ReminderRecord | null>(null)
-  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
-  const [selectedReminder, setSelectedReminder] = useState<ReminderRecord | null>(null)
+  // const [selectedReminder, setSelectedReminder] = useState<ReminderRecord | null>(null)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [reminderToDelete, setReminderToDelete] = useState<ReminderRecord | null>(null)
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | undefined>(undefined)
@@ -198,8 +198,8 @@ const RemindersPage = () => {
   }
 
   const handleCreateTransaction = (reminder: ReminderRecord) => {
-    setSelectedReminder(reminder)
-    setIsTransactionModalOpen(true)
+    // Navigate to add transaction page with reminder data
+    navigate(`/add-transaction?type=${reminder.type}&reminderId=${reminder.id}`)
   }
 
   const getCategoryInfo = (categoryId: string | null) => {
@@ -649,42 +649,6 @@ const RemindersPage = () => {
         }}
         note={editingReminder}
         defaultDate={selectedCalendarDate}
-      />
-
-      {/* Transaction Modal */}
-      <TransactionModal
-        isOpen={isTransactionModalOpen}
-        onClose={() => {
-          setIsTransactionModalOpen(false)
-          setSelectedReminder(null)
-        }}
-        onSuccess={() => {
-          if (selectedReminder) {
-            handleComplete(selectedReminder)
-          }
-          setIsTransactionModalOpen(false)
-          setSelectedReminder(null)
-        }}
-        defaultType={selectedReminder?.type}
-        transaction={
-          selectedReminder
-            ? {
-                id: selectedReminder.id,
-                user_id: selectedReminder.user_id,
-                wallet_id: selectedReminder.wallet_id || '',
-                category_id: selectedReminder.category_id || '',
-                type: selectedReminder.type,
-                amount: selectedReminder.amount || 0,
-                description: selectedReminder.title,
-                transaction_date: selectedReminder.reminder_date,
-                notes: selectedReminder.notes || null,
-                tags: null,
-                image_urls: null,
-                created_at: selectedReminder.created_at,
-                updated_at: selectedReminder.updated_at,
-              }
-            : null
-        }
       />
 
       {/* Delete Confirm Dialog */}

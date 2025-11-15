@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { FaCalendar, FaTimes, FaImage, FaWallet, FaArrowDown, FaArrowUp } from 'react-icons/fa'
+import { FaCalendar, FaTimes, FaImage, FaWallet, FaArrowDown, FaArrowUp, FaChevronDown } from 'react-icons/fa'
 
 import { CATEGORY_ICON_MAP } from '../../constants/categoryIcons'
 import { CustomSelect } from '../ui/CustomSelect'
 import { getIconNode } from '../../utils/iconLoader'
 import { TagSuggestions } from '../ui/TagSuggestions'
 import { NumberPadModal } from '../ui/NumberPadModal'
+import { CategoryPickerModal } from '../categories/CategoryPickerModal'
 import { fetchCategories, type CategoryRecord, type CategoryType } from '../../lib/categoryService'
 import { createTransaction, updateTransaction, type TransactionType, type TransactionRecord } from '../../lib/transactionService'
 import { fetchWallets, getDefaultWallet, type WalletRecord } from '../../lib/walletService'
@@ -65,6 +66,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
   const [isUploadingImages, setIsUploadingImages] = useState(false)
   const [isNumberPadOpen, setIsNumberPadOpen] = useState(false)
   const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
+  const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState(false)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Load wallets và categories khi modal mở
@@ -185,7 +187,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
       return
     }
     if (!formState.category_id) {
-      const message = 'Vui lòng chọn danh mục'
+      const message = 'Vui lòng chọn hạng mục'
       setError(message)
       showError(message)
       return
@@ -429,21 +431,29 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
             {/* Category selector - Required */}
             <div>
               <label className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
-                Chọn danh mục <span className="text-rose-500">*</span>
+                Chọn hạng mục <span className="text-rose-500">*</span>
               </label>
-              <CustomSelect
-                options={filteredCategories.map((category) => ({
-                    value: category.id,
-                    label: category.name,
-                  icon: categoryIcons[category.id] || undefined,
-                }))}
-                value={formState.category_id}
-                onChange={(value) => setFormState((prev) => ({ ...prev, category_id: value }))}
-                placeholder="Chọn danh mục"
-                loading={isLoading}
-                emptyMessage="Chưa có danh mục"
-                className="h-12"
-              />
+              <button
+                type="button"
+                onClick={() => setIsCategoryPickerOpen(true)}
+                className="flex h-12 w-full items-center justify-between rounded-xl border-2 border-slate-200 bg-white p-3 text-left transition-all hover:border-slate-300 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+              >
+                <div className="flex min-w-0 flex-1 items-center gap-2">
+                  {formState.category_id && categoryIcons[formState.category_id] && (
+                    <span className="shrink-0 text-slate-600">{categoryIcons[formState.category_id]}</span>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    {formState.category_id ? (
+                      <div className="truncate text-sm font-medium text-slate-900">
+                        {filteredCategories.find((c) => c.id === formState.category_id)?.name || 'Chọn hạng mục'}
+                      </div>
+                    ) : (
+                      <div className="text-sm text-slate-400">Chọn hạng mục</div>
+                    )}
+                  </div>
+                </div>
+                <FaChevronDown className="h-5 w-5 shrink-0 text-slate-400" />
+              </button>
             </div>
           </div>
 
@@ -676,6 +686,23 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
         value={formState.amount}
         onChange={(value) => setFormState((prev) => ({ ...prev, amount: value }))}
         onConfirm={() => setIsNumberPadOpen(false)}
+      />
+
+      {/* Category Picker Modal */}
+      <CategoryPickerModal
+        isOpen={isCategoryPickerOpen}
+        onClose={() => setIsCategoryPickerOpen(false)}
+        onSelect={(categoryId) => {
+          setFormState((prev) => ({ ...prev, category_id: categoryId }))
+          setIsCategoryPickerOpen(false)
+        }}
+        selectedCategoryId={formState.category_id}
+        categoryType={formState.type === 'Chi' ? 'Chi tiêu' : 'Thu nhập'}
+        onEditCategory={(categoryId) => {
+          // TODO: Mở modal chỉnh sửa category (có thể navigate đến trang Categories hoặc mở modal riêng)
+          console.log('Edit category:', categoryId)
+          setIsCategoryPickerOpen(false)
+        }}
       />
     </div>
   )

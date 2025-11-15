@@ -389,7 +389,7 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
               {/* Category - Optional */}
               <div>
                 <label className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
-                  Danh mục (tùy chọn)
+                  Hạng mục (tùy chọn)
                 </label>
                 <CustomSelect
                   options={filteredCategories.map((category) => ({
@@ -399,9 +399,9 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
                   }))}
                   value={formState.category_id}
                   onChange={(value) => setFormState((prev) => ({ ...prev, category_id: value }))}
-                  placeholder="Chọn danh mục"
+                  placeholder="Chọn hạng mục"
                   loading={isLoading}
-                  emptyMessage="Chưa có danh mục"
+                  emptyMessage="Chưa có hạng mục"
                   className="h-12"
                 />
               </div>

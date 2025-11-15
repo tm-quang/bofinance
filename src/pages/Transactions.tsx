@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useDataPreloader } from '../hooks/useDataPreloader'
 import {
   FaPlus,
@@ -7,11 +8,11 @@ import {
   FaCalendar,
   FaSearch,
   FaWallet,
+  FaReceipt,
 } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
-import { TransactionModal } from '../components/transactions/TransactionModal'
 import { TransactionActionModal } from '../components/transactions/TransactionActionModal'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { TransactionListSkeleton } from '../components/skeletons'
@@ -32,6 +33,7 @@ const formatCurrency = (value: number) =>
 const ITEMS_PER_PAGE = 20
 
 const TransactionsPage = () => {
+  const navigate = useNavigate()
   const { success, error: showError } = useNotification()
   useDataPreloader() // Preload data khi vào trang
   const [allTransactions, setAllTransactions] = useState<TransactionRecord[]>([])
@@ -43,7 +45,6 @@ const TransactionsPage = () => {
   const [typeFilter, setTypeFilter] = useState<'all' | 'Thu' | 'Chi'>('all')
   const [walletFilter, setWalletFilter] = useState<string>('all')
   const [currentPage, setCurrentPage] = useState(1)
-  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionRecord | null>(null)
   const [isActionModalOpen, setIsActionModalOpen] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
@@ -134,7 +135,7 @@ const TransactionsPage = () => {
       filtered = filtered.filter((t) => t.wallet_id === walletFilter)
     }
 
-    // Enhanced search: tên giao dịch, danh mục, khoảng số tiền, ngày cập nhật
+    // Enhanced search: tên giao dịch, hạng mục, khoảng số tiền, ngày cập nhật
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase().trim()
       filtered = filtered.filter((t) => {
@@ -148,7 +149,7 @@ const TransactionsPage = () => {
         // Tìm kiếm theo tên giao dịch
         if (description.includes(term) || notes.includes(term)) return true
         
-        // Tìm kiếm theo danh mục
+        // Tìm kiếm theo hạng mục
         if (categoryName.includes(term)) return true
         
         // Tìm kiếm theo số tiền (hỗ trợ khoảng số tiền)
@@ -304,7 +305,9 @@ const TransactionsPage = () => {
   const handleEditConfirm = () => {
     setIsEditConfirmOpen(false)
     setIsActionModalOpen(false)
-    setIsTransactionModalOpen(true)
+    if (selectedTransaction) {
+      navigate(`/add-transaction?id=${selectedTransaction.id}`)
+    }
   }
 
   // Handle delete
@@ -429,7 +432,13 @@ const TransactionsPage = () => {
               <TransactionListSkeleton count={10} />
             ) : paginatedTransactions.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-12 shadow-lg ring-1 ring-slate-100">
-                <FaSearch className="mb-4 h-12 w-12 text-slate-300" />
+                <div className="mb-4 rounded-full bg-slate-100 p-4">
+                  {searchTerm || typeFilter !== 'all' || walletFilter !== 'all' ? (
+                    <FaSearch className="h-8 w-8 text-slate-400" />
+                  ) : (
+                    <FaReceipt className="h-8 w-8 text-slate-400" />
+                  )}
+                </div>
                 <p className="text-sm font-semibold text-slate-600">
                   {searchTerm || typeFilter !== 'all' || walletFilter !== 'all'
                     ? 'Không tìm thấy giao dịch phù hợp'
@@ -575,21 +584,7 @@ const TransactionsPage = () => {
         </div>
       </main>
 
-      <FooterNav onAddClick={() => setIsTransactionModalOpen(true)} />
-
-      <TransactionModal
-        isOpen={isTransactionModalOpen}
-        onClose={() => {
-          setIsTransactionModalOpen(false)
-          setSelectedTransaction(null)
-          setIsActionModalOpen(false)
-        }}
-        onSuccess={() => {
-          handleTransactionSuccess()
-          setSelectedTransaction(null)
-        }}
-        transaction={selectedTransaction}
-      />
+      <FooterNav onAddClick={() => navigate('/add-transaction')} />
 
       <TransactionActionModal
         isOpen={isActionModalOpen}

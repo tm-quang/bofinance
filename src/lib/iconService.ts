@@ -1,6 +1,6 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 import { getSupabaseClient } from './supabaseClient'
-import { cacheFirstWithRefresh, cacheManager, invalidateCache } from './cache'
+import { cacheFirstWithRefresh, cacheManager } from './cache'
 import { getCachedUser } from './userCache'
 import { uploadToCloudinary } from './cloudinaryService'
 
@@ -53,74 +53,133 @@ const throwIfError = (error: PostgrestError | null, fallbackMessage: string): vo
   }
 }
 
+// Icon cache map: name -> IconRecord
+// Được populate từ fetchIcons() để tránh fetch riêng lẻ
+let iconCacheMap: Map<string, IconRecord> | null = null
+let iconCachePromise: Promise<IconRecord[]> | null = null
+
 // Fetch all active icons
 export const fetchIcons = async (filters?: IconFilters): Promise<IconRecord[]> => {
   const supabase = getSupabaseClient()
   const user = await getCachedUser()
 
   if (!user) {
-    throw new Error('Bạn cần đăng nhập để xem icons.')
+    // Không throw error, chỉ return empty array để app không crash
+    return []
   }
 
   const cacheKey = await cacheManager.generateKey('icons', filters)
 
-  return cacheFirstWithRefresh(
+  const icons = await cacheFirstWithRefresh(
     cacheKey,
     async () => {
-      let query = supabase
-        .from(TABLE_NAME)
-        .select('*')
-        .order('group_id', { ascending: true })
-        .order('display_order', { ascending: true })
-        .order('label', { ascending: true })
+      try {
+        // Build query từng bước để tránh lỗi
+        const isActiveFilter = filters?.is_active !== undefined ? filters.is_active : true
+        
+        // Bắt đầu với select đơn giản
+        let query = supabase
+          .from(TABLE_NAME)
+          .select('*')
 
-      if (filters) {
-        if (filters.group_id) {
+        // Thêm filters
+        query = query.eq('is_active', isActiveFilter)
+
+        if (filters?.group_id) {
           query = query.eq('group_id', filters.group_id)
         }
-        if (filters.icon_type) {
+        if (filters?.icon_type) {
           query = query.eq('icon_type', filters.icon_type)
         }
-        if (filters.is_active !== undefined) {
-          query = query.eq('is_active', filters.is_active)
+
+        // Thêm ordering
+        query = query
+          .order('group_id', { ascending: true })
+          .order('display_order', { ascending: true })
+          .order('label', { ascending: true })
+
+        const { data, error } = await query
+
+        if (error) {
+          // Log error nhưng không throw - có thể do RLS policy hoặc table chưa tồn tại
+          // App sẽ fallback về hardcoded icons
+          if (error.code !== 'PGRST116') { // PGRST116 = not found, không cần log
+            console.warn('Cannot fetch icons from database (will use hardcoded icons):', {
+              code: error.code,
+              message: error.message,
+            })
+          }
+          return []
         }
-      } else {
-        // Default: chỉ lấy active icons
-        query = query.eq('is_active', true)
+
+        return data ?? []
+      } catch (err) {
+        // Silently fail - app sẽ dùng hardcoded icons
+        // Chỉ log nếu không phải là lỗi network thông thường
+        if (err instanceof Error && !err.message.includes('fetch')) {
+          console.warn('Error fetching icons (will use hardcoded icons):', err)
+        }
+        return []
       }
-
-      const { data, error } = await query
-
-      throwIfError(error, 'Không thể tải danh sách icons.')
-
-      return data ?? []
     },
     24 * 60 * 60 * 1000, // 24 hours
     12 * 60 * 60 * 1000  // 12 hours stale
   )
+
+  // Populate iconCacheMap nếu fetch tất cả active icons (không có filter đặc biệt)
+  // Điều này giúp getIconByName sử dụng cache thay vì fetch riêng lẻ
+  if (!filters || (filters.is_active === true || filters.is_active === undefined)) {
+    if (!filters?.group_id && !filters?.icon_type) {
+      iconCacheMap = new Map(icons.map(icon => [icon.name, icon]))
+    }
+  }
+
+  return icons
 }
 
-// Get icon by name
+/**
+ * Get icon by name - sử dụng cache từ fetchIcons() để tránh fetch riêng lẻ
+ * Tối ưu: Chỉ fetch tất cả icons một lần, sau đó dùng cache
+ */
 export const getIconByName = async (name: string): Promise<IconRecord | null> => {
-  const supabase = getSupabaseClient()
-  const user = await getCachedUser()
-
-  if (!user) {
-    throw new Error('Bạn cần đăng nhập để xem icon.')
+  // Nếu đã có cache, dùng ngay
+  if (iconCacheMap && iconCacheMap.has(name)) {
+    return iconCacheMap.get(name) || null
   }
 
-  const { data, error } = await supabase
-    .from(TABLE_NAME)
-    .select('*')
-    .eq('name', name)
-    .eq('is_active', true)
-    .single()
-
-  if (error && error.code !== 'PGRST116') {
-    throwIfError(error, 'Không thể tải icon.')
+  // Nếu đang fetch, đợi xong rồi check lại
+  if (iconCachePromise) {
+    await iconCachePromise
+    if (iconCacheMap && iconCacheMap.has(name)) {
+      return iconCacheMap.get(name) || null
+    }
   }
 
-  return data
+  // Nếu chưa có cache, fetch tất cả icons một lần và cache lại
+  if (!iconCachePromise) {
+    iconCachePromise = fetchIcons({ is_active: true })
+    iconCachePromise
+      .then((icons) => {
+        iconCacheMap = new Map(icons.map(icon => [icon.name, icon]))
+        iconCachePromise = null
+      })
+      .catch(() => {
+        iconCacheMap = new Map()
+        iconCachePromise = null
+      })
+  }
+
+  await iconCachePromise
+  return iconCacheMap?.get(name) || null
+}
+
+/**
+ * Invalidate icon cache (khi có thay đổi icons)
+ */
+export const invalidateIconCache = async (): Promise<void> => {
+  iconCacheMap = null
+  iconCachePromise = null
+  await invalidateIconCache()
 }
 
 // Get icon by ID
@@ -177,7 +236,7 @@ export const createIcon = async (payload: IconInsert, imageFile?: File): Promise
     throw new Error('Không nhận được dữ liệu icon sau khi tạo.')
   }
 
-  await invalidateCache('icons')
+  await invalidateIconCache()
 
   return data
 }
@@ -216,7 +275,7 @@ export const updateIcon = async (
     throw new Error('Không nhận được dữ liệu icon sau khi cập nhật.')
   }
 
-  await invalidateCache('icons')
+  await invalidateIconCache()
 
   return data
 }
@@ -238,7 +297,7 @@ export const deleteIcon = async (id: string): Promise<void> => {
 
   throwIfError(error, 'Không thể xóa icon.')
 
-  await invalidateCache('icons')
+  await invalidateIconCache()
 }
 
 // Hard delete icon (permanent)
@@ -254,7 +313,7 @@ export const hardDeleteIcon = async (id: string): Promise<void> => {
 
   throwIfError(error, 'Không thể xóa icon vĩnh viễn.')
 
-  await invalidateCache('icons')
+  await invalidateIconCache()
 }
 
 // Get icon groups

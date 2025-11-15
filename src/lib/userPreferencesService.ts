@@ -50,11 +50,16 @@ export const getUserPreferences = async (): Promise<UserPreferencesRecord | null
         .from(TABLE_NAME)
         .select('*')
         .eq('user_id', user.id)
-        .single()
+        .maybeSingle()
 
       if (error) {
         // If preferences don't exist, return null (will create on first update)
         if (error.code === 'PGRST116') {
+          return null
+        }
+        // Log error for debugging but don't throw for 400 errors (might be schema issue)
+        if (error.code === 'PGRST116' || error.message?.includes('400')) {
+          console.warn('Error fetching user preferences (non-critical):', error.message)
           return null
         }
         throwIfError(error, 'Không thể tải cài đặt người dùng.')
@@ -82,9 +87,9 @@ export const updateUserPreferences = async (
     .from(TABLE_NAME)
     .select('*')
     .eq('user_id', user.id)
-    .single()
+    .maybeSingle()
 
-  if (selectError && selectError.code === 'PGRST116') {
+  if (selectError && (selectError.code === 'PGRST116' || selectError.message?.includes('400'))) {
     // Preferences don't exist, create new record
     const { data, error } = await supabase
       .from(TABLE_NAME)

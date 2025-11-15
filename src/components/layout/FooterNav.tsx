@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { IconType } from 'react-icons'
 import {
@@ -31,6 +32,7 @@ const tabs: TabItem[] = [
 export const FooterNav = ({ onAddClick }: FooterNavProps) => {
   const navigate = useNavigate()
   const location = useLocation()
+  const [animatingTab, setAnimatingTab] = useState<string | null>(null)
 
   const isActive = (path?: string) => {
     if (!path) return false
@@ -50,7 +52,19 @@ export const FooterNav = ({ onAddClick }: FooterNavProps) => {
       }
       return
     }
+    
+    // Trigger animation when clicking on a menu item
     if (tab.path) {
+      // Reset animation state first to force re-render, then trigger animation
+      setAnimatingTab(null)
+      // Use requestAnimationFrame to ensure the reset happens before setting the new animation
+      requestAnimationFrame(() => {
+        setAnimatingTab(tab.id)
+        // Reset animation state after animation completes (0.6s)
+        setTimeout(() => {
+          setAnimatingTab(null)
+        }, 600)
+      })
       navigate(tab.path)
     }
   }
@@ -80,6 +94,7 @@ export const FooterNav = ({ onAddClick }: FooterNavProps) => {
 
               const { label, icon: Icon } = tab
               const active = isActive(tab.path)
+              const shouldAnimate = animatingTab === tab.id
 
               return (
                 <button
@@ -95,13 +110,13 @@ export const FooterNav = ({ onAddClick }: FooterNavProps) => {
                   <span
                     className={`flex h-10 w-10 items-center justify-center rounded-full text-lg transition-all ${
                       active
-                        ? 'bg-blue-800 text-white shadow-md animate-zoom'
+                        ? 'bg-blue-800 text-white shadow-md'
                         : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    }`}
+                    } ${shouldAnimate ? 'animate-zoom-once' : ''}`}
                   >
-                    <Icon className={`h-6 w-6 ${active ? 'animate-zoom' : ''}`} />
+                    <Icon className={`h-6 w-6 ${shouldAnimate ? 'animate-zoom-once' : ''}`} />
                   </span>
-                  <span className={`leading-tight inline-block ${active ? 'animate-zoom-text' : ''}`}>{label}</span>
+                  <span className={`leading-tight inline-block ${shouldAnimate ? 'animate-zoom-text-once' : ''}`}>{label}</span>
                 </button>
               )
             })}

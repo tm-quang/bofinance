@@ -200,10 +200,115 @@ export const updateWalletBalance = async (id: string, newBalance: number): Promi
   return updateWallet(id, { balance: newBalance })
 }
 
-// Lấy tổng số dư tất cả ví
+/**
+ * Lấy tài sản ròng (Net Assets)
+ * Chỉ tính từ các ví "Tiền mặt" và "Ngân hàng"
+ * Đây là số tiền thực tế có thể sử dụng để chi tiêu và nhận thu nhập
+ * Dùng để tính toán thu nhập và chi tiêu
+ */
+export const getNetAssets = async (): Promise<number> => {
+  const wallets = await fetchWallets()
+  return wallets
+    .filter((wallet) => wallet.type === 'Tiền mặt' || wallet.type === 'Ngân hàng')
+    .reduce((total, wallet) => total + wallet.balance, 0)
+}
+
+/**
+ * Lấy tổng số dư tất cả ví (bao gồm tất cả loại)
+ * Lưu ý: Hàm này cộng tất cả các loại ví lại, bao gồm cả Tín dụng, Đầu tư, Tiết kiệm
+ * Để tính tài sản ròng (chỉ Tiền mặt + Ngân hàng), sử dụng getNetAssets()
+ */
 export const getTotalBalance = async (): Promise<number> => {
   const wallets = await fetchWallets()
   return wallets.reduce((total, wallet) => total + wallet.balance, 0)
+}
+
+/**
+ * Lấy tổng số dư tín dụng
+ * Tính riêng cho các ví loại "Tín dụng"
+ * Logic: Số dư nợ (thường là số âm) hoặc hạn mức còn lại
+ */
+export const getCreditBalance = async (): Promise<number> => {
+  const wallets = await fetchWallets()
+  return wallets
+    .filter((wallet) => wallet.type === 'Tín dụng')
+    .reduce((total, wallet) => total + wallet.balance, 0)
+}
+
+/**
+ * Lấy tổng giá trị đầu tư
+ * Tính riêng cho các ví loại "Đầu tư"
+ * Logic: Giá trị đầu tư hiện tại (có thể thay đổi theo thị trường)
+ */
+export const getInvestmentBalance = async (): Promise<number> => {
+  const wallets = await fetchWallets()
+  return wallets
+    .filter((wallet) => wallet.type === 'Đầu tư')
+    .reduce((total, wallet) => total + wallet.balance, 0)
+}
+
+/**
+ * Lấy tổng tiết kiệm
+ * Tính riêng cho các ví loại "Tiết kiệm"
+ * Logic: Số tiền tiết kiệm (không dùng để chi tiêu hàng ngày)
+ */
+export const getSavingsBalance = async (): Promise<number> => {
+  const wallets = await fetchWallets()
+  return wallets
+    .filter((wallet) => wallet.type === 'Tiết kiệm')
+    .reduce((total, wallet) => total + wallet.balance, 0)
+}
+
+/**
+ * Lấy thống kê số dư theo từng loại ví
+ * Trả về object chứa các thông tin:
+ * - netAssets: Tài sản ròng (Tiền mặt + Ngân hàng)
+ * - credit: Tổng tín dụng
+ * - investment: Tổng đầu tư
+ * - savings: Tổng tiết kiệm
+ * - other: Các loại khác
+ * - total: Tổng tất cả
+ */
+export const getBalanceStats = async (): Promise<{
+  netAssets: number
+  credit: number
+  investment: number
+  savings: number
+  other: number
+  total: number
+}> => {
+  const wallets = await fetchWallets()
+  
+  const netAssets = wallets
+    .filter((w) => w.type === 'Tiền mặt' || w.type === 'Ngân hàng')
+    .reduce((sum, w) => sum + w.balance, 0)
+  
+  const credit = wallets
+    .filter((w) => w.type === 'Tín dụng')
+    .reduce((sum, w) => sum + w.balance, 0)
+  
+  const investment = wallets
+    .filter((w) => w.type === 'Đầu tư')
+    .reduce((sum, w) => sum + w.balance, 0)
+  
+  const savings = wallets
+    .filter((w) => w.type === 'Tiết kiệm')
+    .reduce((sum, w) => sum + w.balance, 0)
+  
+  const other = wallets
+    .filter((w) => w.type === 'Khác')
+    .reduce((sum, w) => sum + w.balance, 0)
+  
+  const total = wallets.reduce((sum, w) => sum + w.balance, 0)
+  
+  return {
+    netAssets,
+    credit,
+    investment,
+    savings,
+    other,
+    total,
+  }
 }
 
 // Lưu ví mặc định vào database
@@ -277,16 +382,18 @@ export const getDefaultWallet = async (): Promise<string | null> => {
     .select('value')
     .eq('user_id', user.id)
     .eq('key', 'default_wallet_id')
-    .single()
+    .maybeSingle()
 
   let result: string | null = null
 
-  if (error || !data) {
-    // Nếu lỗi 406 (Not Acceptable), có thể table không tồn tại
-    if (error?.code === 'PGRST116' || error?.message?.includes('406')) {
-      console.warn('user_preferences table may not exist, using localStorage fallback')
+  if (error) {
+    // Nếu lỗi không phải là "not found", log và fallback
+    if (error.code !== 'PGRST116') {
+      console.warn('Error fetching default_wallet_id:', error.message)
     }
-    
+  }
+
+  if (error || !data) {
     // Fallback về localStorage
     try {
       result = localStorage.getItem('bofin_default_wallet_id')
@@ -301,5 +408,124 @@ export const getDefaultWallet = async (): Promise<string | null> => {
   await cacheManager.set(cacheKey, result, 24 * 60 * 60 * 1000)
   
   return result
+}
+
+/**
+ * Lấy danh sách ID các ví được chọn để tính vào tổng số dư
+ * Mặc định: Tất cả ví "Tiền mặt" và "Ngân hàng"
+ */
+export const getTotalBalanceWalletIds = async (): Promise<string[]> => {
+  const supabase = getSupabaseClient()
+  const user = await getCachedUser()
+
+  if (!user) {
+    return []
+  }
+
+  // Sử dụng cache
+  const cacheKey = await cacheManager.generateKey('getTotalBalanceWalletIds', {})
+  const cached = await cacheManager.get<string[] | null>(cacheKey)
+  
+  if (cached !== null) {
+    return cached
+  }
+
+  // Fetch từ database
+  const { data, error } = await supabase
+    .from('user_preferences')
+    .select('value')
+    .eq('user_id', user.id)
+    .eq('key', 'total_balance_wallet_ids')
+    .maybeSingle()
+
+  let result: string[] = []
+
+  if (error) {
+    // Nếu lỗi không phải là "not found", log và fallback
+    if (error.code !== 'PGRST116') {
+      console.warn('Error fetching total_balance_wallet_ids:', error.message)
+    }
+  }
+
+  if (error || !data) {
+    // Nếu không có trong database, mặc định lấy tất cả ví Tiền mặt + Ngân hàng
+    try {
+      const wallets = await fetchWallets()
+      result = wallets
+        .filter((w) => w.type === 'Tiền mặt' || w.type === 'Ngân hàng')
+        .map((w) => w.id)
+    } catch {
+      // Fallback về localStorage
+      try {
+        const stored = localStorage.getItem('bofin_total_balance_wallet_ids')
+        if (stored) {
+          result = JSON.parse(stored)
+        }
+      } catch {
+        result = []
+      }
+    }
+  } else {
+    try {
+      result = JSON.parse(data.value as string)
+    } catch {
+      result = []
+    }
+  }
+
+  // Cache kết quả với TTL 24 giờ
+  await cacheManager.set(cacheKey, result, 24 * 60 * 60 * 1000)
+  
+  return result
+}
+
+/**
+ * Lưu danh sách ID các ví được chọn để tính vào tổng số dư
+ */
+export const setTotalBalanceWalletIds = async (walletIds: string[]): Promise<void> => {
+  const supabase = getSupabaseClient()
+  const user = await getCachedUser()
+
+  if (!user) {
+    throw new Error('Bạn cần đăng nhập để cập nhật cài đặt.')
+  }
+
+  // Kiểm tra tất cả ví có thuộc về user không
+  const wallets = await fetchWallets()
+  const validWalletIds = walletIds.filter((id) => wallets.some((w) => w.id === id))
+  
+  if (validWalletIds.length !== walletIds.length) {
+    throw new Error('Một số ví không tồn tại hoặc không thuộc về bạn.')
+  }
+
+  // Lưu vào database
+  const { error } = await supabase
+    .from('user_preferences')
+    .upsert(
+      {
+        user_id: user.id,
+        key: 'total_balance_wallet_ids',
+        value: JSON.stringify(validWalletIds),
+      },
+      {
+        onConflict: 'user_id,key',
+      }
+    )
+
+  if (error) {
+    // Fallback về localStorage
+    console.warn('Không thể lưu danh sách ví vào database:', error)
+    try {
+      localStorage.setItem('bofin_total_balance_wallet_ids', JSON.stringify(validWalletIds))
+    } catch (e) {
+      console.error('Không thể lưu vào localStorage:', e)
+    }
+  } else {
+    // Invalidate cache
+    await invalidateCache('fetchWallets')
+  }
+  
+  // Invalidate cache
+  await invalidateCache('getTotalBalanceWalletIds')
 }
 

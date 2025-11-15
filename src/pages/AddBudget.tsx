@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { FaTimes } from 'react-icons/fa'
-import { CustomSelect } from '../ui/CustomSelect'
-import { NumberPadModal } from '../ui/NumberPadModal'
-import { fetchCategories, type CategoryRecord } from '../../lib/categoryService'
-import { fetchWallets, type WalletRecord } from '../../lib/walletService'
+import { useNavigate, useSearchParams } from 'react-router-dom'
+import HeaderBar from '../components/layout/HeaderBar'
+import { CustomSelect } from '../components/ui/CustomSelect'
+import { NumberPadModal } from '../components/ui/NumberPadModal'
+import { fetchCategories, type CategoryRecord } from '../lib/categoryService'
+import { fetchWallets, type WalletRecord } from '../lib/walletService'
 import {
   createBudget,
   updateBudget,
@@ -11,18 +12,11 @@ import {
   calculatePeriod,
   type BudgetInsert,
   type PeriodType,
-} from '../../lib/budgetService'
-import { useNotification } from '../../contexts/notificationContext.helpers'
-import { formatVNDInput, parseVNDInput } from '../../utils/currencyInput'
-import { CATEGORY_ICON_MAP } from '../../constants/categoryIcons'
-import { getIconNode } from '../../utils/iconLoader'
-
-type BudgetModalProps = {
-  isOpen: boolean
-  onClose: () => void
-  onSuccess?: () => void
-  budgetId?: string | null
-}
+} from '../lib/budgetService'
+import { useNotification } from '../contexts/notificationContext.helpers'
+import { formatVNDInput, parseVNDInput } from '../utils/currencyInput'
+import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
+import { getIconNode } from '../utils/iconLoader'
 
 const PERIOD_TYPES: { value: PeriodType; label: string }[] = [
   { value: 'monthly', label: 'Hàng tháng' },
@@ -45,8 +39,12 @@ const MONTHS = [
   { value: 12, label: 'Tháng 12' },
 ]
 
-export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModalProps) => {
+export const AddBudgetPage = () => {
+  const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
   const { success, error: showError } = useNotification()
+  
+  const budgetId = searchParams.get('id')
   const isEditMode = !!budgetId
 
   const [formData, setFormData] = useState({
@@ -67,10 +65,8 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
   const [error, setError] = useState<string | null>(null)
   const [isNumberPadOpen, setIsNumberPadOpen] = useState(false)
 
-  // Load data when modal opens
+  // Load data
   useEffect(() => {
-    if (!isOpen) return
-
     const loadData = async () => {
       setIsLoading(true)
       setError(null)
@@ -92,7 +88,6 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
               if (iconNode) {
                 iconsMap[category.id] = iconNode
               } else {
-                // Fallback to hardcoded icon
                 const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
                 if (hardcodedIcon?.icon) {
                   const IconComponent = hardcodedIcon.icon
@@ -103,7 +98,6 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
               }
             } catch (error) {
               console.error('Error loading icon for category:', category.id, error)
-              // Fallback to hardcoded icon
               const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
               if (hardcodedIcon?.icon) {
                 const IconComponent = hardcodedIcon.icon
@@ -157,7 +151,7 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
     }
 
     loadData()
-  }, [isOpen, budgetId, showError])
+  }, [budgetId, showError])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -206,8 +200,8 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
         success('Đã tạo ngân sách thành công!')
       }
 
-      onSuccess?.()
-      onClose()
+      // Navigate back
+      navigate(-1)
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Không thể lưu ngân sách'
       setError(message)
@@ -216,18 +210,6 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
       setIsSubmitting(false)
     }
   }
-
-  // Lock body scroll when modal is open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-      return () => {
-        document.body.style.overflow = ''
-      }
-    }
-  }, [isOpen])
-
-  if (!isOpen) return null
 
   const expenseCategories = categories.filter(c => c.type === 'Chi tiêu')
   const categoryOptions = expenseCategories.map(cat => ({
@@ -252,31 +234,16 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
   })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end backdrop-blur-sm bg-slate-950/50 animate-in fade-in duration-200">
-      <div className="flex w-full max-w-md mx-auto max-h-[90vh] flex-col rounded-t-3xl bg-white shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 sm:slide-in-from-bottom-0">
-        {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50 px-4 py-4 sm:px-6 sm:py-5 rounded-t-3xl">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900 sm:text-xl">
-              {isEditMode ? 'Sửa ngân sách' : 'Tạo ngân sách mới'}
-            </h2>
-            <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-              {isEditMode ? 'Cập nhật thông tin ngân sách' : 'Đặt ngân sách cho hạng mục chi tiêu'}
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-all hover:bg-slate-200 hover:scale-110 active:scale-95 sm:h-10 sm:w-10"
-          >
-            <FaTimes className="h-4 w-4 sm:h-5 sm:w-5" />
-          </button>
-        </div>
+    <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
+      <HeaderBar 
+        variant="page" 
+        title={isEditMode ? 'SỬA NGÂN SÁCH' : 'TẠO NGÂN SÁCH'}
+      />
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
+      <main className="flex-1 overflow-y-auto overscroll-contain pb-20">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 py-4 sm:py-6">
           {error && (
-            <div className="mb-4 rounded-lg bg-rose-50 border border-rose-200 p-3 text-sm text-rose-600">
+            <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-sm text-rose-600">
               {error}
             </div>
           )}
@@ -411,30 +378,31 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
                   className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 resize-none sm:p-4"
                 />
               </div>
+
             </form>
           )}
         </div>
+      </main>
 
-        {/* Footer */}
-        <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 sm:px-6">
-          <div className="flex gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-lg border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 sm:py-3 sm:text-base"
-              disabled={isSubmitting}
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              form="budget-form"
-              className="flex-1 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-blue-700 disabled:opacity-50 sm:py-3 sm:text-base"
-              disabled={isSubmitting || isLoading}
-            >
-              {isSubmitting ? 'Đang lưu...' : isEditMode ? 'Cập nhật' : 'Tạo ngân sách'}
-            </button>
-          </div>
+      {/* Fixed Footer with Action Buttons */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 shrink-0 border-t border-slate-200 bg-white px-4 py-3 sm:px-6">
+        <div className="mx-auto flex w-full max-w-md gap-2 sm:gap-3">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="flex-1 rounded-lg border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 sm:py-3 sm:text-base"
+            disabled={isSubmitting || isLoading}
+          >
+            Hủy
+          </button>
+          <button
+            type="submit"
+            form="budget-form"
+            className="flex-1 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-blue-700 disabled:opacity-50 sm:py-3 sm:text-base"
+            disabled={isSubmitting || isLoading}
+          >
+            {isSubmitting ? 'Đang lưu...' : isEditMode ? 'Cập nhật' : 'Tạo ngân sách'}
+          </button>
         </div>
       </div>
 
@@ -449,4 +417,6 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
     </div>
   )
 }
+
+export default AddBudgetPage
 

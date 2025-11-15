@@ -1,11 +1,10 @@
 import { useEffect, useState } from 'react'
-import { FaPlus } from 'react-icons/fa'
+import { useNavigate } from 'react-router-dom'
+import { FaPlus, FaChartPie } from 'react-icons/fa'
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
 import { BudgetCard } from '../components/budgets/BudgetCard'
-import { BudgetModal } from '../components/budgets/BudgetModal'
 import { BudgetListSkeleton } from '../components/budgets/BudgetSkeleton'
-import { TransactionModal } from '../components/transactions/TransactionModal'
 import {
   fetchBudgets,
   getBudgetWithSpending,
@@ -21,6 +20,7 @@ import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
 import { getIconNode } from '../utils/iconLoader'
 
 export const BudgetsPage = () => {
+  const navigate = useNavigate()
   const { success, error: showError } = useNotification()
   const { showConfirm } = useDialog()
   const [budgets, setBudgets] = useState<BudgetWithSpending[]>([])
@@ -28,9 +28,6 @@ export const BudgetsPage = () => {
   const [wallets, setWallets] = useState<WalletRecord[]>([])
   const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
   const [isLoading, setIsLoading] = useState(true)
-  const [isModalOpen, setIsModalOpen] = useState(false)
-  const [editingBudget, setEditingBudget] = useState<BudgetRecord | null>(null)
-  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -92,13 +89,11 @@ export const BudgetsPage = () => {
   }
 
   const handleCreate = () => {
-    setEditingBudget(null)
-    setIsModalOpen(true)
+    navigate('/add-budget')
   }
 
   const handleEdit = (budget: BudgetRecord) => {
-    setEditingBudget(budget)
-    setIsModalOpen(true)
+    navigate(`/add-budget?id=${budget.id}`)
   }
 
   const handleDelete = async (budget: BudgetRecord) => {
@@ -117,11 +112,7 @@ export const BudgetsPage = () => {
     }
   }
 
-  const handleModalClose = () => {
-    setIsModalOpen(false)
-    setEditingBudget(null)
-    loadData()
-  }
+  // Removed unused handleModalClose function
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
@@ -151,7 +142,7 @@ export const BudgetsPage = () => {
           ) : budgets.length === 0 ? (
             <div className="rounded-2xl bg-white p-12 text-center shadow-sm border border-slate-100">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
-                <FaPlus className="h-8 w-8 text-slate-400" />
+                <FaChartPie className="h-8 w-8 text-slate-400" />
               </div>
               <h3 className="mb-2 text-lg font-semibold text-slate-900">Chưa có ngân sách nào</h3>
               <p className="mb-6 text-slate-500">
@@ -180,7 +171,7 @@ export const BudgetsPage = () => {
                   <BudgetCard
                     key={budget.id}
                     budget={budget}
-                    categoryName={category?.name || 'Danh mục đã xóa'}
+                    categoryName={category?.name || 'Hạng mục đã xóa'}
                     categoryIcon={categoryIcon}
                     walletName={wallet?.name}
                     onEdit={() => handleEdit(budget)}
@@ -193,25 +184,7 @@ export const BudgetsPage = () => {
         </div>
       </main>
 
-      <FooterNav onAddClick={() => setIsTransactionModalOpen(true)} />
-
-      {isModalOpen && (
-        <BudgetModal
-          isOpen={isModalOpen}
-          onClose={handleModalClose}
-          onSuccess={handleModalClose}
-          budgetId={editingBudget?.id || null}
-        />
-      )}
-
-      <TransactionModal
-        isOpen={isTransactionModalOpen}
-        onClose={() => setIsTransactionModalOpen(false)}
-        onSuccess={() => {
-          // Reload budgets to reflect transaction changes
-          loadData()
-        }}
-      />
+      <FooterNav onAddClick={() => navigate('/add-transaction')} />
     </div>
   )
 }

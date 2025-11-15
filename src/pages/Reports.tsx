@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
   FaCalendar,
   FaDownload,
@@ -10,7 +11,6 @@ import {
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
-import { TransactionModal } from '../components/transactions/TransactionModal'
 import { CombinedTrendChart } from '../components/charts/CombinedTrendChart'
 import { DateRangeFilter } from '../components/reports/DateRangeFilter'
 import { CategoryFilter } from '../components/reports/CategoryFilter'
@@ -20,7 +20,7 @@ import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
 import { getIconNode } from '../utils/iconLoader'
 import { fetchCategories, type CategoryRecord } from '../lib/categoryService'
 import { fetchTransactions, type TransactionRecord } from '../lib/transactionService'
-import { fetchWallets, getDefaultWallet, type WalletRecord } from '../lib/walletService'
+import { fetchWallets, type WalletRecord } from '../lib/walletService'
 
 type DateRangeType = 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
 
@@ -48,6 +48,9 @@ const getDateRange = (rangeType: DateRangeType, customStart?: string, customEnd?
     }
     case 'month':
       startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0)
+      // Kỳ là từ ngày 1 đến ngày hiện tại (nếu đang trong tháng) hoặc ngày cuối tháng (nếu đã qua tháng)
+      // Số dư cuối kỳ là số dư hiện tại, không phải số dư cuối tháng
+      endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
       break
     case 'quarter': {
       const quarter = Math.floor(now.getMonth() / 3)
@@ -127,13 +130,13 @@ const RANGE_LABEL_MAP: Record<DateRangeType, string> = {
 }
 
 const ReportPage = () => {
+  const navigate = useNavigate()
   const { success, error: showError } = useNotification()
   const [transactions, setTransactions] = useState<TransactionRecord[]>([])
   const [transactionsBeforePeriod, setTransactionsBeforePeriod] = useState<TransactionRecord[]>([])
   const [categories, setCategories] = useState<CategoryRecord[]>([])
   const [wallets, setWallets] = useState<WalletRecord[]>([])
   const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
-  const [defaultWalletId, setDefaultWalletId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState<'all' | 'Thu' | 'Chi'>('all')
@@ -141,7 +144,6 @@ const ReportPage = () => {
   const [customStartDate, setCustomStartDate] = useState<string>('')
   const [customEndDate, setCustomEndDate] = useState<string>('')
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([])
-  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
   const [showAllCategories, setShowAllCategories] = useState(false)
   const [openFilterSections, setOpenFilterSections] = useState<Record<FilterSectionKey, boolean>>({
     range: true,
@@ -175,12 +177,13 @@ const ReportPage = () => {
     const loadData = async () => {
       setIsLoading(true)
       try {
-        // Tính ngày bắt đầu kỳ (trừ 1 ngày để lấy giao dịch trước đó)
+        // Tính ngày kết thúc để lấy giao dịch trước kỳ (ngày trước ngày bắt đầu kỳ)
+        // Ví dụ: nếu kỳ là từ 1/11, thì lấy giao dịch đến hết 31/10
         const periodStartDate = new Date(dateRange.start)
         periodStartDate.setDate(periodStartDate.getDate() - 1)
         const beforePeriodEnd = periodStartDate.toISOString().split('T')[0]
 
-        const [transactionsData, transactionsBeforeData, categoriesData, walletsData, defaultWalletIdResult] = await Promise.all([
+        const [transactionsData, transactionsBeforeData, categoriesData, walletsData] = await Promise.all([
           fetchTransactions({
             start_date: dateRange.start,
             end_date: dateRange.end,
@@ -191,7 +194,6 @@ const ReportPage = () => {
           }),
           fetchCategories(),
           fetchWallets(false),
-          getDefaultWallet().catch(() => null),
         ])
         
         // Load icons for all categories
@@ -227,7 +229,6 @@ const ReportPage = () => {
         setTransactionsBeforePeriod(transactionsBeforeData)
         setCategories(categoriesData)
         setWallets(walletsData)
-        setDefaultWalletId(defaultWalletIdResult)
       } catch (err) {
         console.error('Error loading report data:', err)
         showError('Không thể tải dữ liệu báo cáo')
@@ -286,30 +287,46 @@ const ReportPage = () => {
     const income = transactions.filter((t) => t.type === 'Thu').reduce((sum, t) => sum + t.amount, 0)
     const expense = transactions.filter((t) => t.type === 'Chi').reduce((sum, t) => sum + t.amount, 0)
     
-    // Tính số dư ban đầu từ ví mặc định
-    const defaultWallet = defaultWalletId ? wallets.find(w => w.id === defaultWalletId) : null
-    const initialBalance = defaultWallet?.balance || 0
+    // Tính số dư ban đầu từ tài sản ròng (chỉ Tiền mặt + Ngân hàng)
+    // Đây là số tiền thực tế có thể sử dụng để chi tiêu và nhận thu nhập
+    const netAssetsWallets = wallets.filter(
+      (w) => w.type === 'Tiền mặt' || w.type === 'Ngân hàng'
+    )
+    const initialBalance = netAssetsWallets.reduce((sum, w) => sum + (w.initial_balance ?? w.balance ?? 0), 0)
     
     // Tính số dư đầu kỳ: số dư ban đầu + tất cả giao dịch trước ngày bắt đầu kỳ
-    const incomeBefore = transactionsBeforePeriod.filter((t) => t.type === 'Thu').reduce((sum, t) => sum + t.amount, 0)
-    const expenseBefore = transactionsBeforePeriod.filter((t) => t.type === 'Chi').reduce((sum, t) => sum + t.amount, 0)
+    // Chỉ tính giao dịch từ các ví tài sản ròng (Tiền mặt + Ngân hàng)
+    const netAssetsWalletIds = new Set(netAssetsWallets.map((w) => w.id))
+    const incomeBefore = transactionsBeforePeriod
+      .filter((t) => t.type === 'Thu' && netAssetsWalletIds.has(t.wallet_id))
+      .reduce((sum, t) => sum + t.amount, 0)
+    const expenseBefore = transactionsBeforePeriod
+      .filter((t) => t.type === 'Chi' && netAssetsWalletIds.has(t.wallet_id))
+      .reduce((sum, t) => sum + t.amount, 0)
     const balanceAtPeriodStart = initialBalance + incomeBefore - expenseBefore
     
     // Tính số dư cuối kỳ: số dư đầu kỳ + thu nhập - chi tiêu trong kỳ
-    const balanceAtPeriodEnd = balanceAtPeriodStart + income - expense
+    // Chỉ tính giao dịch từ các ví tài sản ròng
+    const incomeInPeriod = transactions
+      .filter((t) => t.type === 'Thu' && netAssetsWalletIds.has(t.wallet_id))
+      .reduce((sum, t) => sum + t.amount, 0)
+    const expenseInPeriod = transactions
+      .filter((t) => t.type === 'Chi' && netAssetsWalletIds.has(t.wallet_id))
+      .reduce((sum, t) => sum + t.amount, 0)
+    const balanceAtPeriodEnd = balanceAtPeriodStart + incomeInPeriod - expenseInPeriod
     
-    // Thay đổi số dư trong kỳ
-    const balanceChange = income - expense
+    // Thay đổi số dư trong kỳ (chỉ tính từ tài sản ròng)
+    const balanceChange = incomeInPeriod - expenseInPeriod
 
     return { 
-      income, 
-      expense, 
-      balance: balanceChange, // Còn lại = thay đổi số dư trong kỳ
-      balanceAtPeriodStart, // Số dư đầu kỳ
-      balanceAtPeriodEnd, // Số dư cuối kỳ
-      initialBalance, // Số dư ban đầu
+      income, // Tổng thu nhập (tất cả ví)
+      expense, // Tổng chi tiêu (tất cả ví)
+      balance: balanceChange, // Thay đổi số dư trong kỳ (chỉ từ tài sản ròng)
+      balanceAtPeriodStart, // Số dư đầu kỳ (tài sản ròng)
+      balanceAtPeriodEnd, // Số dư cuối kỳ (tài sản ròng)
+      initialBalance, // Số dư ban đầu (tài sản ròng)
     }
-  }, [transactions, transactionsBeforePeriod, wallets, defaultWalletId])
+  }, [transactions, transactionsBeforePeriod, wallets])
 
   // Group by category for top categories
   const categoryStats = useMemo(() => {
@@ -564,8 +581,8 @@ const ReportPage = () => {
             </FilterAccordionSection>
 
             <FilterAccordionSection
-              title="Danh mục & tìm kiếm"
-              subtitle="Chọn nhanh danh mục và tìm kiếm giao dịch"
+              title="Hạng mục & tìm kiếm"
+              subtitle="Chọn nhanh hạng mục và tìm kiếm giao dịch"
               isOpen={openFilterSections.category}
               onToggle={() => toggleSection('category')}
             >
@@ -583,7 +600,7 @@ const ReportPage = () => {
                     onClick={() => setShowAllCategories((prev) => !prev)}
                     className="text-xs font-semibold text-sky-600 hover:text-sky-700 sm:text-sm"
                   >
-                    {showAllCategories ? 'Thu gọn danh mục' : `Xem thêm ${filteredCategoriesByType.length - 8} danh mục`}
+                    {showAllCategories ? 'Thu gọn hạng mục' : `Xem thêm ${filteredCategoriesByType.length - 8} hạng mục`}
                   </button>
               </div>
               )}
@@ -594,7 +611,7 @@ const ReportPage = () => {
                   <input
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Tìm theo mô tả, danh mục hoặc ngày..."
+                    placeholder="Tìm theo mô tả, hạng mục hoặc ngày..."
                     className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                   />
                 </div>
@@ -623,7 +640,7 @@ const ReportPage = () => {
             {/* Top Income Categories */}
             {topIncomeCategories.length > 0 && (
               <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100 sm:rounded-3xl sm:p-5">
-                <h2 className="mb-3 text-sm font-bold text-slate-900 sm:text-base">Danh mục thu nổi bật</h2>
+                <h2 className="mb-3 text-sm font-bold text-slate-900 sm:text-base">Hạng mục thu nổi bật</h2>
                 <div className="space-y-2">
                   {topIncomeCategories.map((stat) => {
                     const categoryIcon = categoryIcons[stat.category.id]
@@ -659,7 +676,7 @@ const ReportPage = () => {
             {/* Top Expense Categories */}
             {topExpenseCategories.length > 0 && (
               <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100 sm:rounded-3xl sm:p-5">
-                <h2 className="mb-3 text-sm font-bold text-slate-900 sm:text-base">Danh mục chi nổi bật</h2>
+                <h2 className="mb-3 text-sm font-bold text-slate-900 sm:text-base">Hạng mục chi nổi bật</h2>
                 <div className="space-y-2">
                   {topExpenseCategories.map((stat) => {
                     const categoryIcon = categoryIcons[stat.category.id]
@@ -797,8 +814,11 @@ const ReportPage = () => {
             {isLoading ? (
               <TransactionListSkeleton count={5} />
             ) : filteredTransactions.length === 0 ? (
-              <div className="flex items-center justify-center rounded-xl bg-slate-50 p-8 text-sm text-slate-500">
-                Không có giao dịch phù hợp với bộ lọc hiện tại
+              <div className="flex flex-col items-center justify-center rounded-xl bg-slate-50 p-8 text-sm text-slate-500">
+                <div className="mb-3 rounded-full bg-white p-3">
+                  <FaSearch className="h-6 w-6 text-slate-400" />
+                </div>
+                <span>Không có giao dịch phù hợp với bộ lọc hiện tại</span>
               </div>
             ) : (
               <div className="space-y-2">
@@ -856,32 +876,7 @@ const ReportPage = () => {
         </div>
       </main>
 
-      <FooterNav onAddClick={() => setIsTransactionModalOpen(true)} />
-
-      <TransactionModal
-        isOpen={isTransactionModalOpen}
-        onClose={() => setIsTransactionModalOpen(false)}
-        onSuccess={() => {
-          // Reload data
-          const loadData = async () => {
-            try {
-              const dateRange = getDateRange(rangeType, customStartDate, customEndDate)
-              const [transactionsData, categoriesData] = await Promise.all([
-                fetchTransactions({
-                  start_date: dateRange.start,
-                  end_date: dateRange.end,
-                }),
-                fetchCategories(),
-              ])
-              setTransactions(transactionsData)
-              setCategories(categoriesData)
-            } catch (err) {
-              console.error('Error reloading data:', err)
-            }
-          }
-          void loadData()
-        }}
-      />
+      <FooterNav onAddClick={() => navigate('/add-transaction')} />
     </div>
   )
 }

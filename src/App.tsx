@@ -15,6 +15,9 @@ const WalletsPage = lazy(() => import('./pages/Wallets'))
 const TransactionsPage = lazy(() => import('./pages/Transactions'))
 const BudgetsPage = lazy(() => import('./pages/Budgets'))
 const RemindersPage = lazy(() => import('./pages/Reminders'))
+const NotificationsPage = lazy(() => import('./pages/Notifications'))
+const AddTransactionPage = lazy(() => import('./pages/AddTransaction'))
+const AddBudgetPage = lazy(() => import('./pages/AddBudget'))
 const LoginPage = lazy(() => import('./pages/Login'))
 const RegisterPage = lazy(() => import('./pages/Register'))
 
@@ -105,6 +108,9 @@ function AppContent() {
         <Route path="/transactions" element={<TransactionsPage />} />
         <Route path="/budgets" element={<BudgetsPage />} />
         <Route path="/reminders" element={<RemindersPage />} />
+        <Route path="/notifications" element={<NotificationsPage />} />
+        <Route path="/add-transaction" element={<AddTransactionPage />} />
+        <Route path="/add-budget" element={<AddBudgetPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
         </Suspense>

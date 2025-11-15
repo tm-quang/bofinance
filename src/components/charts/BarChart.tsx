@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { FaChartBar } from 'react-icons/fa'
 
 type BarChartData = {
   label: string
@@ -26,8 +27,11 @@ export const BarChart = ({ data, height = 200 }: BarChartProps) => {
 
   if (data.length === 0) {
     return (
-      <div className="flex h-48 items-center justify-center rounded-2xl bg-slate-50 text-sm text-slate-500">
-        Chưa có dữ liệu để hiển thị
+      <div className="flex h-48 flex-col items-center justify-center rounded-2xl bg-slate-50 text-sm text-slate-500">
+        <div className="mb-3 rounded-full bg-white p-3">
+          <FaChartBar className="h-6 w-6 text-slate-400" />
+        </div>
+        <span>Chưa có dữ liệu để hiển thị</span>
       </div>
     )
   }

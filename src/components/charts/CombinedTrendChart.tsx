@@ -1,4 +1,5 @@
 import { useMemo } from 'react'
+import { FaChartLine } from 'react-icons/fa'
 
 type CombinedChartPoint = {
   label: string
@@ -53,8 +54,11 @@ export const CombinedTrendChart = ({ data, height = 200 }: CombinedTrendChartPro
 
   if (data.length === 0) {
     return (
-      <div className="flex h-48 items-center justify-center rounded-2xl bg-slate-50 text-sm text-slate-500">
-        Chưa có dữ liệu để hiển thị
+      <div className="flex h-48 flex-col items-center justify-center rounded-2xl bg-slate-50 text-sm text-slate-500">
+        <div className="mb-3 rounded-full bg-white p-3">
+          <FaChartLine className="h-6 w-6 text-slate-400" />
+        </div>
+        <span>Chưa có dữ liệu để hiển thị</span>
       </div>
     )
   }
@@ -122,6 +126,24 @@ export const CombinedTrendChart = ({ data, height = 200 }: CombinedTrendChartPro
                   <stop offset="100%" stopColor="#38bdf8" stopOpacity="0.05" />
                 </linearGradient>
               </defs>
+              {/* Đường cân đối (mức 0) */}
+              {(() => {
+                const zeroY = balanceScale.min <= 0 && balanceScale.max >= 0
+                  ? 100 - ((0 - balanceScale.min) / (balanceScale.max - balanceScale.min || 1)) * 100
+                  : null
+                return zeroY !== null ? (
+                  <line
+                    x1="0"
+                    y1={zeroY}
+                    x2="100"
+                    y2={zeroY}
+                    stroke="#94a3b8"
+                    strokeWidth="1"
+                    strokeDasharray="2 2"
+                    opacity="0.5"
+                  />
+                ) : null
+              })()}
               {balancePoints.length > 1 && (
                 <>
                   <path

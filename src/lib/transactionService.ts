@@ -175,6 +175,29 @@ export const createTransaction = async (payload: TransactionInsert): Promise<Tra
     console.warn('Error syncing wallet balance after transaction creation:', error)
   })
 
+  // Tạo thông báo cho giao dịch mới (chạy trong background)
+  try {
+    const { createNotification } = await import('./notificationService')
+    await createNotification({
+      type: 'transaction',
+      title: `Giao dịch ${payload.type === 'Thu' ? 'thu nhập' : 'chi tiêu'}`,
+      message: `${payload.description || 'Giao dịch'} - ${new Intl.NumberFormat('vi-VN', {
+        style: 'currency',
+        currency: 'VND',
+      }).format(payload.amount)}`,
+      metadata: {
+        transaction_id: data.id,
+        amount: payload.amount,
+        type: payload.type,
+      },
+      related_id: data.id,
+      status: 'unread',
+    })
+  } catch (error) {
+    // Silently continue if notification creation fails
+    console.warn('Could not create notification for transaction:', error)
+  }
+
   await invalidateCache('transactions')
   await invalidateCache('getTransactionStats')
   // Invalidate wallet cash flow stats cache vì có giao dịch mới

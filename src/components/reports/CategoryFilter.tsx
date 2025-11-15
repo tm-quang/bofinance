@@ -1,4 +1,4 @@
-import { FaTimes } from 'react-icons/fa'
+import { FaTimes, FaFolder } from 'react-icons/fa'
 import type { CategoryRecord } from '../../lib/categoryService'
 import { CategoryIcon } from '../ui/CategoryIcon'
 
@@ -24,8 +24,13 @@ export const CategoryFilter = ({
 
   if (filteredCategories.length === 0) {
     return (
-      <div className="rounded-xl bg-slate-50 p-4 text-center text-sm text-slate-500">
-        Chưa có danh mục {type !== 'all' ? (type === 'Thu' ? 'thu nhập' : 'chi tiêu') : ''}
+      <div className="flex flex-col items-center justify-center rounded-xl bg-slate-50 p-6 text-center">
+        <div className="mb-3 rounded-full bg-white p-3">
+          <FaFolder className="h-5 w-5 text-slate-400" />
+        </div>
+        <span className="text-sm text-slate-500">
+          Chưa có hạng mục {type !== 'all' ? (type === 'Thu' ? 'thu nhập' : 'chi tiêu') : ''}
+        </span>
       </div>
     )
   }
@@ -35,7 +40,7 @@ export const CategoryFilter = ({
       {selectedCategoryIds.length > 0 && (
         <div className="flex items-center justify-between">
           <span className="text-xs font-medium text-slate-600 sm:text-sm">
-            Đã chọn: {selectedCategoryIds.length} danh mục
+            Đã chọn: {selectedCategoryIds.length} hạng mục
           </span>
           <button
             type="button"

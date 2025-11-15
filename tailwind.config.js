@@ -16,6 +16,8 @@ export default {
         shine: 'shine 1.8s linear infinite',
         zoom: 'zoom 0.6s ease-in-out infinite',
         'zoom-text': 'zoom-text 0.6s ease-in-out infinite',
+        'zoom-once': 'zoom 0.6s ease-in-out',
+        'zoom-text-once': 'zoom-text 0.6s ease-in-out',
       },
       keyframes: {
         'gradient-xy': {

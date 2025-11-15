@@ -96,7 +96,7 @@ export const getIconNode = async (iconId: string): Promise<React.ReactNode> => {
         return React.createElement('img', {
           src: icon.image_url,
           alt: icon.label,
-          className: 'h-5 w-5 object-contain',
+          className: 'h-6 w-6 object-contain',
           onError: (e: React.SyntheticEvent<HTMLImageElement>) => {
             // Fallback nếu SVG URL không load được
             e.currentTarget.style.display = 'none'
@@ -109,7 +109,12 @@ export const getIconNode = async (iconId: string): Promise<React.ReactNode> => {
         return React.createElement('img', {
           src: icon.image_url,
           alt: icon.label,
-          className: 'h-5 w-5 object-contain',
+          className: 'h-6 w-6 object-contain',
+          onError: (e: React.SyntheticEvent<HTMLImageElement>) => {
+            // Fallback nếu image không load được
+            console.warn(`Failed to load image icon: ${icon.image_url} for iconId: ${iconId}`)
+            e.currentTarget.style.display = 'none'
+          },
         })
       }
       
@@ -119,12 +124,16 @@ export const getIconNode = async (iconId: string): Promise<React.ReactNode> => {
           const library = await getCachedIconLibrary(icon.react_icon_library)
           if (library && library[icon.react_icon_name]) {
             const IconComponent = library[icon.react_icon_name]
-            return React.createElement(IconComponent, { className: 'h-5 w-5' })
+            return React.createElement(IconComponent, { className: 'h-6 w-6 text-slate-700' })
           } else {
-            console.warn(`Icon not found in library: ${icon.react_icon_library}.${icon.react_icon_name} for iconId: ${iconId}`)
+            // Icon name không đúng trong library - fallback về hardcoded
+            console.warn(`Icon not found in library: ${icon.react_icon_library}.${icon.react_icon_name} for iconId: ${iconId}, falling back to hardcoded icon`)
+            // Sẽ fallback về hardcoded icon ở cuối function
           }
         } catch (libError) {
+          // Library không load được - fallback về hardcoded
           console.error(`Error loading icon library ${icon.react_icon_library} for iconId ${iconId}:`, libError)
+          // Sẽ fallback về hardcoded icon ở cuối function
         }
       }
     }
@@ -139,7 +148,7 @@ export const getIconNode = async (iconId: string): Promise<React.ReactNode> => {
   const hardcodedIcon = CATEGORY_ICON_MAP[iconId]
   if (hardcodedIcon?.icon) {
     const IconComponent = hardcodedIcon.icon
-    return React.createElement(IconComponent, { className: 'h-5 w-5' })
+    return React.createElement(IconComponent, { className: 'h-6 w-6 text-slate-700' })
   }
 
   // Return null để component tự xử lý fallback

@@ -83,6 +83,19 @@ export const CategoryIcon = ({ iconId, className = 'h-5 w-5', fallback = null }:
     return <span className={`${className} animate-pulse bg-slate-200 rounded`} />
   }
 
+  // Nếu không có icon, hiển thị fallback hoặc chữ cái đầu
+  if (!iconNode) {
+    if (fallback) {
+      return <>{fallback}</>
+    }
+    // Fallback mặc định: hiển thị chữ cái đầu của iconId
+    return (
+      <span className={`${className} flex items-center justify-center rounded-full bg-slate-200 text-slate-500 text-xs font-semibold`}>
+        {iconId?.[0]?.toUpperCase() || '?'}
+      </span>
+    )
+  }
+
   return <>{iconNode}</>
 }
 

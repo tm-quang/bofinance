@@ -9,6 +9,8 @@ type HeaderBarProps =
     avatarUrl?: string
     avatarText?: string
     badgeColor?: string
+    onNotificationClick?: () => void
+    unreadNotificationCount?: number
   }
   | {
     variant: 'page'
@@ -89,7 +91,14 @@ const HeaderBar = (props: HeaderBarProps) => {
     )
   }
 
-  const { userName, avatarUrl, avatarText = userName.charAt(0).toUpperCase(), badgeColor = 'bg-sky-600' } = props
+  const { 
+    userName, 
+    avatarUrl, 
+    avatarText = userName.charAt(0).toUpperCase(), 
+    badgeColor = 'bg-sky-600',
+    onNotificationClick,
+    unreadNotificationCount = 0,
+  } = props
 
   return (
     <header className="pointer-events-none relative z-40 flex-shrink-0 bg-[#F7F9FC]">
@@ -121,8 +130,24 @@ const HeaderBar = (props: HeaderBarProps) => {
             <p className="text-xl font-medium text-slate-900" style={{ fontFamily: "'Lobster', cursive" }}>{userName}</p>
           </div>
         </div>
-        <button className="relative flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-xl ring-1 ring-slate-100">
-          <span className={`absolute right-1 top-1 h-2.5 w-2.5 rounded-full ${badgeColor}`} />
+        <button 
+          onClick={() => {
+            if (onNotificationClick) {
+              onNotificationClick()
+            } else {
+              navigate('/notifications')
+            }
+          }}
+          className="relative flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-xl ring-1 ring-slate-100 transition hover:scale-110 active:scale-95"
+          aria-label="Thông báo"
+        >
+          {unreadNotificationCount > 0 ? (
+            <span className={`absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full ${badgeColor} text-xs font-bold text-white`}>
+              {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+            </span>
+          ) : (
+            <span className={`absolute right-1 top-1 h-2.5 w-2.5 rounded-full ${badgeColor}`} />
+          )}
           <FaBell className="h-6 w-6 text-slate-500" />
         </button>
         </div>

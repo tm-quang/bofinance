@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { FaChevronDown, FaCheck } from 'react-icons/fa'
+import { FaChevronDown, FaCheck, FaWallet, FaFolder, FaReceipt } from 'react-icons/fa'
 import { Skeleton } from '../skeletons'
 
 type Option = {
@@ -59,10 +59,27 @@ export const CustomSelect = ({
     )
   }
 
+  // Determine icon based on emptyMessage content
+  const getEmptyIcon = () => {
+    const message = emptyMessage.toLowerCase()
+    if (message.includes('ví')) {
+      return <FaWallet className="h-5 w-5 text-amber-500" />
+    } else if (message.includes('hạng mục')) {
+      return <FaFolder className="h-5 w-5 text-amber-500" />
+    } else if (message.includes('giao dịch')) {
+      return <FaReceipt className="h-5 w-5 text-amber-500" />
+    }
+    return null
+  }
+
   if (options.length === 0) {
+    const emptyIcon = getEmptyIcon()
     return (
       <div className={`rounded-xl border-2 border-amber-200 bg-amber-50 p-3 text-center text-sm text-amber-600 ${className}`}>
-        {emptyMessage}
+        <div className="flex flex-col items-center gap-2">
+          {emptyIcon && <div className="flex items-center justify-center">{emptyIcon}</div>}
+          <span>{emptyMessage}</span>
+        </div>
       </div>
     )
   }

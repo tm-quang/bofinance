@@ -1,18 +1,19 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useDataPreloader } from '../hooks/useDataPreloader'
-import { FaPlus, FaCalendar, FaExchangeAlt, FaHandHoldingHeart, FaPaperPlane, FaCog, FaWallet, FaFolder, FaChevronLeft, FaChevronRight } from 'react-icons/fa'
+import { FaPlus, FaCalendar, FaExchangeAlt, FaHandHoldingHeart, FaPaperPlane, FaCog, FaWallet, FaFolder, FaChevronLeft, FaChevronRight, FaReceipt } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
 import { QuickActionsSettings } from '../components/quickActions/QuickActionsSettings'
-import { TransactionChart } from '../components/charts/TransactionChart'
-import { TransactionModal } from '../components/transactions/TransactionModal'
+import { IncomeExpenseOverview } from '../components/charts/IncomeExpenseOverview'
 import { TransactionActionModal } from '../components/transactions/TransactionActionModal'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { WelcomeModal } from '../components/ui/WelcomeModal'
-import { WalletCarousel } from '../components/wallets/WalletCarousel'
+// import { WalletCarousel } from '../components/wallets/WalletCarousel'
 import { TransactionListSkeleton } from '../components/skeletons'
+import { NetAssetsCard } from '../components/dashboard/NetAssetsCard'
+import { getAllNotifications } from '../lib/notificationService'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
 import { getIconNode } from '../utils/iconLoader'
 import { fetchCategories, type CategoryRecord } from '../lib/categoryService'
@@ -49,7 +50,7 @@ const ALL_QUICK_ACTIONS = [
   },
   { 
     id: 'categories',
-    label: 'Danh mục', 
+    label: 'Hạng mục', 
     icon: FaFolder,
     color: 'from-indigo-500 to-purple-500',
     bgColor: 'bg-indigo-50',
@@ -106,11 +107,9 @@ export const DashboardPage = () => {
   const location = useLocation()
   const { success, error: showError } = useNotification()
   useDataPreloader() // Preload data khi vào dashboard
-  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [selectedWallet, setSelectedWallet] = useState<WalletRecord | null>(null)
+  // const [selectedWallet, setSelectedWallet] = useState<WalletRecord | null>(null) // Reserved for future use
   const [defaultWalletId, setDefaultWalletId] = useState<string | null>(null)
-  const [showDefaultWalletModal, setShowDefaultWalletModal] = useState(false)
   const [transactions, setTransactions] = useState<TransactionRecord[]>([])
   const [categories, setCategories] = useState<CategoryRecord[]>([])
   const [wallets, setWallets] = useState<WalletRecord[]>([])
@@ -126,6 +125,7 @@ export const DashboardPage = () => {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date()) // Default to today
   const [selectedDateReminders, setSelectedDateReminders] = useState<ReminderRecord[]>([])
   const [isLoadingDateData, setIsLoadingDateData] = useState(false)
+  const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
   
   // Long press handler refs
   const longPressTimerRef = useRef<number | null>(null)
@@ -174,36 +174,16 @@ export const DashboardPage = () => {
   }
 
   const handleAddClick = () => {
-    setIsTransactionModalOpen(true)
+    navigate('/add-transaction')
   }
 
 
-  const handleWalletChange = (wallet: WalletRecord) => {
-    setSelectedWallet(wallet)
-    // Chỉ cập nhật state để hiển thị, không lưu làm ví mặc định
-    // Ví mặc định chỉ được lưu khi người dùng chủ động chọn từ trang Wallets
-  }
+  // const handleWalletChange = (wallet: WalletRecord) => {
+  //   setSelectedWallet(wallet)
+  //   // Chỉ cập nhật state để hiển thị, không lưu làm ví mặc định
+  //   // Ví mặc định chỉ được lưu khi người dùng chủ động chọn từ trang Wallets
+  // }
 
-  const handleConfirmDefaultWallet = async () => {
-    if (selectedWallet) {
-      try {
-        // Lưu vào database
-        await setDefaultWallet(selectedWallet.id)
-        setDefaultWalletId(selectedWallet.id) // Lưu vào state
-        saveDefaultWalletId(selectedWallet.id) // Lưu vào localStorage để fallback
-        setShowDefaultWalletModal(false)
-        success('Đã đặt ví mặc định thành công!')
-      } catch (error) {
-        console.error('Error setting default wallet:', error)
-        // Vẫn lưu vào localStorage để fallback
-        setDefaultWalletId(selectedWallet.id)
-        saveDefaultWalletId(selectedWallet.id)
-        setShowDefaultWalletModal(false)
-        // Thông báo lỗi nhưng vẫn đóng modal
-        showError('Không thể lưu vào database, đã lưu tạm vào bộ nhớ cục bộ.')
-      }
-    }
-  }
 
   // Load default wallet on mount
   useEffect(() => {
@@ -234,7 +214,8 @@ export const DashboardPage = () => {
           }
         }
       } catch (error) {
-        console.error('Error loading default wallet:', error)
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        console.error('Error loading default wallet:', errorMessage, error)
         // Fallback về localStorage
         const savedDefaultWalletId = getDefaultWalletId()
         if (savedDefaultWalletId) {
@@ -245,58 +226,6 @@ export const DashboardPage = () => {
     loadDefaultWallet()
   }, [])
 
-  // Hiển thị modal nếu chưa có ví mặc định và đã có ví được chọn
-  useEffect(() => {
-    // Chỉ hiển thị modal nếu:
-    // 1. Chưa có ví mặc định trong state
-    // 2. Có ít nhất 1 ví trong danh sách
-    // 3. Đã có ví được chọn
-    // 4. Modal chưa được hiển thị
-    if (!defaultWalletId && wallets.length > 0 && selectedWallet && !showDefaultWalletModal) {
-      let isCancelled = false
-      let timer: ReturnType<typeof setTimeout> | null = null
-      
-      // Kiểm tra lại từ database để đảm bảo chính xác
-      const checkDefaultWallet = async () => {
-        try {
-          const dbDefaultWalletId = await getDefaultWallet()
-          if (!isCancelled) {
-            if (!dbDefaultWalletId) {
-              // Đợi một chút để đảm bảo UI đã render
-              timer = setTimeout(() => {
-                if (!isCancelled) {
-                  setShowDefaultWalletModal(true)
-                }
-              }, 500)
-            } else {
-              // Nếu đã có ví mặc định trong database, cập nhật state
-              setDefaultWalletId(dbDefaultWalletId)
-              saveDefaultWalletId(dbDefaultWalletId)
-            }
-          }
-        } catch (error) {
-          console.error('Error checking default wallet:', error)
-          // Nếu có lỗi, vẫn hiển thị modal nếu chưa có ví mặc định
-          if (!isCancelled && !defaultWalletId) {
-            timer = setTimeout(() => {
-              if (!isCancelled) {
-                setShowDefaultWalletModal(true)
-              }
-            }, 500)
-          }
-        }
-      }
-      
-      checkDefaultWallet()
-      
-      return () => {
-        isCancelled = true
-        if (timer) {
-          clearTimeout(timer)
-        }
-      }
-    }
-  }, [defaultWalletId, selectedWallet, showDefaultWalletModal, wallets.length])
 
   // Load profile - sử dụng cache, chỉ reload khi cần
   useEffect(() => {
@@ -313,34 +242,58 @@ export const DashboardPage = () => {
   }, [location.key])
 
   // Check for welcome modal flag from login
-  useEffect(() => {
-    // Use a small delay to ensure sessionStorage is set before checking
-    const checkWelcomeModal = () => {
-      const shouldShowWelcome = sessionStorage.getItem('showWelcomeModal')
-      if (shouldShowWelcome === 'true') {
-        // Clear the flag immediately so it doesn't show again
-        sessionStorage.removeItem('showWelcomeModal')
-        // Show modal after a short delay to ensure page is loaded
-        setShowWelcomeModal(true)
-      }
-    }
-    
-    // Check immediately
-    checkWelcomeModal()
-    
-    // Also check after a short delay to handle any race conditions
-    const timer = setTimeout(checkWelcomeModal, 200)
-    
-    return () => clearTimeout(timer)
-  }, [location.key]) // Re-run when location changes (navigation)
+  // WelcomeModal is disabled for now
+  // useEffect(() => {
+  //   // Use a small delay to ensure sessionStorage is set before checking
+  //   const checkWelcomeModal = () => {
+  //     const shouldShowWelcome = sessionStorage.getItem('showWelcomeModal')
+  //     if (shouldShowWelcome === 'true') {
+  //       // Clear the flag immediately so it doesn't show again
+  //       sessionStorage.removeItem('showWelcomeModal')
+  //       // Show modal after a short delay to ensure page is loaded
+  //       setShowWelcomeModal(true)
+  //     }
+  //   }
+  //   
+  //   // Check immediately
+  //   checkWelcomeModal()
+  //   
+  //   // Also check after a short delay to handle any race conditions
+  //   const timer = setTimeout(checkWelcomeModal, 200)
+  //   
+  //   return () => clearTimeout(timer)
+  // }, [location.key]) // Re-run when location changes (navigation)
 
-  const handleAddWallet = () => {
-    navigate('/wallets')
-  }
+  // const handleAddWallet = () => {
+  //   navigate('/wallets')
+  // }
 
   // Load transactions and categories - chỉ load khi cần thiết, sử dụng cache
   // Nếu đã preload, dữ liệu sẽ được lấy từ cache ngay lập tức
   // Chỉ load lại khi location.key thay đổi (navigate từ trang khác về)
+  useEffect(() => {
+    loadNotificationCount()
+  }, [])
+
+  // Refresh notification count periodically
+  useEffect(() => {
+    const interval = setInterval(() => {
+      loadNotificationCount()
+    }, 30000) // Refresh every 30 seconds
+
+    return () => clearInterval(interval)
+  }, [])
+
+  const loadNotificationCount = async () => {
+    try {
+      const notifications = await getAllNotifications()
+      const unread = notifications.filter((notif) => notif.status === 'unread').length
+      setUnreadNotificationCount(unread)
+    } catch (error) {
+      console.error('Error loading notification count:', error)
+    }
+  }
+
   useEffect(() => {
     const loadData = async () => {
       setIsLoadingTransactions(true)
@@ -399,7 +352,8 @@ export const DashboardPage = () => {
         setCategories(categoriesData)
         setWallets(walletsData)
       } catch (error) {
-        console.error('Error loading transactions:', error)
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        console.error('Error loading transactions:', errorMessage, error)
       } finally {
         setIsLoadingTransactions(false)
       }
@@ -481,7 +435,9 @@ export const DashboardPage = () => {
   const handleEditConfirm = () => {
     setIsEditConfirmOpen(false)
     setIsActionModalOpen(false)
-    setIsTransactionModalOpen(true)
+    if (selectedTransaction) {
+      navigate(`/add-transaction?id=${selectedTransaction.id}`)
+    }
   }
 
   // Handle delete
@@ -559,7 +515,8 @@ export const DashboardPage = () => {
         )
         setSelectedDateReminders(dateReminders)
       } catch (error) {
-        console.error('Error loading date data:', error)
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        console.error('Error loading date data:', errorMessage, error)
       } finally {
         if (!isCancelled) {
           setIsLoadingDateData(false)
@@ -703,16 +660,20 @@ export const DashboardPage = () => {
       <HeaderBar 
         userName={profile?.full_name || 'Người dùng'} 
         avatarUrl={profile?.avatar_url || undefined}
-        badgeColor="bg-sky-500" 
+        badgeColor="bg-sky-500"
+        unreadNotificationCount={unreadNotificationCount}
       />
 
       <main className="flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 py-4 sm:py-4">
-          {/* Wallet Card Carousel */}
-          <WalletCarousel onWalletChange={handleWalletChange} onAddWallet={handleAddWallet} />
+          {/* Tài sản ròng - Tổng quan tài chính */}
+          <NetAssetsCard />
 
-        {/* Transaction Chart - Sử dụng ví mặc định */}
-        <TransactionChart walletId={defaultWalletId || undefined} />
+          {/* Wallet Card Carousel - Đã ẩn */}
+          {/* <WalletCarousel onWalletChange={handleWalletChange} onAddWallet={handleAddWallet} /> */}
+
+        {/* Income Expense Overview - Sử dụng ví mặc định */}
+        <IncomeExpenseOverview walletId={defaultWalletId || undefined} />
 
         {/* Date Navigation and Plan Section */}
         <section className="rounded-3xl bg-gradient-to-br from-amber-50 via-white to-white p-5 shadow-lg ring-1 ring-amber-100">
@@ -879,7 +840,7 @@ export const DashboardPage = () => {
                   type="button"
                   onClick={() => {
                     if (action.id === 'add-transaction') {
-                      setIsTransactionModalOpen(true)
+                      navigate('/add-transaction')
                     } else if (action.id === 'settings') {
                       setIsSettingsOpen(true)
                     } else if (action.id === 'categories') {
@@ -925,7 +886,10 @@ export const DashboardPage = () => {
             {isLoadingTransactions ? (
               <TransactionListSkeleton count={5} />
             ) : transactions.length === 0 ? (
-              <div className="flex items-center justify-center rounded-3xl bg-white p-8 shadow-[0_20px_55px_rgba(15,40,80,0.1)] ring-1 ring-slate-100">
+              <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-8 shadow-[0_20px_55px_rgba(15,40,80,0.1)] ring-1 ring-slate-100">
+                <div className="mb-3 rounded-full bg-slate-100 p-3">
+                  <FaReceipt className="h-6 w-6 text-slate-400" />
+                </div>
                 <p className="text-sm text-slate-500">Chưa có giao dịch nào</p>
               </div>
             ) : (
@@ -1033,19 +997,6 @@ export const DashboardPage = () => {
 
       <FooterNav onAddClick={handleAddClick} />
 
-      <TransactionModal
-        isOpen={isTransactionModalOpen}
-        onClose={() => {
-          setIsTransactionModalOpen(false)
-          setSelectedTransaction(null)
-          setIsActionModalOpen(false)
-        }}
-        onSuccess={() => {
-          handleTransactionSuccess()
-          setSelectedTransaction(null)
-        }}
-        transaction={selectedTransaction}
-      />
 
       <TransactionActionModal
         isOpen={isActionModalOpen}
@@ -1095,34 +1046,6 @@ export const DashboardPage = () => {
         onUpdate={handleUpdateQuickActions}
       />
 
-      {/* Modal yêu cầu chọn ví mặc định */}
-      {showDefaultWalletModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
-            <h2 className="mb-4 text-xl font-bold text-slate-900">
-              Chọn ví mặc định
-            </h2>
-            <p className="mb-6 text-sm text-slate-600">
-              Vui lòng chọn một ví làm ví mặc định để tính toán luồng tiền Thu và Chi. Bạn có thể thay đổi ví mặc định bất cứ lúc nào.
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={handleConfirmDefaultWallet}
-                disabled={!selectedWallet}
-                className="flex-1 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Xác nhận
-              </button>
-              <button
-                onClick={() => navigate('/wallets')}
-                className="flex-1 rounded-xl border-2 border-slate-200 bg-white px-6 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
-              >
-                Thêm ví mới
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Welcome Modal */}
       <WelcomeModal

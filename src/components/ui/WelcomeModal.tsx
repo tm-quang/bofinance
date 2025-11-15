@@ -38,8 +38,8 @@ const APP_FEATURES = [
   },
   {
     icon: FaFolder,
-    title: 'Danh mục',
-    description: 'Tổ chức Thu/Chi theo danh mục',
+    title: 'Hạng mục',
+    description: 'Tổ chức Thu/Chi theo hạng mục',
     color: 'text-amber-600',
     bgColor: 'bg-amber-50',
   },

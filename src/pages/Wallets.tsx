@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
-import { FaPlus, FaEdit, FaTrash, FaWallet, FaCheck, FaStar } from 'react-icons/fa'
+import { useNavigate } from 'react-router-dom'
+import { FaPlus, FaEdit, FaTrash, FaWallet, FaCalculator } from 'react-icons/fa'
 import { useDataPreloader } from '../hooks/useDataPreloader'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
-import { TransactionModal } from '../components/transactions/TransactionModal'
 import { NumberPadModal } from '../components/ui/NumberPadModal'
 import { WalletListSkeleton } from '../components/skeletons'
 import {
@@ -12,8 +12,8 @@ import {
   createWallet,
   updateWallet,
   deleteWallet,
-  setDefaultWallet,
-  getDefaultWallet,
+  getTotalBalanceWalletIds,
+  setTotalBalanceWalletIds,
   type WalletRecord,
   type WalletType,
 } from '../lib/walletService'
@@ -49,80 +49,57 @@ const WalletLogo = ({ className = 'h-32 w-32' }: { className?: string }) => (
 
 const WALLET_TYPES: WalletType[] = ['Tiền mặt', 'Ngân hàng', 'Tiết kiệm', 'Tín dụng', 'Đầu tư', 'Khác']
 
-const DEFAULT_WALLET_KEY = 'bofin_default_wallet_id'
-
 // Màu sắc theo loại ví - Nâng cấp với gradient đẹp hơn, hiện đại hơn, màu đậm hơn
-const getWalletTypeColors = (type: WalletType, isDefault: boolean) => {
+const getWalletTypeColors = (type: WalletType) => {
   const colors = {
     'Tiền mặt': {
       bg: 'from-slate-900 via-slate-800 to-slate-950', // Gradient 3 màu đậm hơn nữa
-      border: isDefault ? 'border-emerald-300' : 'border-slate-400/50',
+      border: 'border-slate-400/50',
       text: 'text-white',
       badge: 'bg-emerald-500',
-      shadow: isDefault ? 'shadow-[0_8px_30px_rgba(16,185,129,0.5)]' : 'shadow-xl shadow-black/20',
-      glow: isDefault ? 'shadow-[0_0_40px_rgba(16,185,129,0.3)]' : '',
+      shadow: 'shadow-xl shadow-black/20',
     },
     'Ngân hàng': {
       bg: 'from-blue-700 via-blue-800 to-indigo-900', // Gradient xanh dương đậm hơn nữa
-      border: isDefault ? 'border-blue-300' : 'border-blue-400/50',
+      border: 'border-blue-400/50',
       text: 'text-white',
       badge: 'bg-blue-500',
-      shadow: isDefault ? 'shadow-[0_8px_30px_rgba(59,130,246,0.5)]' : 'shadow-xl shadow-black/20',
-      glow: isDefault ? 'shadow-[0_0_40px_rgba(59,130,246,0.3)]' : '',
+      shadow: 'shadow-xl shadow-black/20',
     },
     'Tiết kiệm': {
       bg: 'from-emerald-700 via-teal-800 to-cyan-900', // Gradient xanh lá đậm hơn nữa
-      border: isDefault ? 'border-emerald-300' : 'border-emerald-400/50',
+      border: 'border-emerald-400/50',
       text: 'text-white',
       badge: 'bg-emerald-500',
-      shadow: isDefault ? 'shadow-[0_8px_30px_rgba(16,185,129,0.5)]' : 'shadow-xl shadow-black/20',
-      glow: isDefault ? 'shadow-[0_0_40px_rgba(16,185,129,0.3)]' : '',
+      shadow: 'shadow-xl shadow-black/20',
     },
     'Tín dụng': {
       bg: 'from-purple-700 via-violet-800 to-fuchsia-900', // Gradient tím đậm hơn nữa
-      border: isDefault ? 'border-purple-300' : 'border-purple-400/50',
+      border: 'border-purple-400/50',
       text: 'text-white',
       badge: 'bg-purple-500',
-      shadow: isDefault ? 'shadow-[0_8px_30px_rgba(168,85,247,0.5)]' : 'shadow-xl shadow-black/20',
-      glow: isDefault ? 'shadow-[0_0_40px_rgba(168,85,247,0.3)]' : '',
+      shadow: 'shadow-xl shadow-black/20',
     },
     'Đầu tư': {
       bg: 'from-amber-700 via-orange-800 to-rose-900', // Gradient vàng cam đậm hơn nữa
-      border: isDefault ? 'border-amber-300' : 'border-amber-400/50',
+      border: 'border-amber-400/50',
       text: 'text-white',
       badge: 'bg-amber-500',
-      shadow: isDefault ? 'shadow-[0_8px_30px_rgba(245,158,11,0.5)]' : 'shadow-xl shadow-black/20',
-      glow: isDefault ? 'shadow-[0_0_40px_rgba(245,158,11,0.3)]' : '',
+      shadow: 'shadow-xl shadow-black/20',
     },
     'Khác': {
       bg: 'from-slate-800 via-gray-900 to-slate-950', // Gradient xám đậm hơn nữa
-      border: isDefault ? 'border-slate-300' : 'border-slate-400/50',
+      border: 'border-slate-400/50',
       text: 'text-white',
       badge: 'bg-slate-500',
-      shadow: isDefault ? 'shadow-[0_8px_30px_rgba(100,116,139,0.5)]' : 'shadow-xl shadow-black/20',
-      glow: isDefault ? 'shadow-[0_0_40px_rgba(100,116,139,0.3)]' : '',
+      shadow: 'shadow-xl shadow-black/20',
     },
   }
   return colors[type] || colors['Khác']
 }
 
-const getDefaultWalletId = (): string | null => {
-  try {
-    return localStorage.getItem(DEFAULT_WALLET_KEY)
-  } catch {
-    return null
-  }
-}
-
-const saveDefaultWalletId = (walletId: string): void => {
-  try {
-    localStorage.setItem(DEFAULT_WALLET_KEY, walletId)
-  } catch (error) {
-    console.error('Error saving default wallet:', error)
-  }
-}
-
 export const WalletsPage = () => {
+  const navigate = useNavigate()
   const { success, error: showError } = useNotification()
   const { showDialog } = useDialog()
   useDataPreloader() // Preload data khi vào trang
@@ -131,10 +108,8 @@ export const WalletsPage = () => {
   const [isLoadingInactive, setIsLoadingInactive] = useState(false)
   const [isFormOpen, setIsFormOpen] = useState(false)
   const [editingWallet, setEditingWallet] = useState<WalletRecord | null>(null)
-  const [defaultWalletId, setDefaultWalletId] = useState<string | null>(null)
-  const [showCheckAnimation, setShowCheckAnimation] = useState<string | null>(null)
+  const [totalBalanceWalletIds, setTotalBalanceWalletIdsState] = useState<string[]>([])
   const [showHiddenWallets, setShowHiddenWallets] = useState(false)
-  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
   const [isNumberPadOpen, setIsNumberPadOpen] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
@@ -155,25 +130,17 @@ export const WalletsPage = () => {
     try {
       // Tối ưu: Load song song các operations không phụ thuộc
       // Load active wallets trước để hiển thị nhanh, sau đó load inactive
-      const [activeWallets, defaultWalletIdResult] = await Promise.all([
+      const [activeWallets, totalBalanceIds] = await Promise.all([
         fetchWallets(false), // Load active wallets trước (nhanh hơn)
-        getDefaultWallet().catch(() => null), // Load default wallet song song
+        getTotalBalanceWalletIds().catch(() => []), // Load total balance wallet ids
       ])
       
       // Hiển thị active wallets ngay lập tức (progressive loading)
       setWallets(activeWallets)
       setIsLoading(false) // Cho phép hiển thị ngay
       
-      // Xử lý default wallet
-      if (defaultWalletIdResult) {
-        setDefaultWalletId(defaultWalletIdResult)
-        saveDefaultWalletId(defaultWalletIdResult)
-      } else {
-        const localDefaultWalletId = getDefaultWalletId()
-        if (localDefaultWalletId) {
-        setDefaultWalletId(localDefaultWalletId)
-      }
-      }
+      // Xử lý total balance wallet ids
+      setTotalBalanceWalletIdsState(totalBalanceIds)
       
       // Load inactive wallets trong background (không block UI)
       setIsLoadingInactive(true)
@@ -385,43 +352,31 @@ export const WalletsPage = () => {
     }
   }
 
-  const handleSetDefault = async (wallet: WalletRecord) => {
-    if (!wallet.is_active) {
-      showError('Vui lòng kích hoạt ví trước khi đặt làm mặc định')
-      return
-    }
-
-    // Nếu đã là ví mặc định thì không cần xác nhận lại
-    if (defaultWalletId === wallet.id) {
-      return
-    }
-
-    // Hiển thị thông báo xác nhận
-    const confirmed = await showDialog({
-      message: `Bạn có muốn đặt "${wallet.name}" làm ví mặc định? Ví này sẽ được sử dụng để tính toán thu nhập và chi tiêu.`,
-      type: 'confirm',
-      confirmText: 'Xác nhận',
-      cancelText: 'Hủy',
-    })
-
-    if (confirmed) {
-      try {
-        await setDefaultWallet(wallet.id)
-        setDefaultWalletId(wallet.id)
-        saveDefaultWalletId(wallet.id)
-        success(`Đã đặt "${wallet.name}" làm ví mặc định`)
-      } catch (error) {
-        console.error('Error setting default wallet:', error)
-        // Fallback: lưu local để người dùng vẫn có thể sử dụng
-        setDefaultWalletId(wallet.id)
-        saveDefaultWalletId(wallet.id)
-        success(`Đã đặt "${wallet.name}" làm ví mặc định trên thiết bị này`)
+  const handleToggleTotalBalance = async (wallet: WalletRecord) => {
+    try {
+      const isSelected = totalBalanceWalletIds.includes(wallet.id)
+      let newSelectedIds: string[]
+      
+      if (isSelected) {
+        // Bỏ chọn
+        newSelectedIds = totalBalanceWalletIds.filter((id) => id !== wallet.id)
+      } else {
+        // Thêm vào danh sách
+        newSelectedIds = [...totalBalanceWalletIds, wallet.id]
       }
-
-      setShowCheckAnimation(wallet.id)
-      setTimeout(() => {
-        setShowCheckAnimation(null)
-      }, 2000)
+      
+      await setTotalBalanceWalletIds(newSelectedIds)
+      setTotalBalanceWalletIdsState(newSelectedIds)
+      
+      if (isSelected) {
+        success(`Đã bỏ "${wallet.name}" khỏi tổng số dư`)
+      } else {
+        success(`Đã thêm "${wallet.name}" vào tổng số dư`)
+      }
+    } catch (error) {
+      console.error('Error toggling total balance wallet:', error)
+      const message = error instanceof Error ? error.message : 'Không thể cập nhật cài đặt'
+      showError(message)
     }
   }
 
@@ -457,32 +412,14 @@ export const WalletsPage = () => {
                 return activeWallets.length > 0 ? (
                   <div className="space-y-4">
                     {activeWallets.map((wallet) => {
-                const isDefault = defaultWalletId === wallet.id
-                const colors = getWalletTypeColors(wallet.type, isDefault)
+                const colors = getWalletTypeColors(wallet.type)
                 const isNegative = wallet.balance < 0
                 
                 return (
                   <div key={wallet.id} className="relative">
                     <div
-                      className={`relative h-56 w-full overflow-hidden rounded-3xl bg-gradient-to-br ${colors.bg} p-5 ring-2 transition-all duration-300 ${
-                        isDefault 
-                          ? `${colors.border} ${colors.shadow} ${colors.glow} ring-4` 
-                          : `${colors.border} ${colors.shadow} ring-1`
-                      } ${!wallet.is_active ? 'opacity-60' : ''}`}
+                      className={`relative h-56 w-full overflow-hidden rounded-3xl bg-gradient-to-br ${colors.bg} p-5 ring-2 ${colors.border} ${colors.shadow} ring-1 transition-all duration-300 ${!wallet.is_active ? 'opacity-60' : ''}`}
                     >
-                      {/* Animation check icon ở giữa thẻ */}
-                      {showCheckAnimation === wallet.id && (
-                        <div className="absolute inset-0 z-50 flex items-center justify-center">
-                          <div 
-                            className="flex h-20 w-20 items-center justify-center rounded-full bg-white/95 shadow-2xl"
-                            style={{
-                              animation: 'scaleIn 0.3s ease-out, scaleOut 0.3s ease-out 1.7s'
-                            }}
-                          >
-                            <FaCheck className="h-10 w-10 text-emerald-500" />
-                          </div>
-                        </div>
-                      )}
 
                       {/* Decorative patterns - Kiểu ATM card hiện đại */}
                       <div className="absolute inset-0 overflow-hidden rounded-3xl">
@@ -592,31 +529,24 @@ export const WalletsPage = () => {
                           {wallet.is_active ? 'Ẩn ví' : 'Hiện ví'}
                         </button>
                         <div className="flex items-center gap-3">
-                          {/* Icon chọn ví mặc định */}
+                          {/* Icon chọn ví vào tổng số dư */}
                           {wallet.is_active && (
                             <button
                               onClick={(e) => {
                                 e.stopPropagation()
-                                handleSetDefault(wallet)
+                                handleToggleTotalBalance(wallet)
                               }}
                               className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                                isDefault
-                                  ? 'bg-amber-400/90 text-white shadow-lg hover:bg-amber-400'
+                                totalBalanceWalletIds.includes(wallet.id)
+                                  ? 'bg-sky-400/90 text-white shadow-lg hover:bg-sky-400'
                                   : 'bg-white/20 text-white/80 hover:bg-white/30 hover:text-white backdrop-blur-sm'
                               }`}
-                              title={isDefault ? 'Ví mặc định' : 'Đặt làm ví mặc định'}
+                              title={totalBalanceWalletIds.includes(wallet.id) ? 'Đã chọn vào tổng số dư' : 'Chọn vào tổng số dư'}
                             >
-                              {isDefault ? (
-                                <>
-                                  <FaStar className="h-4 w-4" />
-                                  <span>Ví mặc định</span>
-                                </>
-                              ) : (
-                                <>
-                                  <FaStar className="h-4 w-4" />
-                                  <span>Đặt làm ví mặc định</span>
-                                </>
-                              )}
+                              <FaCalculator className="h-4 w-4" />
+                              <span className="hidden sm:inline">
+                                {totalBalanceWalletIds.includes(wallet.id) ? 'Đã chọn' : 'Chọn'}
+                              </span>
                             </button>
                           )}
                           <span className={`text-xs font-medium ${colors.text} opacity-70`}>{wallet.currency}</span>
@@ -653,7 +583,7 @@ export const WalletsPage = () => {
                     {showHiddenWallets && (
                       <div className="space-y-4">
                         {hiddenWallets.map((wallet) => {
-                          const colors = getWalletTypeColors(wallet.type, false)
+                          const colors = getWalletTypeColors(wallet.type)
                           const isNegative = wallet.balance < 0
                           
                           return (
@@ -779,16 +709,7 @@ export const WalletsPage = () => {
         </div>
       </main>
 
-      <FooterNav onAddClick={() => setIsTransactionModalOpen(true)} />
-
-      <TransactionModal
-        isOpen={isTransactionModalOpen}
-        onClose={() => setIsTransactionModalOpen(false)}
-        onSuccess={() => {
-          // Reload wallets to reflect transaction changes
-          loadWallets()
-        }}
-      />
+      <FooterNav onAddClick={() => navigate('/add-transaction')} />
 
       {/* Form Modal */}
       {isFormOpen && (

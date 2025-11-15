@@ -21,16 +21,17 @@ import {
   FaWallet,
   FaDollarSign,
   FaImage,
+  FaFolder,
 } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
-import { TransactionModal } from '../components/transactions/TransactionModal'
 import { AccountInfoModal } from '../components/settings/AccountInfoModal'
 import { SecurityModal } from '../components/settings/SecurityModal'
 import { SupportModal } from '../components/settings/SupportModal'
 import { UpgradeModal } from '../components/settings/UpgradeModal'
 import { IconManagementModal } from '../components/settings/IconManagementModal'
+import { DefaultCategoriesManagementModal } from '../components/settings/DefaultCategoriesManagementModal'
 import { getCurrentProfile, type ProfileRecord } from '../lib/profileService'
 import { useDialog } from '../contexts/dialogContext.helpers'
 import { getSupabaseClient } from '../lib/supabaseClient'
@@ -155,8 +156,8 @@ const SettingsPage = () => {
   const [supportModalType, setSupportModalType] = useState<'feedback' | 'bug'>('feedback')
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false)
   const [isIconManagementOpen, setIsIconManagementOpen] = useState(false)
+  const [isDefaultCategoriesManagementOpen, setIsDefaultCategoriesManagementOpen] = useState(false)
   const [darkMode, setDarkMode] = useState(false)
-  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
 
   const [notificationToggles, setNotificationToggles] = useState<Record<string, boolean>>({
     push: true,
@@ -541,7 +542,23 @@ const SettingsPage = () => {
                 </span>
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Quản lý Icons</p>
-                  <p className="text-xs text-slate-500">Thêm, sửa, xóa icons cho danh mục</p>
+                  <p className="text-xs text-slate-500">Thêm, sửa, xóa icons cho hạng mục</p>
+                </div>
+              </div>
+              <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+            </button>
+            <button
+              type="button"
+              onClick={() => setIsDefaultCategoriesManagementOpen(true)}
+              className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
+                  <FaFolder className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Quản lý Hạng mục Mặc định</p>
+                  <p className="text-xs text-slate-500">Chỉnh sửa danh sách hạng mục Thu - Chi mặc định</p>
                 </div>
               </div>
               <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
@@ -609,16 +626,7 @@ const SettingsPage = () => {
         </div>
       </main>
 
-      <FooterNav onAddClick={() => setIsTransactionModalOpen(true)} />
-
-      {/* Modals */}
-      <TransactionModal
-        isOpen={isTransactionModalOpen}
-        onClose={() => setIsTransactionModalOpen(false)}
-        onSuccess={() => {
-          // Transaction created successfully
-        }}
-      />
+      <FooterNav onAddClick={() => navigate('/add-transaction')} />
       <AccountInfoModal
         isOpen={isAccountModalOpen}
         onClose={() => setIsAccountModalOpen(false)}
@@ -666,6 +674,11 @@ const SettingsPage = () => {
       <IconManagementModal
         isOpen={isIconManagementOpen}
         onClose={() => setIsIconManagementOpen(false)}
+      />
+
+      <DefaultCategoriesManagementModal
+        isOpen={isDefaultCategoriesManagementOpen}
+        onClose={() => setIsDefaultCategoriesManagementOpen(false)}
       />
     </div>
   )
