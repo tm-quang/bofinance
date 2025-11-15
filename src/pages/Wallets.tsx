@@ -4,6 +4,8 @@ import { useDataPreloader } from '../hooks/useDataPreloader'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
+import { TransactionModal } from '../components/transactions/TransactionModal'
+import { NumberPadModal } from '../components/ui/NumberPadModal'
 import { WalletListSkeleton } from '../components/skeletons'
 import {
   fetchWallets,
@@ -132,6 +134,8 @@ export const WalletsPage = () => {
   const [defaultWalletId, setDefaultWalletId] = useState<string | null>(null)
   const [showCheckAnimation, setShowCheckAnimation] = useState<string | null>(null)
   const [showHiddenWallets, setShowHiddenWallets] = useState(false)
+  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
+  const [isNumberPadOpen, setIsNumberPadOpen] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     type: 'Tiền mặt' as WalletType,
@@ -219,7 +223,18 @@ export const WalletsPage = () => {
   const handleCloseForm = () => {
     setIsFormOpen(false)
     setEditingWallet(null)
+    setIsNumberPadOpen(false)
   }
+
+  // Lock body scroll when form modal is open
+  useEffect(() => {
+    if (isFormOpen) {
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = ''
+      }
+    }
+  }, [isFormOpen])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -764,12 +779,21 @@ export const WalletsPage = () => {
         </div>
       </main>
 
-      <FooterNav />
+      <FooterNav onAddClick={() => setIsTransactionModalOpen(true)} />
+
+      <TransactionModal
+        isOpen={isTransactionModalOpen}
+        onClose={() => setIsTransactionModalOpen(false)}
+        onSuccess={() => {
+          // Reload wallets to reflect transaction changes
+          loadWallets()
+        }}
+      />
 
       {/* Form Modal */}
       {isFormOpen && (
-        <div className="fixed inset-0 z-[9999] flex items-end backdrop-blur-md bg-slate-950/50">
-          <div className="flex w-full max-h-[90vh] flex-col rounded-t-3xl bg-white shadow-2xl overflow-hidden">
+        <div className="fixed inset-0 z-50 flex items-end backdrop-blur-sm bg-slate-950/50 animate-in fade-in duration-200">
+          <div className="flex w-full max-w-md mx-auto max-h-[90vh] flex-col rounded-t-3xl bg-white shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 sm:slide-in-from-bottom-0">
             <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-6 py-4 rounded-t-3xl">
               <h2 className="text-xl font-bold text-slate-900">
                 {editingWallet ? 'Chỉnh sửa ví' : 'Thêm ví mới'}
@@ -827,9 +851,11 @@ export const WalletsPage = () => {
                         const formatted = formatVNDInput(e.target.value)
                         setFormData({ ...formData, balance: formatted })
                       }}
-                      className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 pr-12 text-slate-900 placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+                      onFocus={() => setIsNumberPadOpen(true)}
+                      className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 pr-12 text-slate-900 placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 cursor-pointer"
                       placeholder="Nhập số dư ban đầu (ví dụ: 1.000.000)"
                       required
+                      readOnly
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 font-semibold">
                       ₫
@@ -869,6 +895,15 @@ export const WalletsPage = () => {
           </div>
         </div>
       )}
+
+      {/* Number Pad Modal */}
+      <NumberPadModal
+        isOpen={isNumberPadOpen && isFormOpen}
+        onClose={() => setIsNumberPadOpen(false)}
+        value={formData.balance}
+        onChange={(value) => setFormData({ ...formData, balance: value })}
+        onConfirm={() => setIsNumberPadOpen(false)}
+      />
     </div>
   )
 }

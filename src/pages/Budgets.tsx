@@ -5,6 +5,7 @@ import HeaderBar from '../components/layout/HeaderBar'
 import { BudgetCard } from '../components/budgets/BudgetCard'
 import { BudgetModal } from '../components/budgets/BudgetModal'
 import { BudgetListSkeleton } from '../components/budgets/BudgetSkeleton'
+import { TransactionModal } from '../components/transactions/TransactionModal'
 import {
   fetchBudgets,
   getBudgetWithSpending,
@@ -17,6 +18,7 @@ import { fetchWallets, type WalletRecord } from '../lib/walletService'
 import { useNotification } from '../contexts/notificationContext.helpers'
 import { useDialog } from '../contexts/dialogContext.helpers'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
+import { getIconNode } from '../utils/iconLoader'
 
 export const BudgetsPage = () => {
   const { success, error: showError } = useNotification()
@@ -24,9 +26,11 @@ export const BudgetsPage = () => {
   const [budgets, setBudgets] = useState<BudgetWithSpending[]>([])
   const [categories, setCategories] = useState<CategoryRecord[]>([])
   const [wallets, setWallets] = useState<WalletRecord[]>([])
+  const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingBudget, setEditingBudget] = useState<BudgetRecord | null>(null)
+  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
 
   useEffect(() => {
     loadData()
@@ -44,6 +48,35 @@ export const BudgetsPage = () => {
       const budgetsWithSpending = await Promise.all(
         budgetsData.map((b) => getBudgetWithSpending(b.id))
       )
+
+      // Load icons for all categories
+      const iconsMap: Record<string, React.ReactNode> = {}
+      await Promise.all(
+        categoriesData.map(async (category) => {
+          try {
+            const iconNode = await getIconNode(category.icon_id)
+            if (iconNode) {
+              iconsMap[category.id] = <span className="h-5 w-5">{iconNode}</span>
+            } else {
+              // Fallback to hardcoded icon
+              const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
+              if (hardcodedIcon?.icon) {
+                const IconComponent = hardcodedIcon.icon
+                iconsMap[category.id] = <IconComponent className="h-5 w-5" />
+              }
+            }
+          } catch (error) {
+            console.error('Error loading icon for category:', category.id, error)
+            // Fallback to hardcoded icon
+            const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
+            if (hardcodedIcon?.icon) {
+              const IconComponent = hardcodedIcon.icon
+              iconsMap[category.id] = <IconComponent className="h-5 w-5" />
+            }
+          }
+        })
+      )
+      setCategoryIcons(iconsMap)
 
       // Sort by usage percentage (highest first) to show critical budgets first
       budgetsWithSpending.sort((a, b) => b.usage_percentage - a.usage_percentage)
@@ -141,9 +174,7 @@ export const BudgetsPage = () => {
                   : null
 
                 // Get icon component
-                const iconData = category ? CATEGORY_ICON_MAP[category.icon_id] : null
-                const IconComponent = iconData?.icon
-                const categoryIcon = IconComponent ? <IconComponent /> : '💰'
+                const categoryIcon = category && categoryIcons[category.id] ? categoryIcons[category.id] : '💰'
 
                 return (
                   <BudgetCard
@@ -162,7 +193,7 @@ export const BudgetsPage = () => {
         </div>
       </main>
 
-      <FooterNav />
+      <FooterNav onAddClick={() => setIsTransactionModalOpen(true)} />
 
       {isModalOpen && (
         <BudgetModal
@@ -172,6 +203,15 @@ export const BudgetsPage = () => {
           budgetId={editingBudget?.id || null}
         />
       )}
+
+      <TransactionModal
+        isOpen={isTransactionModalOpen}
+        onClose={() => setIsTransactionModalOpen(false)}
+        onSuccess={() => {
+          // Reload budgets to reflect transaction changes
+          loadData()
+        }}
+      />
     </div>
   )
 }

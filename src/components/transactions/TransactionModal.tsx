@@ -3,7 +3,9 @@ import { FaCalendar, FaTimes, FaImage, FaWallet, FaArrowDown, FaArrowUp } from '
 
 import { CATEGORY_ICON_MAP } from '../../constants/categoryIcons'
 import { CustomSelect } from '../ui/CustomSelect'
+import { getIconNode } from '../../utils/iconLoader'
 import { TagSuggestions } from '../ui/TagSuggestions'
+import { NumberPadModal } from '../ui/NumberPadModal'
 import { fetchCategories, type CategoryRecord, type CategoryType } from '../../lib/categoryService'
 import { createTransaction, updateTransaction, type TransactionType, type TransactionRecord } from '../../lib/transactionService'
 import { fetchWallets, getDefaultWallet, type WalletRecord } from '../../lib/walletService'
@@ -61,6 +63,8 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
   const [uploadedImageUrls, setUploadedImageUrls] = useState<string[]>([])
   const [isUploadingImages, setIsUploadingImages] = useState(false)
+  const [isNumberPadOpen, setIsNumberPadOpen] = useState(false)
+  const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Load wallets và categories khi modal mở
@@ -80,6 +84,35 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
         setWallets(walletsData)
         setCategories(categoriesData)
         setDefaultWalletId(defaultId || null)
+
+        // Load icons for all categories
+        const iconsMap: Record<string, React.ReactNode> = {}
+        await Promise.all(
+          categoriesData.map(async (category) => {
+            try {
+              const iconNode = await getIconNode(category.icon_id)
+              if (iconNode) {
+                iconsMap[category.id] = iconNode
+              } else {
+                // Fallback to hardcoded icon
+                const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
+                if (hardcodedIcon?.icon) {
+                  const IconComponent = hardcodedIcon.icon
+                  iconsMap[category.id] = <IconComponent className="h-4 w-4" />
+                }
+              }
+            } catch (error) {
+              console.error('Error loading icon for category:', category.id, error)
+              // Fallback to hardcoded icon
+              const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
+              if (hardcodedIcon?.icon) {
+                const IconComponent = hardcodedIcon.icon
+                iconsMap[category.id] = <IconComponent className="h-4 w-4" />
+              }
+            }
+          })
+        )
+        setCategoryIcons(iconsMap)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Không thể tải dữ liệu')
       } finally {
@@ -289,11 +322,21 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
     setUploadedImageUrls((prev) => prev.filter((_, i) => i !== index))
   }
 
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = ''
+      }
+    }
+  }, [isOpen])
+
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end backdrop-blur-md bg-slate-950/50">
-      <div className="flex w-full max-h-[85vh] flex-col rounded-t-3xl bg-white shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end backdrop-blur-sm bg-slate-950/50 animate-in fade-in duration-200">
+      <div className="flex w-full max-w-md mx-auto max-h-[90vh] flex-col rounded-t-3xl bg-white shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 sm:slide-in-from-bottom-0">
         {/* Header - Fixed */}
         <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50 px-4 py-4 sm:px-6 sm:py-5 rounded-t-3xl">
           <div>
@@ -389,15 +432,11 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
                 Chọn danh mục <span className="text-rose-500">*</span>
               </label>
               <CustomSelect
-                options={filteredCategories.map((category) => {
-                  const iconData = CATEGORY_ICON_MAP[category.icon_id]
-                  const IconComponent = iconData?.icon
-                  return {
-                    value: category.id,
-                    label: category.name,
-                    icon: IconComponent ? <IconComponent className="h-4 w-4" /> : undefined,
-                  }
-                })}
+                options={filteredCategories.map((category) => ({
+                  value: category.id,
+                  label: category.name,
+                  icon: categoryIcons[category.id] || undefined,
+                }))}
                 value={formState.category_id}
                 onChange={(value) => setFormState((prev) => ({ ...prev, category_id: value }))}
                 placeholder="Chọn danh mục"
@@ -422,9 +461,11 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
                   id="amount"
                   value={formState.amount}
                   onChange={handleAmountChange}
+                  onFocus={() => setIsNumberPadOpen(true)}
                   placeholder="Nhập số tiền"
-                  className="h-full w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-base font-meium text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4 sm:text-lg"
+                  className="h-full w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-base font-meium text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4 sm:text-lg cursor-pointer"
                   required
+                  readOnly
                 />
                 <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-500">
                   ₫
@@ -627,6 +668,15 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
           </div>
         </div>
       </div>
+
+      {/* Number Pad Modal */}
+      <NumberPadModal
+        isOpen={isNumberPadOpen}
+        onClose={() => setIsNumberPadOpen(false)}
+        value={formState.amount}
+        onChange={(value) => setFormState((prev) => ({ ...prev, amount: value }))}
+        onConfirm={() => setIsNumberPadOpen(false)}
+      />
     </div>
   )
 }

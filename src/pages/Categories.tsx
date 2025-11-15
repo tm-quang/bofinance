@@ -112,6 +112,16 @@ export const CategoriesPage = () => {
         setIsFormOpen(true)
     }, [activeTab])
 
+    // Lock body scroll when form modal is open
+    useEffect(() => {
+        if (isFormOpen || isIconPickerOpen) {
+            document.body.style.overflow = 'hidden'
+            return () => {
+                document.body.style.overflow = ''
+            }
+        }
+    }, [isFormOpen, isIconPickerOpen])
+
     useEffect(() => {
         if (searchParams.get('mode') === 'create') {
             startTransition(() => {
@@ -344,7 +354,7 @@ export const CategoriesPage = () => {
         <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
             <HeaderBar variant="page" title="Danh mục" />
             <main className="flex-1 overflow-y-auto overscroll-contain">
-                <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 py-4 sm:max-w-3xl sm:gap-4 sm:px-6 sm:py-5 md:max-w-5xl lg:max-w-6xl xl:max-w-7xl">
+                <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 py-4 sm:py-4">
                     {/* Summary Cards - Compact Design */}
                     <div className="grid grid-cols-3 gap-2.5 sm:gap-3">
                         <div className="rounded-2xl bg-white px-3 py-3 shadow-sm ring-1 ring-slate-100/50 sm:px-4 sm:py-3.5">
@@ -486,8 +496,8 @@ export const CategoriesPage = () => {
 
             {/* Create/Edit Form Modal */}
             {isFormOpen && (
-                <div className="fixed inset-0 z-50 flex items-end backdrop-blur-sm bg-slate-950/60">
-                    <div className="w-full max-h-[90vh] overflow-y-auto rounded-t-3xl bg-white shadow-2xl sm:max-w-lg sm:mx-auto sm:rounded-2xl sm:my-4">
+                <div className="fixed inset-0 z-50 flex items-end backdrop-blur-sm bg-slate-950/50 animate-in fade-in duration-200">
+                    <div className="w-full max-w-md mx-auto max-h-[90vh] overflow-y-auto rounded-t-3xl bg-white shadow-2xl animate-in slide-in-from-bottom duration-300 sm:slide-in-from-bottom-0">
                         {/* Header */}
                         <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-6 py-4 sm:px-8">
                             <div className="min-w-0 flex-1">
@@ -611,7 +621,7 @@ export const CategoriesPage = () => {
             {/* Icon Picker Modal */}
             {isIconPickerOpen && (
                 <div className="fixed inset-0 z-[60] flex items-end backdrop-blur-sm bg-slate-950/60">
-                    <div className="flex w-full max-h-[90vh] flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl sm:max-w-2xl sm:mx-auto sm:rounded-2xl sm:my-4">
+                    <div className="flex w-full max-w-md mx-auto max-h-[90vh] flex-col overflow-hidden rounded-t-3xl bg-white shadow-2xl animate-in slide-in-from-bottom duration-300 sm:slide-in-from-bottom-0">
                         {/* Header */}
                         <div className="sticky top-0 z-10 flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-6 py-4 sm:px-8">
                             <div className="min-w-0 flex-1">

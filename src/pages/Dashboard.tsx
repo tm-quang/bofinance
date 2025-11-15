@@ -14,11 +14,13 @@ import { WelcomeModal } from '../components/ui/WelcomeModal'
 import { WalletCarousel } from '../components/wallets/WalletCarousel'
 import { TransactionListSkeleton } from '../components/skeletons'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
+import { getIconNode } from '../utils/iconLoader'
 import { fetchCategories, type CategoryRecord } from '../lib/categoryService'
 import { fetchTransactions, deleteTransaction, type TransactionRecord } from '../lib/transactionService'
 import { fetchWallets, type WalletRecord } from '../lib/walletService'
 import { getDefaultWallet, setDefaultWallet } from '../lib/walletService'
 import { getCurrentProfile, type ProfileRecord } from '../lib/profileService'
+import { type ReminderRecord } from '../lib/reminderService'
 import { useNotification } from '../contexts/notificationContext.helpers'
 
 const formatCurrency = (value: number) =>
@@ -120,6 +122,8 @@ export const DashboardPage = () => {
   const [isDeleting, setIsDeleting] = useState(false)
   const [showWelcomeModal, setShowWelcomeModal] = useState(false)
   const [profile, setProfile] = useState<ProfileRecord | null>(null)
+  const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
+  const [todayReminders] = useState<ReminderRecord[]>([])
   
   // Long press handler refs
   const longPressTimerRef = useRef<number | null>(null)
@@ -346,6 +350,37 @@ export const DashboardPage = () => {
           fetchCategories(),
           fetchWallets(false), // Chỉ lấy ví active, không lấy ví đã ẩn
         ])
+        
+        // Load icons for all categories
+        const iconsMap: Record<string, React.ReactNode> = {}
+        await Promise.all(
+          categoriesData.map(async (category) => {
+            try {
+              const iconNode = await getIconNode(category.icon_id)
+              if (iconNode) {
+                // Clone the node and wrap it to apply className
+                iconsMap[category.id] = <span className="h-5 w-5">{iconNode}</span>
+              } else {
+                // Fallback to hardcoded icon
+                const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
+                if (hardcodedIcon?.icon) {
+                  const IconComponent = hardcodedIcon.icon
+                  iconsMap[category.id] = <IconComponent className="h-5 w-5" />
+                }
+              }
+            } catch (error) {
+              console.error('Error loading icon for category:', category.id, error)
+              // Fallback to hardcoded icon
+              const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
+              if (hardcodedIcon?.icon) {
+                const IconComponent = hardcodedIcon.icon
+                iconsMap[category.id] = <IconComponent className="h-5 w-5" />
+              }
+            }
+          })
+        )
+        setCategoryIcons(iconsMap)
+        
         // Sort by date: newest first (transaction_date desc, then created_at desc)
         const sortedTransactions = [...transactionsData].sort((a, b) => {
           const dateA = new Date(a.transaction_date).getTime()
@@ -484,12 +519,9 @@ export const DashboardPage = () => {
     const category = categories.find((cat) => cat.id === categoryId)
     if (!category) return { name: 'Khác', icon: null }
     
-    const iconData = CATEGORY_ICON_MAP[category.icon_id]
-    const IconComponent = iconData?.icon
-    
     return {
       name: category.name,
-      icon: IconComponent || null,
+      icon: categoryIcons[category.id] || null,
     }
   }
 
@@ -540,6 +572,69 @@ export const DashboardPage = () => {
         {/* Transaction Chart - Sử dụng ví mặc định */}
         <TransactionChart walletId={defaultWalletId || undefined} />
 
+        {/* Today's Reminders */}
+        {todayReminders.length > 0 && (
+          <section className="rounded-3xl bg-gradient-to-br from-amber-50 via-white to-white p-5 shadow-lg ring-1 ring-amber-100">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">
+                  Kế hoạch hôm nay
+                </h3>
+                <p className="mt-1 text-xs text-slate-500">
+                  {todayReminders.length} nhắc nhở trong ngày
+                </p>
+              </div>
+              <button
+                onClick={() => navigate('/reminders')}
+                className="text-xs font-semibold text-amber-600 transition hover:text-amber-700 hover:underline"
+              >
+                Xem tất cả
+              </button>
+            </div>
+            <div className="space-y-2">
+              {todayReminders.slice(0, 2).map((reminder) => {
+                const categoryInfo = getCategoryInfo(reminder.category_id || '')
+                const isIncome = reminder.type === 'Thu'
+                return (
+                  <div
+                    key={reminder.id}
+                    onClick={() => navigate('/reminders')}
+                    className={`rounded-2xl p-3 cursor-pointer transition hover:shadow-md ${
+                      isIncome
+                        ? 'bg-gradient-to-r from-emerald-50 to-emerald-100/50'
+                        : 'bg-gradient-to-r from-rose-50 to-rose-100/50'
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <div
+                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
+                          isIncome ? 'bg-emerald-500' : 'bg-rose-500'
+                        }`}
+                      >
+                        {categoryInfo.icon ? (
+                          <span className="text-white">{categoryInfo.icon}</span>
+                        ) : (
+                          <FaCalendar className="h-5 w-5 text-white" />
+                        )}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-slate-900 text-sm truncate">
+                          {reminder.title}
+                        </h4>
+                        {reminder.amount && (
+                          <p className="text-xs text-slate-600 mt-0.5">
+                            {formatCurrency(reminder.amount)}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+          </section>
+        )}
+
         <section className="rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-white p-5 shadow-lg ring-1 ring-slate-100">
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -574,6 +669,8 @@ export const DashboardPage = () => {
                       setIsSettingsOpen(true)
                     } else if (action.id === 'categories') {
                       navigate('/categories')
+                    } else if (action.id === 'reminder') {
+                      navigate('/reminders')
                     }
                     // Các chức năng khác sẽ được implement sau
                   }}
@@ -619,7 +716,7 @@ export const DashboardPage = () => {
             ) : (
               transactions.slice(0, 5).map((transaction) => {
                 const categoryInfo = getCategoryInfo(transaction.category_id)
-                const IconComponent = categoryInfo.icon
+                const categoryIcon = categoryInfo.icon
                 const isIncome = transaction.type === 'Thu'
                 
                 return (
@@ -645,8 +742,8 @@ export const DashboardPage = () => {
                           : 'bg-gradient-to-br from-rose-400 to-rose-600 text-white'
                       }`}
                     >
-                      {IconComponent ? (
-                        <IconComponent className="h-5 w-5" />
+                      {categoryIcon ? (
+                        categoryIcon
                       ) : (
                         <FaPlus className="h-5 w-5" />
                       )}

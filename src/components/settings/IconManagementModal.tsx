@@ -256,11 +256,21 @@ export const IconManagementModal = ({ isOpen, onClose }: IconManagementModalProp
     return true
   })
 
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = ''
+      }
+    }
+  }, [isOpen])
+
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center backdrop-blur-md bg-slate-950/50">
-      <div className="flex w-full max-w-6xl max-h-[90vh] sm:max-h-[85vh] flex-col rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl overflow-hidden m-0 sm:m-4 h-[95vh] sm:h-auto">
+    <div className="fixed inset-0 z-50 flex items-end backdrop-blur-sm bg-slate-950/50 animate-in fade-in duration-200">
+      <div className="flex w-full max-w-md mx-auto max-h-[90vh] flex-col rounded-t-3xl bg-white shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 sm:slide-in-from-bottom-0">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50 px-4 sm:px-6 py-4 sm:py-5">
           <div className="min-w-0 flex-1">

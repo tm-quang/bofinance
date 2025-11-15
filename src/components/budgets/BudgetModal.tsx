@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { FaTimes } from 'react-icons/fa'
 import { CustomSelect } from '../ui/CustomSelect'
+import { NumberPadModal } from '../ui/NumberPadModal'
 import { fetchCategories, type CategoryRecord } from '../../lib/categoryService'
 import { fetchWallets, type WalletRecord } from '../../lib/walletService'
 import {
@@ -14,6 +15,7 @@ import {
 import { useNotification } from '../../contexts/notificationContext.helpers'
 import { formatVNDInput, parseVNDInput } from '../../utils/currencyInput'
 import { CATEGORY_ICON_MAP } from '../../constants/categoryIcons'
+import { getIconNode } from '../../utils/iconLoader'
 
 type BudgetModalProps = {
   isOpen: boolean
@@ -59,9 +61,11 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
 
   const [categories, setCategories] = useState<CategoryRecord[]>([])
   const [wallets, setWallets] = useState<WalletRecord[]>([])
+  const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isNumberPadOpen, setIsNumberPadOpen] = useState(false)
 
   // Load data when modal opens
   useEffect(() => {
@@ -78,6 +82,40 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
 
         // Filter only expense categories
         const expenseCategories = categoriesData.filter(c => c.type === 'Chi tiêu')
+        
+        // Load icons for all categories
+        const iconsMap: Record<string, React.ReactNode> = {}
+        await Promise.all(
+          expenseCategories.map(async (category) => {
+            try {
+              const iconNode = await getIconNode(category.icon_id)
+              if (iconNode) {
+                iconsMap[category.id] = iconNode
+              } else {
+                // Fallback to hardcoded icon
+                const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
+                if (hardcodedIcon?.icon) {
+                  const IconComponent = hardcodedIcon.icon
+                  iconsMap[category.id] = <IconComponent className="h-4 w-4" />
+                } else {
+                  iconsMap[category.id] = '💰'
+                }
+              }
+            } catch (error) {
+              console.error('Error loading icon for category:', category.id, error)
+              // Fallback to hardcoded icon
+              const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
+              if (hardcodedIcon?.icon) {
+                const IconComponent = hardcodedIcon.icon
+                iconsMap[category.id] = <IconComponent className="h-4 w-4" />
+              } else {
+                iconsMap[category.id] = '💰'
+              }
+            }
+          })
+        )
+        setCategoryIcons(iconsMap)
+        
         setCategories(expenseCategories)
         setWallets(walletsData)
 
@@ -179,18 +217,24 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
     }
   }
 
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = ''
+      }
+    }
+  }, [isOpen])
+
   if (!isOpen) return null
 
   const expenseCategories = categories.filter(c => c.type === 'Chi tiêu')
-  const categoryOptions = expenseCategories.map(cat => {
-    const iconData = CATEGORY_ICON_MAP[cat.icon_id]
-    const IconComponent = iconData?.icon
-    return {
-      value: cat.id,
-      label: cat.name,
-      icon: IconComponent ? <IconComponent /> : '💰',
-    }
-  })
+  const categoryOptions = expenseCategories.map(cat => ({
+    value: cat.id,
+    label: cat.name,
+    icon: categoryIcons[cat.id] || '💰',
+  }))
 
   const walletOptions = [
     { value: '', label: 'Tất cả ví', icon: '💼' },
@@ -208,8 +252,8 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
   })
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end backdrop-blur-md bg-slate-950/50 sm:items-center sm:justify-center">
-      <div className="flex w-full max-h-[90vh] flex-col rounded-t-3xl bg-white shadow-2xl overflow-hidden sm:max-w-lg sm:rounded-3xl">
+    <div className="fixed inset-0 z-50 flex items-end backdrop-blur-sm bg-slate-950/50 animate-in fade-in duration-200">
+      <div className="flex w-full max-w-md mx-auto max-h-[90vh] flex-col rounded-t-3xl bg-white shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 sm:slide-in-from-bottom-0">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50 px-4 py-4 sm:px-6 sm:py-5 rounded-t-3xl">
           <div>
@@ -280,9 +324,11 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
                     const formatted = formatVNDInput(e.target.value)
                     setFormData((prev) => ({ ...prev, amount: formatted }))
                   }}
+                  onFocus={() => setIsNumberPadOpen(true)}
                   placeholder="Nhập số tiền"
-                  className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
+                  className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4 cursor-pointer"
                   required
+                  readOnly
                 />
               </div>
 
@@ -391,6 +437,15 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
           </div>
         </div>
       </div>
+
+      {/* Number Pad Modal */}
+      <NumberPadModal
+        isOpen={isNumberPadOpen}
+        onClose={() => setIsNumberPadOpen(false)}
+        value={formData.amount}
+        onChange={(value) => setFormData((prev) => ({ ...prev, amount: value }))}
+        onConfirm={() => setIsNumberPadOpen(false)}
+      />
     </div>
   )
 }

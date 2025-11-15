@@ -16,6 +16,7 @@ import { TransactionActionModal } from '../components/transactions/TransactionAc
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { TransactionListSkeleton } from '../components/skeletons'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
+import { getIconNode } from '../utils/iconLoader'
 import { fetchCategories, type CategoryRecord } from '../lib/categoryService'
 import { fetchTransactions, deleteTransaction, type TransactionRecord } from '../lib/transactionService'
 import { fetchWallets, type WalletRecord } from '../lib/walletService'
@@ -36,6 +37,7 @@ const TransactionsPage = () => {
   const [allTransactions, setAllTransactions] = useState<TransactionRecord[]>([])
   const [categories, setCategories] = useState<CategoryRecord[]>([])
   const [wallets, setWallets] = useState<WalletRecord[]>([])
+  const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState<'all' | 'Thu' | 'Chi'>('all')
@@ -63,6 +65,36 @@ const TransactionsPage = () => {
           fetchCategories(),
           fetchWallets(false), // Chỉ lấy ví active, không lấy ví đã ẩn
         ])
+        
+        // Load icons for all categories
+        const iconsMap: Record<string, React.ReactNode> = {}
+        await Promise.all(
+          categoriesData.map(async (category) => {
+            try {
+              const iconNode = await getIconNode(category.icon_id)
+              if (iconNode) {
+                iconsMap[category.id] = <span className="h-5 w-5">{iconNode}</span>
+              } else {
+                // Fallback to hardcoded icon
+                const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
+                if (hardcodedIcon?.icon) {
+                  const IconComponent = hardcodedIcon.icon
+                  iconsMap[category.id] = <IconComponent className="h-5 w-5" />
+                }
+              }
+            } catch (error) {
+              console.error('Error loading icon for category:', category.id, error)
+              // Fallback to hardcoded icon
+              const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
+              if (hardcodedIcon?.icon) {
+                const IconComponent = hardcodedIcon.icon
+                iconsMap[category.id] = <IconComponent className="h-5 w-5" />
+              }
+            }
+          })
+        )
+        setCategoryIcons(iconsMap)
+        
         // Sort by date: newest first
         const sortedTransactions = [...transactionsData].sort((a, b) => {
           const dateA = new Date(a.transaction_date).getTime()
@@ -170,12 +202,9 @@ const TransactionsPage = () => {
     const category = categories.find((cat) => cat.id === categoryId)
     if (!category) return { name: 'Khác', icon: null }
 
-    const iconData = CATEGORY_ICON_MAP[category.icon_id]
-    const IconComponent = iconData?.icon
-
     return {
       name: category.name,
-      icon: IconComponent || null,
+      icon: categoryIcons[category.id] || null,
     }
   }
 
@@ -416,7 +445,7 @@ const TransactionsPage = () => {
               <>
                 {paginatedTransactions.map((transaction) => {
                   const categoryInfo = getCategoryInfo(transaction.category_id)
-                  const IconComponent = categoryInfo.icon
+                  const categoryIcon = categoryInfo.icon
                   const isIncome = transaction.type === 'Thu'
 
                   return (
@@ -442,8 +471,8 @@ const TransactionsPage = () => {
                             : 'bg-gradient-to-br from-rose-400 to-rose-600 text-white'
                         }`}
                       >
-                        {IconComponent ? (
-                          <IconComponent className="h-5 w-5" />
+                        {categoryIcon ? (
+                          categoryIcon
                         ) : (
                           <FaPlus className="h-5 w-5" />
                         )}

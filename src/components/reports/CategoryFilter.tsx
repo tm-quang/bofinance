@@ -1,6 +1,6 @@
 import { FaTimes } from 'react-icons/fa'
 import type { CategoryRecord } from '../../lib/categoryService'
-import { CATEGORY_ICON_MAP } from '../../constants/categoryIcons'
+import { CategoryIcon } from '../ui/CategoryIcon'
 
 type CategoryFilterProps = {
   categories: CategoryRecord[]
@@ -49,8 +49,6 @@ export const CategoryFilter = ({
       <div className="flex flex-wrap gap-2">
         {filteredCategories.map((category) => {
           const isSelected = selectedCategoryIds.includes(category.id)
-          const iconData = CATEGORY_ICON_MAP[category.icon_id]
-          const IconComponent = iconData?.icon
 
           return (
             <button
@@ -63,7 +61,7 @@ export const CategoryFilter = ({
                   : 'bg-white text-slate-700 border border-slate-200 hover:border-sky-300 hover:bg-sky-50'
               }`}
             >
-              {IconComponent && <IconComponent className="h-4 w-4" />}
+              <CategoryIcon iconId={category.icon_id} className="h-4 w-4" />
               <span>{category.name}</span>
               {isSelected && <FaTimes className="h-3.5 w-3.5" />}
             </button>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { FaCheck, FaTimes, FaStar, FaCrown } from 'react-icons/fa'
 
 type UpgradeModalProps = {
@@ -19,11 +19,21 @@ const features = [
 export const UpgradeModal = ({ isOpen, onClose }: UpgradeModalProps) => {
   const [selectedPlan, setSelectedPlan] = useState<'monthly' | 'yearly'>('monthly')
 
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = ''
+      }
+    }
+  }, [isOpen])
+
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end backdrop-blur-md bg-slate-950/50">
-      <div className="flex w-full max-h-[90vh] flex-col rounded-t-3xl bg-white shadow-2xl overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-end backdrop-blur-sm bg-slate-950/50 animate-in fade-in duration-200">
+      <div className="flex w-full max-w-md mx-auto max-h-[90vh] flex-col rounded-t-3xl bg-white shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 sm:slide-in-from-bottom-0">
         {/* Header */}
         <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-br from-amber-50 via-amber-50/50 to-white px-4 py-4 sm:px-6 sm:py-5 rounded-t-3xl">
           <div className="flex items-center gap-3">

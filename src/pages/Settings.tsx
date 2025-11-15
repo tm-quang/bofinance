@@ -25,6 +25,7 @@ import {
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
+import { TransactionModal } from '../components/transactions/TransactionModal'
 import { AccountInfoModal } from '../components/settings/AccountInfoModal'
 import { SecurityModal } from '../components/settings/SecurityModal'
 import { SupportModal } from '../components/settings/SupportModal'
@@ -155,6 +156,7 @@ const SettingsPage = () => {
   const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false)
   const [isIconManagementOpen, setIsIconManagementOpen] = useState(false)
   const [darkMode, setDarkMode] = useState(false)
+  const [isTransactionModalOpen, setIsTransactionModalOpen] = useState(false)
 
   const [notificationToggles, setNotificationToggles] = useState<Record<string, boolean>>({
     push: true,
@@ -243,7 +245,7 @@ const SettingsPage = () => {
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
       <HeaderBar variant="page" title="Cài đặt" />
       <main className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 py-6 sm:gap-6 sm:py-8 md:max-w-4xl lg:max-w-6xl">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 py-4 sm:py-4">
           <header className="rounded-3xl bg-white p-4 shadow-[0_25px_80px_rgba(15,40,80,0.08)] ring-1 ring-slate-100 sm:p-6">
           <h1 className="text-2xl font-semibold text-slate-900 sm:text-3xl">Cài đặt & cá nhân hóa</h1>
           <p className="mt-1.5 text-xs text-slate-500 sm:mt-2 sm:text-sm">
@@ -607,9 +609,16 @@ const SettingsPage = () => {
         </div>
       </main>
 
-      <FooterNav />
+      <FooterNav onAddClick={() => setIsTransactionModalOpen(true)} />
 
       {/* Modals */}
+      <TransactionModal
+        isOpen={isTransactionModalOpen}
+        onClose={() => setIsTransactionModalOpen(false)}
+        onSuccess={() => {
+          // Transaction created successfully
+        }}
+      />
       <AccountInfoModal
         isOpen={isAccountModalOpen}
         onClose={() => setIsAccountModalOpen(false)}

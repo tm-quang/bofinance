@@ -17,8 +17,10 @@ import { CategoryFilter } from '../components/reports/CategoryFilter'
 import { TransactionListSkeleton } from '../components/skeletons'
 import { useNotification } from '../contexts/notificationContext.helpers'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
+import { getIconNode } from '../utils/iconLoader'
 import { fetchCategories, type CategoryRecord } from '../lib/categoryService'
 import { fetchTransactions, type TransactionRecord } from '../lib/transactionService'
+import { fetchWallets, getDefaultWallet, type WalletRecord } from '../lib/walletService'
 
 type DateRangeType = 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
 
@@ -127,7 +129,11 @@ const RANGE_LABEL_MAP: Record<DateRangeType, string> = {
 const ReportPage = () => {
   const { success, error: showError } = useNotification()
   const [transactions, setTransactions] = useState<TransactionRecord[]>([])
+  const [transactionsBeforePeriod, setTransactionsBeforePeriod] = useState<TransactionRecord[]>([])
   const [categories, setCategories] = useState<CategoryRecord[]>([])
+  const [wallets, setWallets] = useState<WalletRecord[]>([])
+  const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
+  const [defaultWalletId, setDefaultWalletId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
   const [typeFilter, setTypeFilter] = useState<'all' | 'Thu' | 'Chi'>('all')
@@ -169,15 +175,59 @@ const ReportPage = () => {
     const loadData = async () => {
       setIsLoading(true)
       try {
-        const [transactionsData, categoriesData] = await Promise.all([
+        // Tính ngày bắt đầu kỳ (trừ 1 ngày để lấy giao dịch trước đó)
+        const periodStartDate = new Date(dateRange.start)
+        periodStartDate.setDate(periodStartDate.getDate() - 1)
+        const beforePeriodEnd = periodStartDate.toISOString().split('T')[0]
+
+        const [transactionsData, transactionsBeforeData, categoriesData, walletsData, defaultWalletIdResult] = await Promise.all([
           fetchTransactions({
             start_date: dateRange.start,
             end_date: dateRange.end,
           }),
+          // Lấy tất cả giao dịch trước ngày bắt đầu kỳ để tính số dư đầu kỳ
+          fetchTransactions({
+            end_date: beforePeriodEnd,
+          }),
           fetchCategories(),
+          fetchWallets(false),
+          getDefaultWallet().catch(() => null),
         ])
+        
+        // Load icons for all categories
+        const iconsMap: Record<string, React.ReactNode> = {}
+        await Promise.all(
+          categoriesData.map(async (category) => {
+            try {
+              const iconNode = await getIconNode(category.icon_id)
+              if (iconNode) {
+                iconsMap[category.id] = <span className="h-5 w-5">{iconNode}</span>
+              } else {
+                // Fallback to hardcoded icon
+                const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
+                if (hardcodedIcon?.icon) {
+                  const IconComponent = hardcodedIcon.icon
+                  iconsMap[category.id] = <IconComponent className="h-5 w-5" />
+                }
+              }
+            } catch (error) {
+              console.error('Error loading icon for category:', category.id, error)
+              // Fallback to hardcoded icon
+              const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
+              if (hardcodedIcon?.icon) {
+                const IconComponent = hardcodedIcon.icon
+                iconsMap[category.id] = <IconComponent className="h-5 w-5" />
+              }
+            }
+          })
+        )
+        setCategoryIcons(iconsMap)
+        
         setTransactions(transactionsData)
+        setTransactionsBeforePeriod(transactionsBeforeData)
         setCategories(categoriesData)
+        setWallets(walletsData)
+        setDefaultWalletId(defaultWalletIdResult)
       } catch (err) {
         console.error('Error loading report data:', err)
         showError('Không thể tải dữ liệu báo cáo')
@@ -230,14 +280,36 @@ const ReportPage = () => {
     })
   }, [transactions, typeFilter, selectedCategoryIds, searchTerm, categories])
 
-  // Calculate statistics
+  // Calculate statistics - tính từ TẤT CẢ giao dịch trong khoảng thời gian, không phụ thuộc filter
   const stats = useMemo(() => {
-    const income = filteredTransactions.filter((t) => t.type === 'Thu').reduce((sum, t) => sum + t.amount, 0)
-    const expense = filteredTransactions.filter((t) => t.type === 'Chi').reduce((sum, t) => sum + t.amount, 0)
-    const balance = income - expense
+    // Thu nhập và chi tiêu trong kỳ
+    const income = transactions.filter((t) => t.type === 'Thu').reduce((sum, t) => sum + t.amount, 0)
+    const expense = transactions.filter((t) => t.type === 'Chi').reduce((sum, t) => sum + t.amount, 0)
+    
+    // Tính số dư ban đầu từ ví mặc định
+    const defaultWallet = defaultWalletId ? wallets.find(w => w.id === defaultWalletId) : null
+    const initialBalance = defaultWallet?.balance || 0
+    
+    // Tính số dư đầu kỳ: số dư ban đầu + tất cả giao dịch trước ngày bắt đầu kỳ
+    const incomeBefore = transactionsBeforePeriod.filter((t) => t.type === 'Thu').reduce((sum, t) => sum + t.amount, 0)
+    const expenseBefore = transactionsBeforePeriod.filter((t) => t.type === 'Chi').reduce((sum, t) => sum + t.amount, 0)
+    const balanceAtPeriodStart = initialBalance + incomeBefore - expenseBefore
+    
+    // Tính số dư cuối kỳ: số dư đầu kỳ + thu nhập - chi tiêu trong kỳ
+    const balanceAtPeriodEnd = balanceAtPeriodStart + income - expense
+    
+    // Thay đổi số dư trong kỳ
+    const balanceChange = income - expense
 
-    return { income, expense, balance }
-  }, [filteredTransactions])
+    return { 
+      income, 
+      expense, 
+      balance: balanceChange, // Còn lại = thay đổi số dư trong kỳ
+      balanceAtPeriodStart, // Số dư đầu kỳ
+      balanceAtPeriodEnd, // Số dư cuối kỳ
+      initialBalance, // Số dư ban đầu
+    }
+  }, [transactions, transactionsBeforePeriod, wallets, defaultWalletId])
 
   // Group by category for top categories
   const categoryStats = useMemo(() => {
@@ -357,10 +429,9 @@ const ReportPage = () => {
   const getCategoryInfo = (categoryId: string) => {
     const category = categories.find((c) => c.id === categoryId)
     if (!category) return { name: 'Không xác định', icon: null }
-    const iconData = CATEGORY_ICON_MAP[category.icon_id]
     return {
       name: category.name,
-      icon: iconData?.icon,
+      icon: categoryIcons[category.id] || null,
     }
   }
 
@@ -368,26 +439,51 @@ const ReportPage = () => {
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
       <HeaderBar variant="page" title="BÁO CÁO & THỐNG KÊ" />
       <main className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 py-4 sm:max-w-4xl sm:gap-5 sm:px-6 sm:py-5 md:max-w-6xl lg:max-w-7xl">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 py-4 sm:py-4">
           {/* Summary Cards */}
-          <div className="grid grid-cols-3 gap-2 sm:gap-3">
-            <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-white px-2 py-2.5 shadow-sm ring-1 ring-emerald-100 sm:rounded-2xl sm:px-3 sm:py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 sm:text-xs">Thu nhập</p>
-              <p className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold text-emerald-700 sm:text-base">
-                {isLoading ? '...' : formatCurrency(stats.income)}
-              </p>
+          <div className="space-y-3">
+            {/* Thu nhập, Chi tiêu, Thay đổi số dư */}
+            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-white px-2 py-2.5 shadow-sm ring-1 ring-emerald-100 sm:rounded-2xl sm:px-3 sm:py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 sm:text-xs">Thu nhập</p>
+                <p className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold text-emerald-700 sm:text-base">
+                  {isLoading ? '...' : formatCurrency(stats.income)}
+                </p>
+              </div>
+              <div className="rounded-xl bg-gradient-to-br from-rose-50 to-white px-2 py-2.5 shadow-sm ring-1 ring-rose-100 sm:rounded-2xl sm:px-3 sm:py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 sm:text-xs">Chi tiêu</p>
+                <p className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold text-rose-700 sm:text-base">
+                  {isLoading ? '...' : formatCurrency(stats.expense)}
+                </p>
+              </div>
+              <div className="rounded-xl bg-gradient-to-br from-sky-50 to-white px-2 py-2.5 shadow-sm ring-1 ring-sky-100 sm:rounded-2xl sm:px-3 sm:py-3">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-600 sm:text-xs">Thay đổi</p>
+                <p className={`mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold sm:text-base ${stats.balance >= 0 ? 'text-sky-700' : 'text-rose-700'}`}>
+                  {isLoading ? '...' : formatCurrency(stats.balance)}
+                </p>
+              </div>
             </div>
-            <div className="rounded-xl bg-gradient-to-br from-rose-50 to-white px-2 py-2.5 shadow-sm ring-1 ring-rose-100 sm:rounded-2xl sm:px-3 sm:py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 sm:text-xs">Chi tiêu</p>
-              <p className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold text-rose-700 sm:text-base">
-                {isLoading ? '...' : formatCurrency(stats.expense)}
-              </p>
-            </div>
-            <div className="rounded-xl bg-gradient-to-br from-sky-50 to-white px-2 py-2.5 shadow-sm ring-1 ring-sky-100 sm:rounded-2xl sm:px-3 sm:py-3">
-              <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-600 sm:text-xs">Còn lại</p>
-              <p className={`mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold sm:text-base ${stats.balance >= 0 ? 'text-sky-700' : 'text-rose-700'}`}>
-                {isLoading ? '...' : formatCurrency(stats.balance)}
-              </p>
+
+            {/* Số dư đầu kỳ và cuối kỳ */}
+            <div className="grid grid-cols-2 gap-2 sm:gap-3">
+              <div className="rounded-xl bg-gradient-to-br from-slate-50 to-white px-3 py-3 shadow-sm ring-1 ring-slate-100 sm:rounded-2xl sm:px-4 sm:py-4">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 sm:text-xs">Số dư đầu kỳ</p>
+                <p className="mt-1 text-base font-bold text-slate-900 sm:text-lg">
+                  {isLoading ? '...' : formatCurrency(stats.balanceAtPeriodStart)}
+                </p>
+                <p className="mt-0.5 text-[9px] text-slate-500 sm:text-[10px]">
+                  {new Date(dateRange.start).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                </p>
+              </div>
+              <div className="rounded-xl bg-gradient-to-br from-indigo-50 to-white px-3 py-3 shadow-sm ring-1 ring-indigo-100 sm:rounded-2xl sm:px-4 sm:py-4">
+                <p className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600 sm:text-xs">Số dư cuối kỳ</p>
+                <p className={`mt-1 text-base font-bold sm:text-lg ${stats.balanceAtPeriodEnd >= 0 ? 'text-indigo-900' : 'text-rose-700'}`}>
+                  {isLoading ? '...' : formatCurrency(stats.balanceAtPeriodEnd)}
+                </p>
+                <p className="mt-0.5 text-[9px] text-slate-500 sm:text-[10px]">
+                  {new Date(dateRange.end).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                </p>
+              </div>
             </div>
           </div>
 
@@ -530,8 +626,7 @@ const ReportPage = () => {
                 <h2 className="mb-3 text-sm font-bold text-slate-900 sm:text-base">Danh mục thu nổi bật</h2>
                 <div className="space-y-2">
                   {topIncomeCategories.map((stat) => {
-                    const iconData = CATEGORY_ICON_MAP[stat.category.icon_id]
-                    const IconComponent = iconData?.icon
+                    const categoryIcon = categoryIcons[stat.category.id]
                     const totalIncome = categoryStats.filter((s) => s.income > 0).reduce((sum, s) => sum + s.income, 0)
                     const percentage = totalIncome > 0 ? ((stat.income / totalIncome) * 100).toFixed(1) : '0'
 
@@ -541,9 +636,9 @@ const ReportPage = () => {
                         className="flex items-center justify-between gap-2 rounded-xl bg-emerald-50 p-2.5 ring-1 ring-emerald-100 sm:p-3"
                       >
                         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-                          {IconComponent && (
+                          {categoryIcon && (
                             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 sm:h-10 sm:w-10 sm:rounded-xl">
-                              <IconComponent className="h-4 w-4 sm:h-5 sm:w-5" />
+                              {categoryIcon}
                             </span>
                           )}
                           <div className="min-w-0 flex-1">
@@ -567,8 +662,7 @@ const ReportPage = () => {
                 <h2 className="mb-3 text-sm font-bold text-slate-900 sm:text-base">Danh mục chi nổi bật</h2>
                 <div className="space-y-2">
                   {topExpenseCategories.map((stat) => {
-                    const iconData = CATEGORY_ICON_MAP[stat.category.icon_id]
-                    const IconComponent = iconData?.icon
+                    const categoryIcon = categoryIcons[stat.category.id]
                     const totalExpense = categoryStats.filter((s) => s.expense > 0).reduce((sum, s) => sum + s.expense, 0)
                     const percentage = totalExpense > 0 ? ((stat.expense / totalExpense) * 100).toFixed(1) : '0'
 
@@ -578,9 +672,9 @@ const ReportPage = () => {
                         className="flex items-center justify-between gap-2 rounded-xl bg-rose-50 p-2.5 ring-1 ring-rose-100 sm:p-3"
                       >
                         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-                          {IconComponent && (
+                          {categoryIcon && (
                             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-600 sm:h-10 sm:w-10 sm:rounded-xl">
-                              <IconComponent className="h-4 w-4 sm:h-5 sm:w-5" />
+                              {categoryIcon}
                             </span>
                           )}
                           <div className="min-w-0 flex-1">
@@ -608,20 +702,20 @@ const ReportPage = () => {
                   <div className="space-y-2">
                     {(() => {
                       const categoryInfo = getCategoryInfo(largestTransaction.category_id)
-                      const IconComponent = categoryInfo.icon
+                      const categoryIcon = categoryInfo.icon
                       const isIncome = largestTransaction.type === 'Thu'
 
                       return (
                         <div className="rounded-xl bg-white p-3 ring-1 ring-amber-200 sm:p-4">
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-                              {IconComponent && (
+                              {categoryIcon && (
                                 <span
                                   className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-12 sm:w-12 sm:rounded-2xl ${
                                     isIncome ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'
                                   }`}
                                 >
-                                  <IconComponent className="h-5 w-5 sm:h-6 sm:w-6" />
+                                  {categoryIcon}
                                 </span>
                               )}
                               <div className="min-w-0 flex-1">
@@ -653,20 +747,20 @@ const ReportPage = () => {
                   <div className="space-y-2">
                     {(() => {
                       const categoryInfo = getCategoryInfo(smallestTransaction.category_id)
-                      const IconComponent = categoryInfo.icon
+                      const categoryIcon = categoryInfo.icon
                       const isIncome = smallestTransaction.type === 'Thu'
 
                       return (
                         <div className="rounded-xl bg-white p-3 ring-1 ring-blue-200 sm:p-4">
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-                              {IconComponent && (
+                              {categoryIcon && (
                                 <span
                                   className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-12 sm:w-12 sm:rounded-2xl ${
                                     isIncome ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'
                                   }`}
                                 >
-                                  <IconComponent className="h-5 w-5 sm:h-6 sm:w-6" />
+                                  {categoryIcon}
                                 </span>
                               )}
                               <div className="min-w-0 flex-1">
@@ -710,7 +804,7 @@ const ReportPage = () => {
               <div className="space-y-2">
                 {filteredTransactions.map((transaction) => {
                   const categoryInfo = getCategoryInfo(transaction.category_id)
-                  const IconComponent = categoryInfo.icon
+                  const categoryIcon = categoryInfo.icon
                   const isIncome = transaction.type === 'Thu'
 
                   return (
@@ -723,7 +817,7 @@ const ReportPage = () => {
                       }`}
                     >
                       <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-                        {IconComponent && (
+                        {categoryIcon && (
                           <span
                             className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base shadow-md sm:h-12 sm:w-12 sm:rounded-2xl sm:text-lg ${
                               isIncome
@@ -731,7 +825,7 @@ const ReportPage = () => {
                                 : 'bg-gradient-to-br from-rose-400 to-rose-600 text-white'
                             }`}
                           >
-                            <IconComponent className="h-5 w-5 sm:h-6 sm:w-6" />
+                            {categoryIcon}
                           </span>
                         )}
                         <div className="min-w-0 flex-1">
