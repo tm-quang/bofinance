@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import HeaderBar from '../components/layout/HeaderBar'
 import { CustomSelect } from '../components/ui/CustomSelect'
 import { NumberPadModal } from '../components/ui/NumberPadModal'
+import { ModalFooterButtons } from '../components/ui/ModalFooterButtons'
 import { fetchCategories, type CategoryRecord } from '../lib/categoryService'
 import { fetchWallets, type WalletRecord } from '../lib/walletService'
 import {
@@ -385,26 +386,16 @@ export const AddBudgetPage = () => {
       </main>
 
       {/* Fixed Footer with Action Buttons */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 shrink-0 border-t border-slate-200 bg-white px-4 py-3 sm:px-6">
-        <div className="mx-auto flex w-full max-w-md gap-2 sm:gap-3">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="flex-1 rounded-lg border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 sm:py-3 sm:text-base"
-            disabled={isSubmitting || isLoading}
-          >
-            Hủy
-          </button>
-          <button
-            type="submit"
-            form="budget-form"
-            className="flex-1 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-blue-700 disabled:opacity-50 sm:py-3 sm:text-base"
-            disabled={isSubmitting || isLoading}
-          >
-            {isSubmitting ? 'Đang lưu...' : isEditMode ? 'Cập nhật' : 'Tạo ngân sách'}
-          </button>
-        </div>
-      </div>
+      <ModalFooterButtons
+        onCancel={() => navigate(-1)}
+        onConfirm={() => {}}
+        confirmText={isSubmitting ? 'Đang lưu...' : isEditMode ? 'Cập nhật' : 'Tạo ngân sách'}
+        isSubmitting={isSubmitting}
+        disabled={isSubmitting || isLoading}
+        confirmButtonType="submit"
+        formId="budget-form"
+        fixed={true}
+      />
 
       {/* Number Pad Modal */}
       <NumberPadModal

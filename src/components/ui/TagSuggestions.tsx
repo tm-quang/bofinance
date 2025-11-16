@@ -31,9 +31,9 @@ export const TagSuggestions = ({
   if (suggestions.length === 0) return null
 
   return (
-    <div className="mt-2 space-y-2">
-      <p className="text-xs font-medium text-slate-500">Gợi ý:</p>
-      <div className="flex flex-wrap gap-2">
+    <div className="mt-2.5 space-y-2">
+      <p className="text-xs font-semibold text-slate-600">Gợi ý:</p>
+      <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto overscroll-contain pr-1">
         {suggestions.map((tag) => {
           const isSelected = selectedTags.includes(tag)
           return (
@@ -41,14 +41,14 @@ export const TagSuggestions = ({
               key={tag}
               type="button"
               onClick={() => onTagToggle(tag)}
-              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all ${
+              className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-all whitespace-nowrap ${
                 isSelected
-                  ? 'bg-sky-100 text-sky-700 shadow-sm'
-                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                  ? 'bg-gradient-to-r from-sky-100 to-blue-100 text-sky-700 border border-sky-200 shadow-sm hover:from-sky-200 hover:to-blue-200'
+                  : 'bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 hover:border-slate-300'
               }`}
             >
               <span>{tag}</span>
-              {isSelected && <FaTimes className="h-3 w-3" />}
+              {isSelected && <FaTimes className="h-3 w-3 shrink-0" />}
             </button>
           )
         })}

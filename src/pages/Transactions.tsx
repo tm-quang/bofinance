@@ -2,18 +2,15 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useDataPreloader } from '../hooks/useDataPreloader'
 import {
-  FaPlus,
-  FaArrowDown,
-  FaArrowUp,
-  FaCalendar,
   FaSearch,
-  FaWallet,
   FaReceipt,
+  FaEllipsisV,
 } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
 import { TransactionActionModal } from '../components/transactions/TransactionActionModal'
+import { TransactionCard } from '../components/transactions/TransactionCard'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { TransactionListSkeleton } from '../components/skeletons'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
@@ -30,7 +27,54 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value)
 
-const ITEMS_PER_PAGE = 20
+
+// Helper function to get date range based on period type
+const getDateRangeForPeriod = (periodType: 'day' | 'week' | 'month' | 'quarter') => {
+  const now = new Date()
+  let startDate: Date
+  let endDate: Date = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+
+  switch (periodType) {
+    case 'day':
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
+      break
+    case 'week': {
+      const dayOfWeek = now.getDay()
+      const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1) // Monday
+      startDate = new Date(now.getFullYear(), now.getMonth(), diff, 0, 0, 0)
+      break
+    }
+    case 'month':
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0)
+      endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+      break
+    case 'quarter': {
+      const quarter = Math.floor(now.getMonth() / 3)
+      startDate = new Date(now.getFullYear(), quarter * 3, 1, 0, 0, 0)
+      endDate = new Date(now.getFullYear(), quarter * 3 + 2, new Date(now.getFullYear(), quarter * 3 + 3, 0).getDate(), 23, 59, 59)
+      // Use current date if within quarter
+      if (now < endDate) {
+        endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+      }
+      break
+    }
+    default:
+      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
+  }
+
+  return {
+    start: startDate,
+    end: endDate,
+  }
+}
+
+// Format date to dd/MM/yy
+const formatDateShort = (date: Date) => {
+  const day = String(date.getDate()).padStart(2, '0')
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const year = String(date.getFullYear()).slice(-2)
+  return `${day}/${month}/${year}`
+}
 
 const TransactionsPage = () => {
   const navigate = useNavigate()
@@ -42,9 +86,10 @@ const TransactionsPage = () => {
   const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
-  const [typeFilter, setTypeFilter] = useState<'all' | 'Thu' | 'Chi'>('all')
-  const [walletFilter, setWalletFilter] = useState<string>('all')
-  const [currentPage, setCurrentPage] = useState(1)
+  const [typeFilter] = useState<'all' | 'Thu' | 'Chi'>('all')
+  const [walletFilter] = useState<string>('all')
+  const [periodType, setPeriodType] = useState<'day' | 'week' | 'month' | 'quarter'>('day')
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionRecord | null>(null)
   const [isActionModalOpen, setIsActionModalOpen] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
@@ -121,9 +166,18 @@ const TransactionsPage = () => {
     loadData()
   }, []) // Chỉ load một lần, cache sẽ được sử dụng cho các lần sau
 
+  // Get period date range
+  const periodRange = useMemo(() => getDateRangeForPeriod(periodType), [periodType])
+
   // Filter and paginate transactions
   const filteredTransactions = useMemo(() => {
     let filtered = [...allTransactions]
+
+    // Filter by period
+    filtered = filtered.filter((t) => {
+      const transactionDate = new Date(t.transaction_date)
+      return transactionDate >= periodRange.start && transactionDate <= periodRange.end
+    })
 
     // Filter by type
     if (typeFilter !== 'all') {
@@ -183,20 +237,42 @@ const TransactionsPage = () => {
     }
 
     return filtered
-  }, [allTransactions, typeFilter, walletFilter, searchTerm, categories])
+  }, [allTransactions, typeFilter, walletFilter, searchTerm, categories, periodRange])
 
-  // Paginate
-  const paginatedTransactions = useMemo(() => {
-    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE
-    return filteredTransactions.slice(startIndex, startIndex + ITEMS_PER_PAGE)
-  }, [filteredTransactions, currentPage])
+  // Calculate totals
+  const totals = useMemo(() => {
+    const income = filteredTransactions
+      .filter((t) => t.type === 'Thu')
+      .reduce((sum, t) => sum + t.amount, 0)
+    const expense = filteredTransactions
+      .filter((t) => t.type === 'Chi')
+      .reduce((sum, t) => sum + t.amount, 0)
+    return { income, expense }
+  }, [filteredTransactions])
 
-  const totalPages = Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE)
+  // Group transactions by date
+  const transactionsByDate = useMemo(() => {
+    const grouped: Record<string, TransactionRecord[]> = {}
+    filteredTransactions.forEach((transaction) => {
+      const date = new Date(transaction.transaction_date)
+      const dateKey = formatDateShort(date)
+      if (!grouped[dateKey]) {
+        grouped[dateKey] = []
+      }
+      grouped[dateKey].push(transaction)
+    })
+    // Sort dates descending (newest first)
+    return Object.entries(grouped).sort(([dateA], [dateB]) => {
+      const [dayA, monthA, yearA] = dateA.split('/').map(Number)
+      const [dayB, monthB, yearB] = dateB.split('/').map(Number)
+      const fullYearA = 2000 + yearA
+      const fullYearB = 2000 + yearB
+      const dateObjA = new Date(fullYearA, monthA - 1, dayA).getTime()
+      const dateObjB = new Date(fullYearB, monthB - 1, dayB).getTime()
+      return dateObjB - dateObjA
+    })
+  }, [filteredTransactions])
 
-  // Reset to page 1 when filters change
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [typeFilter, walletFilter, searchTerm])
 
   // Get category info for a transaction
   const getCategoryInfo = (categoryId: string) => {
@@ -344,13 +420,34 @@ const TransactionsPage = () => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
-      <HeaderBar variant="page" title="Lịch sử giao dịch" />
+      <HeaderBar 
+        variant="page" 
+        title="Lịch sử ghi chép"
+        showIcon={
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setIsSearchOpen(!isSearchOpen)}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100 transition hover:scale-110 active:scale-95"
+              aria-label="Tìm kiếm"
+            >
+              <FaSearch className="h-4 w-4 text-slate-600" />
+            </button>
+            <button
+              type="button"
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100 transition hover:scale-110 active:scale-95"
+              aria-label="Menu"
+            >
+              <FaEllipsisV className="h-4 w-4 text-slate-600" />
+            </button>
+          </div>
+        }
+      />
 
       <main className="flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 py-4 sm:py-6">
-          {/* Search and Filters */}
-          <section className="space-y-3">
-            {/* Search Bar */}
+          {/* Search Bar (conditional) */}
+          {isSearchOpen && (
             <div className="relative">
               <FaSearch className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
               <input
@@ -361,76 +458,56 @@ const TransactionsPage = () => {
                 className="w-full rounded-2xl border-2 border-slate-200 bg-white py-3 pl-12 pr-4 text-sm text-slate-900 placeholder-slate-400 transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
               />
             </div>
+          )}
 
-            {/* Filters */}
-            <div className="flex flex-wrap gap-2">
-              {/* Type Toggle Switch */}
-              <div className="flex items-center gap-2 rounded-xl bg-white p-1.5 shadow-sm ring-1 ring-slate-200">
+          {/* Period Selection */}
+          <section className="flex gap-2">
+            {(['day', 'week', 'month', 'quarter'] as const).map((period) => {
+              const labels: Record<typeof period, string> = {
+                day: 'Hôm nay',
+                week: 'Tuần này',
+                month: 'Tháng này',
+                quarter: 'Quý này',
+              }
+              const isActive = periodType === period
+              return (
                 <button
+                  key={period}
                   type="button"
-                  onClick={() => setTypeFilter('Thu')}
-                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
-                    typeFilter === 'Thu'
-                      ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md'
-                      : 'text-slate-600 hover:bg-emerald-50'
+                  onClick={() => setPeriodType(period)}
+                  className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-semibold transition-all sm:text-sm ${
+                    isActive
+                      ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-lg shadow-sky-500/30'
+                      : 'bg-white text-slate-600 shadow-sm ring-1 ring-slate-200 hover:ring-slate-300'
                   }`}
                 >
-                  <FaArrowUp className="h-4 w-4" />
-                  <span>Thu</span>
+                  {labels[period]}
                 </button>
-                <button
-                  type="button"
-                  onClick={() => setTypeFilter('Chi')}
-                  className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
-                    typeFilter === 'Chi'
-                      ? 'bg-gradient-to-r from-rose-500 to-rose-600 text-white shadow-md'
-                      : 'text-slate-600 hover:bg-rose-50'
-                  }`}
-                >
-                  <FaArrowDown className="h-4 w-4" />
-                  <span>Chi</span>
-                </button>
-                {typeFilter !== 'all' && (
-                  <button
-                    type="button"
-                    onClick={() => setTypeFilter('all')}
-                    className="ml-1 rounded-lg px-2 py-1 text-xs font-medium text-slate-500 hover:bg-slate-100"
-                    title="Hiển thị tất cả"
-                  >
-                    ✕
-                  </button>
-                )}
-              </div>
+              )
+            })}
+          </section>
 
-              {/* Wallet Filter */}
-              <div className="flex items-center gap-2 rounded-xl bg-white p-2 shadow-sm ring-1 ring-slate-200">
-                <FaWallet className="h-4 w-4 text-slate-500" />
-                <select
-                  value={walletFilter}
-                  onChange={(e) => setWalletFilter(e.target.value)}
-                  className="border-none bg-transparent text-sm font-semibold text-slate-700 focus:outline-none"
-                >
-                  <option value="all">Tất cả ví</option>
-                  {wallets.map((wallet) => (
-                    <option key={wallet.id} value={wallet.id}>
-                      {wallet.name}
-                    </option>
-                  ))}
-                </select>
-              </div>
+          {/* Total Income and Expense */}
+          <section className="grid grid-cols-2 gap-3">
+            <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-white px-4 py-3 shadow-sm ring-1 ring-emerald-100">
+              <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">Tổng Thu</p>
+              <p className="mt-1 text-lg font-bold text-emerald-700">
+                {isLoading ? '...' : formatCurrency(totals.income)}
+              </p>
             </div>
-
-            {/* Results count */}
-            <div className="text-xs text-slate-500">
-              Hiển thị {paginatedTransactions.length} / {filteredTransactions.length} giao dịch
+            <div className="rounded-xl bg-gradient-to-br from-rose-50 to-white px-4 py-3 shadow-sm ring-1 ring-rose-100">
+              <p className="text-xs font-semibold uppercase tracking-wider text-rose-600">Tổng Chi</p>
+              <p className="mt-1 text-lg font-bold text-rose-700">
+                {isLoading ? '...' : formatCurrency(totals.expense)}
+              </p>
             </div>
           </section>
 
-          {/* Transactions List */}
-          <section className="space-y-3">
+          {/* Transactions List Grouped by Date */}
+          <section className="space-y-4">
             {isLoading ? (
               <TransactionListSkeleton count={10} />
-            ) : paginatedTransactions.length === 0 ? (
+            ) : transactionsByDate.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-12 shadow-lg ring-1 ring-slate-100">
                 <div className="mb-4 rounded-full bg-slate-100 p-4">
                   {searchTerm || typeFilter !== 'all' || walletFilter !== 'all' ? (
@@ -452,132 +529,81 @@ const TransactionsPage = () => {
               </div>
             ) : (
               <>
-                {paginatedTransactions.map((transaction) => {
-                  const categoryInfo = getCategoryInfo(transaction.category_id)
-                  const categoryIcon = categoryInfo.icon
-                  const isIncome = transaction.type === 'Thu'
+                {transactionsByDate.map(([dateKey, transactions]) => {
+                  // Format date for display (relative time)
+                  const formatTransactionDate = (date: Date) => {
+                    const today = new Date()
+                    today.setHours(0, 0, 0, 0)
+                    const yesterday = new Date(today)
+                    yesterday.setDate(yesterday.getDate() - 1)
+                    
+                    const transactionDay = new Date(date)
+                    transactionDay.setHours(0, 0, 0, 0)
+                    
+                    if (transactionDay.getTime() === today.getTime()) {
+                      return 'Hôm nay'
+                    } else if (transactionDay.getTime() === yesterday.getTime()) {
+                      return 'Hôm qua'
+                    } else {
+                      return date.toLocaleDateString('vi-VN', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                      })
+                    }
+                  }
 
                   return (
-                    <div
-                      key={transaction.id}
-                      onTouchStart={() => handleLongPressStart(transaction)}
-                      onTouchEnd={handleLongPressEnd}
-                      onTouchCancel={handleLongPressCancel}
-                      onMouseDown={() => handleLongPressStart(transaction)}
-                      onMouseUp={handleLongPressEnd}
-                      onMouseLeave={handleLongPressCancel}
-                      className={`relative flex gap-2.5 rounded-2xl p-2.5 shadow-[0_20px_55px_rgba(15,40,80,0.1)] ring-1 transition-all hover:shadow-xl select-none ${
-                        isIncome
-                          ? 'bg-gradient-to-r from-emerald-50 via-emerald-50/80 to-white border-l-4 border-emerald-500'
-                          : 'bg-gradient-to-r from-rose-50 via-rose-50/80 to-white border-l-4 border-rose-500'
-                      }`}
-                    >
-                      {/* Icon */}
-                      <span
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base shadow-sm transition-transform ${
-                          isIncome
-                            ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white'
-                            : 'bg-gradient-to-br from-rose-400 to-rose-600 text-white'
-                        }`}
-                      >
-                        {categoryIcon ? (
-                          categoryIcon
-                        ) : (
-                          <FaPlus className="h-5 w-5" />
-                        )}
-                      </span>
+                    <div key={dateKey} className="space-y-3">
+                      {/* Date Header */}
+                      <div className="flex items-center gap-2 px-1">
+                        <span className="text-sm font-bold text-slate-900">{dateKey}</span>
+                        {(() => {
+                          const [day, month, year] = dateKey.split('/').map(Number)
+                          const fullYear = 2000 + year
+                          const date = new Date(fullYear, month - 1, day)
+                          const today = new Date()
+                          today.setHours(0, 0, 0, 0)
+                          const yesterday = new Date(today)
+                          yesterday.setDate(yesterday.getDate() - 1)
+                          date.setHours(0, 0, 0, 0)
+                          
+                          if (date.getTime() === today.getTime()) {
+                            return <span className="text-xs text-slate-500">Hôm nay</span>
+                          } else if (date.getTime() === yesterday.getTime()) {
+                            return <span className="text-xs text-slate-500">Hôm qua</span>
+                          }
+                          return null
+                        })()}
+                      </div>
 
-                      {/* Content */}
-                      <div className="flex-1 min-w-0 flex items-start justify-between gap-2">
-                        {/* Left side: Description, Date, Category */}
-                        <div className="flex-1 min-w-0">
-                          {/* Description */}
-                          <p
-                            className={`truncate text-sm font-semibold mb-1 ${
-                              isIncome ? 'text-emerald-900' : 'text-rose-900'
-                            }`}
-                          >
-                            {transaction.description || 'Không có mô tả'}
-                          </p>
+                      {/* Transactions for this date */}
+                      <div className="space-y-3">
+                        {transactions.map((transaction) => {
+                          const categoryInfo = getCategoryInfo(transaction.category_id)
+                          const walletColor = getWalletColor(transaction.wallet_id)
 
-                          {/* Date and Category - Compact */}
-                          <div className="flex items-center gap-2 text-xs">
-                            <div
-                              className={`flex items-center gap-1 shrink-0 ${
-                                isIncome ? 'text-emerald-700' : 'text-rose-700'
-                              }`}
-                            >
-                              <FaCalendar className="h-3 w-3" />
-                              <span className="whitespace-nowrap">
-                                {new Date(transaction.transaction_date).toLocaleDateString('vi-VN', {
-                                  day: '2-digit',
-                                  month: '2-digit',
-                                  year: 'numeric',
-                                })}
-                              </span>
-                            </div>
-                            <span className="text-slate-400">•</span>
-                            <span
-                              className={`font-medium truncate ${
-                                isIncome ? 'text-emerald-700' : 'text-rose-700'
-                              }`}
-                            >
-                              {categoryInfo.name}
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Right side: Amount and Wallet */}
-                        <div className="flex flex-col items-end gap-1 shrink-0">
-                          {/* Amount - Top Right */}
-                          <span
-                            className={`text-base font-bold ${
-                              isIncome ? 'text-emerald-700' : 'text-rose-700'
-                            }`}
-                          >
-                            {isIncome ? '+' : '-'}
-                            {formatCurrency(transaction.amount)}
-                          </span>
-                          {/* Wallet - Bottom Right */}
-                          {(() => {
-                            const walletColor = getWalletColor(transaction.wallet_id)
-                            return (
-                              <div className={`flex items-center gap-1 rounded-full ${walletColor.bg} px-2 py-0.5`}>
-                                <FaWallet className={`h-3 w-3 ${walletColor.icon}`} />
-                                <span className={`text-xs font-semibold ${walletColor.text} whitespace-nowrap`}>
-                                  {getWalletName(transaction.wallet_id)}
-                                </span>
-                              </div>
-                            )
-                          })()}
-                        </div>
+                          return (
+                            <TransactionCard
+                              key={transaction.id}
+                              transaction={transaction}
+                              categoryInfo={categoryInfo}
+                              walletInfo={{
+                                name: getWalletName(transaction.wallet_id),
+                                color: walletColor,
+                              }}
+                              onLongPressStart={handleLongPressStart}
+                              onLongPressEnd={handleLongPressEnd}
+                              onLongPressCancel={handleLongPressCancel}
+                              formatCurrency={formatCurrency}
+                              formatDate={formatTransactionDate}
+                            />
+                          )
+                        })}
                       </div>
                     </div>
                   )
                 })}
-
-                {/* Pagination */}
-                {totalPages > 1 && (
-                  <div className="flex items-center justify-center gap-2 pt-4">
-                    <button
-                      onClick={() => setCurrentPage((prev) => Math.max(1, prev - 1))}
-                      disabled={currentPage === 1}
-                      className="rounded-xl border-2 border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Trước
-                    </button>
-                    <span className="rounded-xl bg-sky-50 px-4 py-2 text-sm font-semibold text-sky-700">
-                      {currentPage} / {totalPages}
-                    </span>
-                    <button
-                      onClick={() => setCurrentPage((prev) => Math.min(totalPages, prev + 1))}
-                      disabled={currentPage === totalPages}
-                      className="rounded-xl border-2 border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      Sau
-                    </button>
-                  </div>
-                )}
               </>
             )}
           </section>

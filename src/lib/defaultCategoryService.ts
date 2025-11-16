@@ -10,6 +10,7 @@ export type DefaultCategoryRecord = {
   name: string
   type: DefaultCategoryType
   icon_id: string
+  icon_url?: string | null // URL to PNG/SVG image (optional, for custom icons)
   parent_id?: string | null
   display_order: number
   created_at: string
@@ -24,6 +25,7 @@ export type DefaultCategoryInsert = {
   name: string
   type: DefaultCategoryType
   icon_id: string
+  icon_url?: string | null // URL to PNG/SVG image (optional, for custom icons)
   parent_id?: string | null
   display_order?: number
 }
@@ -31,6 +33,7 @@ export type DefaultCategoryInsert = {
 export type DefaultCategoryUpdate = Partial<Omit<DefaultCategoryInsert, 'name'>> & {
   name?: string
   icon_id?: string
+  icon_url?: string | null
   parent_id?: string | null
   display_order?: number
 }

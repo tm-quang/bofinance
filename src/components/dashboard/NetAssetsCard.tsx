@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FaWallet, FaEye, FaEyeSlash } from 'react-icons/fa'
+import { FaWallet, FaEye, FaEyeSlash, FaChevronRight } from 'react-icons/fa'
 import { getTotalBalanceWalletIds, fetchWallets } from '../../lib/walletService'
 import { fetchTransactions } from '../../lib/transactionService'
 
@@ -47,10 +47,6 @@ export const NetAssetsCard = ({ className = '', refreshTrigger = 0 }: NetAssetsC
         const wallets = await fetchWallets()
         const selectedWallets = wallets.filter((w) => walletIds.includes(w.id))
         
-        // Tính tổng số dư từ các ví được chọn
-        const total = selectedWallets.reduce((sum, w) => sum + (w.balance ?? 0), 0)
-        setTotalBalance(total)
-
         // Lấy tất cả giao dịch từ các ví được chọn
         const allTransactions = await fetchTransactions({})
         const selectedTransactions = allTransactions.filter((t) =>
@@ -64,6 +60,17 @@ export const NetAssetsCard = ({ className = '', refreshTrigger = 0 }: NetAssetsC
         const totalExpense = selectedTransactions
           .filter((t) => t.type === 'Chi')
           .reduce((sum, t) => sum + t.amount, 0)
+
+        // Tính tổng số dư từ balance của các ví được chọn
+        // Balance trong database đã được trigger cập nhật = initial_balance + income - expense
+        // Vậy tổng số dư = tổng balance của các ví được chọn
+        // Điều này đảm bảo hiển thị đúng số dư (có thể âm nếu chi tiêu > thu nhập)
+        // Lưu ý: Balance có thể âm nếu chi tiêu lớn hơn thu nhập + số dư ban đầu
+        const total = selectedWallets.reduce((sum, w) => {
+          const balance = w.balance ?? 0
+          return sum + balance
+        }, 0)
+        setTotalBalance(total)
 
         setIncome(totalIncome)
         setExpense(totalExpense)
@@ -179,13 +186,21 @@ export const NetAssetsCard = ({ className = '', refreshTrigger = 0 }: NetAssetsC
                   title={isBalanceHidden ? 'Hiện số dư' : 'Ẩn số dư'}
                 >
                   {isBalanceHidden ? (
-                    <FaEyeSlash className="h-4 w-4 text-white/70" />
+                    <FaEyeSlash className="h-5 w-5 text-white/70" />
                   ) : (
-                    <FaEye className="h-4 w-4 text-white/70" />
+                    <FaEye className="h-5 w-5 text-white/70" />
                   )}
                 </button>
+                <button
+                  onClick={() => navigate('/wallets')}
+                  className="ml-auto shrink-0 rounded-full shadow-md bg-white/30 p-2 backdrop-blur-sm transition-all hover:bg-white/30 hover:scale-110 active:scale-95 cursor-pointer"
+                  title="Quản lý ví"
+                  aria-label="Mở trang Quản lý ví"
+                >
+                  <FaChevronRight className="h-5 w-5 text-white" />
+                </button>
               </div>
-              <p className="mt-1 text-xs text-white/60">
+              <p className="mt-1 text-xs text-white">
                 Số tiền có thể sử dụng
               </p>
             </div>

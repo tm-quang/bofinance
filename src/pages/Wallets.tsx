@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FaPlus, FaEdit, FaTrash, FaWallet, FaCalculator } from 'react-icons/fa'
+import { FaPlus, FaEdit, FaTrash, FaWallet, FaCalculator, FaArrowLeft } from 'react-icons/fa'
 import { useDataPreloader } from '../hooks/useDataPreloader'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
 import { NumberPadModal } from '../components/ui/NumberPadModal'
 import { WalletListSkeleton } from '../components/skeletons'
+import { ModalFooterButtons } from '../components/ui/ModalFooterButtons'
 import {
   fetchWallets,
   createWallet,
@@ -111,6 +112,7 @@ export const WalletsPage = () => {
   const [totalBalanceWalletIds, setTotalBalanceWalletIdsState] = useState<string[]>([])
   const [showHiddenWallets, setShowHiddenWallets] = useState(false)
   const [isNumberPadOpen, setIsNumberPadOpen] = useState(false)
+  const [isSubmitting, setIsSubmitting] = useState(false)
   const [formData, setFormData] = useState({
     name: '',
     type: 'Tiền mặt' as WalletType,
@@ -228,6 +230,7 @@ export const WalletsPage = () => {
       return
     }
     
+    setIsSubmitting(true)
     try {
       if (editingWallet) {
         await updateWallet(editingWallet.id, {
@@ -251,7 +254,15 @@ export const WalletsPage = () => {
       handleCloseForm()
     } catch (error) {
       console.error('Error saving wallet:', error)
-      showError('Không thể lưu ví. Vui lòng thử lại.')
+      // Hiển thị thông báo lỗi chi tiết hơn
+      const errorMessage = error instanceof Error 
+        ? error.message 
+        : typeof error === 'string' 
+        ? error 
+        : 'Không thể lưu ví. Vui lòng thử lại.'
+      showError(errorMessage || 'Không thể lưu ví. Vui lòng thử lại.')
+    } finally {
+      setIsSubmitting(false)
     }
   }
 
@@ -402,7 +413,22 @@ export const WalletsPage = () => {
             <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-12 text-center shadow-sm">
               <FaWallet className="mb-4 h-16 w-16 text-slate-300" />
               <p className="text-sm font-semibold text-slate-700">Chưa có ví nào</p>
-              <p className="mt-1 text-xs text-slate-500">Tạo ví đầu tiên để bắt đầu</p>
+              <p className="mt-2 text-xs text-slate-500 leading-relaxed max-w-xs">
+                Tạo ví đầu tiên để bắt đầu quản lý tài chính
+              </p>
+              <div className="mt-4 rounded-xl bg-gradient-to-r from-sky-50 to-blue-50 p-4 border border-sky-100 max-w-xs">
+                <div className="flex items-start gap-3">
+                  <FaCalculator className="h-5 w-5 text-sky-600 shrink-0 mt-0.5" />
+                  <div className="text-left">
+                    <p className="text-xs font-semibold text-sky-900 mb-1">
+                      💡 Tổng số dư
+                    </p>
+                    <p className="text-xs text-sky-700 leading-relaxed">
+                      Sau khi tạo ví, bạn có thể chọn ví vào <span className="font-semibold">"Tổng số dư"</span> để hiển thị trên trang Tổng quan. Số dư từ các ví được chọn sẽ được tính vào tổng tài sản của bạn.
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           ) : (
             <>
@@ -536,16 +562,16 @@ export const WalletsPage = () => {
                                 e.stopPropagation()
                                 handleToggleTotalBalance(wallet)
                               }}
-                              className={`flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                              className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
                                 totalBalanceWalletIds.includes(wallet.id)
                                   ? 'bg-sky-400/90 text-white shadow-lg hover:bg-sky-400'
                                   : 'bg-white/20 text-white/80 hover:bg-white/30 hover:text-white backdrop-blur-sm'
                               }`}
                               title={totalBalanceWalletIds.includes(wallet.id) ? 'Đã chọn vào tổng số dư' : 'Chọn vào tổng số dư'}
                             >
-                              <FaCalculator className="h-4 w-4" />
-                              <span className="hidden sm:inline">
-                                {totalBalanceWalletIds.includes(wallet.id) ? 'Đã chọn' : 'Chọn'}
+                              <FaCalculator className="h-4 w-4 shrink-0" />
+                              <span className="whitespace-nowrap">
+                                {totalBalanceWalletIds.includes(wallet.id) ? 'Đã tính tổng số dư' : 'Tính tổng số dư'}
                               </span>
                             </button>
                           )}
@@ -711,45 +737,56 @@ export const WalletsPage = () => {
 
       <FooterNav onAddClick={() => navigate('/add-transaction')} />
 
-      {/* Form Modal */}
+      {/* Form Modal - Full Screen */}
       {isFormOpen && (
-        <div className="fixed inset-0 z-50 flex items-end backdrop-blur-sm bg-slate-950/50 animate-in fade-in duration-200">
-          <div className="flex w-full max-w-md mx-auto max-h-[90vh] flex-col rounded-t-3xl bg-white shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 sm:slide-in-from-bottom-0">
-            <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-6 py-4 rounded-t-3xl">
-              <h2 className="text-xl font-bold text-slate-900">
-                {editingWallet ? 'Chỉnh sửa ví' : 'Thêm ví mới'}
-              </h2>
+        <div className="fixed inset-0 z-50 flex flex-col bg-[#F7F9FC] overflow-hidden">
+          {/* Header - Giống HeaderBar */}
+          <header className="flex-shrink-0 bg-[#F7F9FC]">
+            <div className="mx-auto flex w-full max-w-md items-center justify-between px-4 py-2">
               <button
+                type="button"
                 onClick={handleCloseForm}
-                className="rounded-full p-2 text-slate-400 transition hover:bg-slate-100"
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100 transition hover:scale-110 active:scale-95"
+                aria-label="Quay lại"
               >
-                ✕
+                <FaArrowLeft className="h-5 w-5 text-slate-800" />
               </button>
+              <p className="flex-1 px-4 text-center text-base font-semibold uppercase tracking-[0.2em] text-slate-800">
+                {editingWallet ? 'CHỈNH SỬA VÍ' : 'THÊM VÍ MỚI'}
+              </p>
+              <div className="flex h-11 w-11 items-center justify-center" />
             </div>
-            <div className="flex-1 overflow-y-auto px-6 py-4">
-              <form onSubmit={handleSubmit} className="space-y-5">
+          </header>
+
+          {/* Scrollable Content */}
+          <main className="flex-1 overflow-y-auto overscroll-contain bg-[#F7F9FC]">
+            <div className="mx-auto w-full max-w-md px-4 py-4 sm:px-6 sm:py-5">
+              <form onSubmit={handleSubmit} id="wallet-form" className="space-y-4">
+                {/* Tên ví */}
                 <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-900">
+                  <label className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
                     Tên ví <span className="text-rose-500">*</span>
                   </label>
                   <input
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-slate-900 placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+                    className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 placeholder:text-slate-400 transition-all focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4 sm:text-base"
                     placeholder="Nhập tên ví (ví dụ: Ví chính, Ví tiết kiệm...)"
                     required
                   />
                 </div>
+
+                {/* Loại ví - Chỉ hiển thị khi tạo mới */}
                 {!editingWallet && (
                   <div>
-                    <label className="mb-2 block text-sm font-bold text-slate-900">
+                    <label className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
                       Loại ví <span className="text-rose-500">*</span>
                     </label>
                     <select
                       value={formData.type}
                       onChange={(e) => setFormData({ ...formData, type: e.target.value as WalletType })}
-                      className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+                      className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 transition-all focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4 sm:text-base"
                       required
                     >
                       {WALLET_TYPES.map((type) => (
@@ -760,8 +797,10 @@ export const WalletsPage = () => {
                     </select>
                   </div>
                 )}
+
+                {/* Số dư ban đầu */}
                 <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-900">
+                  <label className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
                     Số dư ban đầu <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
@@ -773,47 +812,52 @@ export const WalletsPage = () => {
                         setFormData({ ...formData, balance: formatted })
                       }}
                       onFocus={() => setIsNumberPadOpen(true)}
-                      className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 pr-12 text-slate-900 placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 cursor-pointer"
+                      className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 pr-12 text-sm text-slate-900 placeholder:text-slate-400 transition-all focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 cursor-pointer sm:p-4 sm:text-base"
                       placeholder="Nhập số dư ban đầu (ví dụ: 1.000.000)"
                       required
                       readOnly
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 font-semibold">
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 font-semibold text-sm sm:text-base">
                       ₫
                     </span>
                   </div>
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    Nhấn vào ô để mở bàn phím số
+                  </p>
                 </div>
+
+                {/* Mô tả */}
                 <div>
-                  <label className="mb-2 block text-sm font-bold text-slate-900">
+                  <label className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
                     Mô tả <span className="text-rose-500">*</span>
                   </label>
                   <textarea
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-slate-900 placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 resize-none"
+                    className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 placeholder:text-slate-400 transition-all focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 resize-none sm:p-4 sm:text-base"
                     rows={4}
                     placeholder="Nhập mô tả cho ví (ví dụ: Ví dùng cho chi tiêu hàng ngày, Ví tiết kiệm dài hạn...)"
                     required
                   />
-                </div>
-                <div className="flex gap-3">
-                  <button
-                    type="button"
-                    onClick={handleCloseForm}
-                    className="flex-1 rounded-xl border-2 border-slate-200 bg-white px-6 py-3 font-semibold text-slate-700 transition hover:bg-slate-50"
-                  >
-                    Hủy
-                  </button>
-                  <button
-                    type="submit"
-                    className="flex-1 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-6 py-3 font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-blue-700"
-                  >
-                    {editingWallet ? 'Cập nhật' : 'Tạo ví'}
-                  </button>
+                  <p className="mt-1.5 text-xs text-slate-500">
+                    Mô tả giúp bạn dễ dàng phân biệt và quản lý các ví
+                  </p>
                 </div>
               </form>
             </div>
-          </div>
+          </main>
+
+          {/* Footer - Fixed - Giống TransactionModal */}
+          <ModalFooterButtons
+            onCancel={handleCloseForm}
+            onConfirm={() => {}}
+            confirmText={isSubmitting ? 'Đang lưu...' : editingWallet ? 'Cập nhật' : 'Tạo ví'}
+            isSubmitting={isSubmitting}
+                  disabled={isSubmitting}
+            confirmButtonType="submit"
+            formId="wallet-form"
+            className="safe-area-bottom"
+          />
         </div>
       )}
 

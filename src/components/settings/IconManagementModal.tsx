@@ -12,6 +12,7 @@ import {
 import { useNotification } from '../../contexts/notificationContext.helpers'
 import { useDialog } from '../../contexts/dialogContext.helpers'
 import { searchReactIcons, getCachedIconLibrary } from '../../utils/iconLoader'
+import { ModalFooterButtons } from '../ui/ModalFooterButtons'
 
 type IconManagementModalProps = {
   isOpen: boolean
@@ -299,7 +300,7 @@ export const IconManagementModal = ({ isOpen, onClose }: IconManagementModalProp
         <div className="flex-1 overflow-y-auto overscroll-contain p-4 sm:p-6">
           {isFormOpen ? (
             /* Form */
-            <form onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
+            <form id="icon-form" onSubmit={handleSubmit} className="space-y-4 sm:space-y-6">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="mb-2 block text-sm font-semibold text-slate-700">
@@ -593,25 +594,18 @@ export const IconManagementModal = ({ isOpen, onClose }: IconManagementModalProp
                 </div>
               </div>
 
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
+              <ModalFooterButtons
+                onCancel={() => {
                     setIsFormOpen(false)
                     setEditingIcon(null)
                   }}
-                  className="flex-1 rounded-lg border-2 border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-all"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
+                onConfirm={() => {}}
+                confirmText={isSubmitting ? 'Đang lưu...' : editingIcon ? 'Cập nhật' : 'Tạo icon'}
+                isSubmitting={isSubmitting}
                   disabled={isSubmitting}
-                  className="flex-1 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-lg hover:from-sky-600 hover:to-blue-700 disabled:opacity-50 transition-all"
-                >
-                  {isSubmitting ? 'Đang lưu...' : editingIcon ? 'Cập nhật' : 'Tạo icon'}
-                </button>
-              </div>
+                confirmButtonType="submit"
+                formId="icon-form"
+              />
             </form>
           ) : (
             /* Table */

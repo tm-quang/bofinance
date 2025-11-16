@@ -325,9 +325,36 @@ class CacheManager {
       }
     } else {
       // Regex match
+      const userPrefix = await getUserCachePrefix()
+      
+      // Match trong memory cache
       for (const key of this.cache.keys()) {
         if (pattern.test(key)) {
           keysToRemove.push(key)
+        }
+      }
+      
+      // Also check localStorage for keys with user prefix
+      if (this.storageEnabled && userPrefix) {
+        try {
+          const keysJson = localStorage.getItem(STORAGE_KEY_MAP)
+          if (keysJson) {
+            const allKeys: string[] = JSON.parse(keysJson)
+            for (const storageKey of allKeys) {
+              // Extract key without storage prefix
+              const keyWithoutStoragePrefix = storageKey.replace(STORAGE_PREFIX, '')
+              // Test với cả key có và không có user prefix
+              if (pattern.test(keyWithoutStoragePrefix) || pattern.test(keyWithoutStoragePrefix.replace(userPrefix, ''))) {
+                // Extract original key from storage key
+                const originalKey = storageKey.replace(STORAGE_PREFIX + userPrefix, '')
+                if (!keysToRemove.includes(originalKey)) {
+                  keysToRemove.push(originalKey)
+                }
+              }
+            }
+          }
+        } catch (e) {
+          console.warn('Error reading cache keys for regex invalidation:', e)
         }
       }
     }

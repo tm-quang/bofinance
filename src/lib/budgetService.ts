@@ -62,6 +62,9 @@ const throwIfError = (error: PostgrestError | null, fallbackMessage: string): vo
   }
 }
 
+// Database columns match code expectations: period_start, period_end, period_type
+// No mapping needed
+
 // Calculate period dates
 export const calculatePeriod = (
   periodType: PeriodType,
@@ -228,27 +231,39 @@ export const getBudgetById = async (id: string): Promise<BudgetRecord | null> =>
 export const getBudgetWithSpending = async (budgetId: string): Promise<BudgetWithSpending> => {
   const budget = await getBudgetById(budgetId)
   if (!budget) {
-    throw new Error('Không tìm thấy ngân sách.')
+    throw new Error(`Không tìm thấy ngân sách với ID: ${budgetId}`)
   }
 
-  const transactions = await fetchTransactions({
-    category_id: budget.category_id,
-    type: 'Chi',
-    start_date: budget.period_start,
-    end_date: budget.period_end,
-    wallet_id: budget.wallet_id || undefined,
-  })
+  try {
+    const transactions = await fetchTransactions({
+      category_id: budget.category_id,
+      type: 'Chi',
+      start_date: budget.period_start,
+      end_date: budget.period_end,
+      wallet_id: budget.wallet_id || undefined,
+    })
 
-  const spent = calculateBudgetSpent(budget, transactions)
-  const percentage = calculateUsagePercentage(spent, budget.amount)
-  const status = getBudgetStatus(percentage)
+    const spent = calculateBudgetSpent(budget, transactions)
+    const percentage = calculateUsagePercentage(spent, budget.amount)
+    const status = getBudgetStatus(percentage)
 
-  return {
-    ...budget,
-    spent_amount: spent,
-    usage_percentage: percentage,
-    remaining_amount: Math.max(0, budget.amount - spent),
-    status,
+    return {
+      ...budget,
+      spent_amount: spent,
+      usage_percentage: percentage,
+      remaining_amount: budget.amount - spent,
+      status,
+    }
+  } catch (error) {
+    console.error(`Error calculating spending for budget ${budgetId}:`, error)
+    // Return budget with zero spending if transaction fetch fails
+    return {
+      ...budget,
+      spent_amount: 0,
+      usage_percentage: 0,
+      remaining_amount: budget.amount,
+      status: 'safe' as BudgetStatus,
+    }
   }
 }
 

@@ -12,7 +12,7 @@ export type WalletRecord = {
   name: string
   type: WalletType
   balance: number
-  initial_balance: number // Số dư ban đầu (không đổi, dùng làm mốc tính toán)
+  initial_balance?: number // Số dư ban đầu (không đổi, dùng làm mốc tính toán) - optional vì không có trong database schema
   currency: string
   icon: string | null
   color: string | null
@@ -120,7 +120,6 @@ export const createWallet = async (payload: WalletInsert): Promise<WalletRecord>
       ...payload,
       user_id: user.id,
       balance: initialBalance,
-      initial_balance: initialBalance, // Số dư ban đầu = số dư khi tạo ví
       currency: payload.currency ?? 'VND',
     })
     .select()
@@ -344,7 +343,10 @@ export const setDefaultWallet = async (walletId: string): Promise<void> => {
 
   if (error) {
     // Nếu bảng user_preferences không tồn tại, fallback về localStorage
-    console.warn('Không thể lưu ví mặc định vào database:', error)
+    // Không log error nếu bảng không tồn tại (schema issue)
+    if (!error.message?.includes('schema cache') && !error.message?.includes('does not exist')) {
+      console.warn('Không thể lưu ví mặc định vào database:', error.message)
+    }
     try {
       localStorage.setItem('bofin_default_wallet_id', walletId)
     } catch (e) {
@@ -387,8 +389,10 @@ export const getDefaultWallet = async (): Promise<string | null> => {
   let result: string | null = null
 
   if (error) {
-    // Nếu lỗi không phải là "not found", log và fallback
-    if (error.code !== 'PGRST116') {
+    // Nếu lỗi không phải là "not found" hoặc "schema cache", log và fallback
+    if (error.code !== 'PGRST116' && 
+        !error.message?.includes('schema cache') && 
+        !error.message?.includes('does not exist')) {
       console.warn('Error fetching default_wallet_id:', error.message)
     }
   }

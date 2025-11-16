@@ -9,6 +9,7 @@ export type DefaultCategory = {
   name: string
   type: DefaultCategoryType
   icon_id: string
+  icon_url?: string | null // URL to PNG/SVG image (optional, for custom icons)
   parent_id?: string | null
   display_order: number
   children?: DefaultCategory[]
@@ -24,12 +25,12 @@ export const DEFAULT_EXPENSE_CATEGORIES: DefaultCategory[] = [
     parent_id: null,
     display_order: 1,
     children: [
-      { name: 'Đi chợ, Nấu ăn', type: 'Chi tiêu', icon_id: 'groceries', display_order: 1 },
+      { name: 'Đi chợ, siêu thị', type: 'Chi tiêu', icon_id: 'groceries', display_order: 1 },
       { name: 'Ăn tiệm, Nhà hàng', type: 'Chi tiêu', icon_id: 'service', display_order: 2 },
-      { name: 'Cafe, Đồ uống', type: 'Chi tiêu', icon_id: 'coffee', display_order: 3 },
+      { name: 'Đồ uống', type: 'Chi tiêu', icon_id: 'coffee', display_order: 3 },
       { name: 'Giao đồ ăn (Delivery)', type: 'Chi tiêu', icon_id: 'car', display_order: 4 },
       { name: 'Tiệc tùng, Bạn bè', type: 'Chi tiêu', icon_id: 'party', display_order: 5 },
-      { name: 'Đồ ăn vặt, Rượu bia', type: 'Chi tiêu', icon_id: 'other', display_order: 6 },
+      { name: 'Đồ ăn vặt', type: 'Chi tiêu', icon_id: 'other', display_order: 6 },
     ],
   },
   {
@@ -58,7 +59,7 @@ export const DEFAULT_EXPENSE_CATEGORIES: DefaultCategory[] = [
     children: [
       { name: 'Xăng, Dầu', type: 'Chi tiêu', icon_id: 'car', display_order: 1 },
       { name: 'Gửi xe', type: 'Chi tiêu', icon_id: 'car', display_order: 2 },
-      { name: 'Taxi, Xe công nghệ', type: 'Chi tiêu', icon_id: 'transport', display_order: 3 },
+      { name: 'Taxi, dịch vụ', type: 'Chi tiêu', icon_id: 'transport', display_order: 3 },
       { name: 'Vé tàu, Xe, Máy bay', type: 'Chi tiêu', icon_id: 'travel', display_order: 4 },
       { name: 'Bảo dưỡng, Sửa chữa xe', type: 'Chi tiêu', icon_id: 'maintenance', display_order: 5 },
       { name: 'Phí cầu đường, Lệ phí', type: 'Chi tiêu', icon_id: 'car', display_order: 6 },
@@ -72,10 +73,10 @@ export const DEFAULT_EXPENSE_CATEGORIES: DefaultCategory[] = [
     parent_id: null,
     display_order: 4,
     children: [
-      { name: 'Thuốc men, Dược phẩm', type: 'Chi tiêu', icon_id: 'health', display_order: 1 },
-      { name: 'Khám bệnh, Bác sĩ, Phẫu thuật', type: 'Chi tiêu', icon_id: 'health', display_order: 2 },
+      { name: 'Thuốc men', type: 'Chi tiêu', icon_id: 'health', display_order: 1 },
+      { name: 'Khám bệnh', type: 'Chi tiêu', icon_id: 'health', display_order: 2 },
       { name: 'Bảo hiểm y tế', type: 'Chi tiêu', icon_id: 'safe', display_order: 3 },
-      { name: 'Chăm sóc cá nhân (Cắt tóc, spa...)', type: 'Chi tiêu', icon_id: 'wellness', display_order: 4 },
+      { name: 'Chăm sóc cá nhân', type: 'Chi tiêu', icon_id: 'wellness', display_order: 4 },
       { name: 'Thực phẩm chức năng', type: 'Chi tiêu', icon_id: 'health', display_order: 5 },
     ],
   },
@@ -88,7 +89,6 @@ export const DEFAULT_EXPENSE_CATEGORIES: DefaultCategory[] = [
     children: [
       { name: 'Học phí, Khóa học', type: 'Chi tiêu', icon_id: 'education', display_order: 1 },
       { name: 'Sách, Tài liệu', type: 'Chi tiêu', icon_id: 'education', display_order: 2 },
-      { name: 'Hội thảo, Sự kiện', type: 'Chi tiêu', icon_id: 'event', display_order: 3 },
       { name: 'Phần mềm, Ứng dụng', type: 'Chi tiêu', icon_id: 'other', display_order: 4 },
       { name: 'Văn phòng phẩm', type: 'Chi tiêu', icon_id: 'personal', display_order: 5 },
     ],
@@ -100,9 +100,10 @@ export const DEFAULT_EXPENSE_CATEGORIES: DefaultCategory[] = [
     parent_id: null,
     display_order: 6,
     children: [
-      { name: 'Tiêu vặt cho con', type: 'Chi tiêu', icon_id: 'other', display_order: 1 },
-      { name: 'Học phí con', type: 'Chi tiêu', icon_id: 'education', display_order: 2 },
-      { name: 'Quần áo, Đồ dùng con', type: 'Chi tiêu', icon_id: 'shopping', display_order: 3 },
+      { name: 'Tả, sữa', type: 'Chi tiêu', icon_id: 'baby', display_order: 1 },
+      { name: 'Tiêu vặt cho con', type: 'Chi tiêu', icon_id: 'other', display_order: 2 },
+      { name: 'Học phí con', type: 'Chi tiêu', icon_id: 'education', display_order: 3 },
+      { name: 'Quần áo, Đồ dùng con', type: 'Chi tiêu', icon_id: 'shopping', display_order: 4 },
     ],
   },
   {

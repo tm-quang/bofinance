@@ -1,17 +1,22 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { FaCalendar, FaImage, FaWallet, FaArrowDown, FaArrowUp, FaChevronDown, FaTimes } from 'react-icons/fa'
+import { FaCalendar, FaImage, FaWallet, FaArrowDown, FaArrowUp, FaChevronDown, FaTimes, FaClock, FaStar, FaEdit, FaPlus, FaChevronRight, FaChevronUp } from 'react-icons/fa'
 
 import HeaderBar from '../components/layout/HeaderBar'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
 import { CustomSelect } from '../components/ui/CustomSelect'
 import { getIconNode } from '../utils/iconLoader'
-import { TagSuggestions } from '../components/ui/TagSuggestions'
 import { NumberPadModal } from '../components/ui/NumberPadModal'
 import { CategoryPickerModal } from '../components/categories/CategoryPickerModal'
-import { fetchCategories, type CategoryRecord, type CategoryType } from '../lib/categoryService'
+import { FavoriteCategoriesModal } from '../components/categories/FavoriteCategoriesModal'
+import { DateTimePickerModal } from '../components/ui/DateTimePickerModal'
+import { ModalFooterButtons } from '../components/ui/ModalFooterButtons'
+import { fetchCategories, fetchCategoriesHierarchical, type CategoryRecord, type CategoryType, type CategoryWithChildren } from '../lib/categoryService'
+import { getFavoriteCategories, initializeDefaultFavorites } from '../lib/favoriteCategoriesService'
+import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { createTransaction, updateTransaction, type TransactionType } from '../lib/transactionService'
 import { fetchWallets, getDefaultWallet, getTotalBalanceWalletIds, type WalletRecord } from '../lib/walletService'
+import { invalidateCache } from '../lib/cache'
 import { uploadMultipleToCloudinary } from '../lib/cloudinaryService'
 import { useNotification } from '../contexts/notificationContext.helpers'
 import { formatVNDInput, parseVNDInput } from '../utils/currencyInput'
@@ -24,7 +29,7 @@ type TransactionFormState = {
   amount: string
   description: string
   transaction_date: string
-  tags: string[]
+  transaction_time?: string
 }
 
 const formatCurrency = (value: number) =>
@@ -50,22 +55,23 @@ export const AddTransactionPage = () => {
     amount: '',
     description: '',
     transaction_date: new Date().toISOString().split('T')[0],
-    tags: [],
   })
 
   const [wallets, setWallets] = useState<WalletRecord[]>([])
   const [categories, setCategories] = useState<CategoryRecord[]>([])
-  const [totalBalance, setTotalBalance] = useState(0)
+  const [defaultWalletId, setDefaultWalletId] = useState<string>('')
   const [isLoading, setIsLoading] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [tagInput, setTagInput] = useState('')
   const [uploadedFiles, setUploadedFiles] = useState<File[]>([])
   const [uploadedImageUrls, setUploadedImageUrls] = useState<string[]>([])
   const [isUploadingImages, setIsUploadingImages] = useState(false)
   const [isNumberPadOpen, setIsNumberPadOpen] = useState(false)
   const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
   const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState(false)
+  const [isDateTimePickerOpen, setIsDateTimePickerOpen] = useState(false)
+  const [isFavoriteModalOpen, setIsFavoriteModalOpen] = useState(false)
+  const [favoriteCategories, setFavoriteCategories] = useState<CategoryWithChildren[]>([])
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // Load wallets và categories
@@ -83,11 +89,18 @@ export const AddTransactionPage = () => {
         setWallets(walletsData)
         setCategories(categoriesData)
         
-        // Calculate total balance from selected wallets (Tiền mặt + Ngân hàng by default)
+        // Get selected wallets for default wallet selection
         const walletIds = await getTotalBalanceWalletIds()
         const selectedWallets = walletsData.filter((w) => walletIds.includes(w.id))
-        const total = selectedWallets.reduce((sum, w) => sum + (w.balance ?? 0), 0)
-        setTotalBalance(total)
+        
+        // Set default wallet ID (first wallet in selected list or default wallet)
+        if (selectedWallets.length > 0) {
+          setDefaultWalletId(selectedWallets[0].id)
+        } else if (defaultId) {
+          setDefaultWalletId(defaultId)
+        } else if (walletsData.length > 0) {
+          setDefaultWalletId(walletsData[0].id)
+        }
 
         // Load icons for all categories
         const iconsMap: Record<string, React.ReactNode> = {}
@@ -116,35 +129,81 @@ export const AddTransactionPage = () => {
         )
         setCategoryIcons(iconsMap)
 
+        // Load hierarchical categories and favorite categories
+        const categoryTypeForFetch = defaultType === 'Chi' ? 'Chi tiêu' : 'Thu nhập'
+        
+        // Initialize default favorites for new users
+        await initializeDefaultFavorites(categoryTypeForFetch)
+        
+        const [hierarchicalData, favoriteIdsArray] = await Promise.all([
+          fetchCategoriesHierarchical(),
+          getFavoriteCategories(categoryTypeForFetch),
+        ])
+
+        // Extract favorite categories (limit to 7)
+        const favorites: CategoryWithChildren[] = []
+        const favoriteIdsSet = new Set(favoriteIdsArray.slice(0, 7))
+
+        // Helper to find category by ID in hierarchical structure
+        const findCategoryById = (cats: CategoryWithChildren[], id: string): CategoryWithChildren | null => {
+          for (const cat of cats) {
+            if (cat.id === id) return cat
+            if (cat.children) {
+              const found = findCategoryById(cat.children, id)
+              if (found) return found
+            }
+          }
+          return null
+        }
+
+        // Get favorite categories
+        favoriteIdsSet.forEach((id) => {
+          const category = findCategoryById(hierarchicalData, id)
+          if (category) {
+            favorites.push(category)
+          }
+        })
+
+        setFavoriteCategories(favorites)
+
         // Load transaction if editing
         if (transactionId) {
           const { fetchTransactions } = await import('../lib/transactionService')
           const transactions = await fetchTransactions({})
           const foundTransaction = transactions.find(t => t.id === transactionId)
           if (foundTransaction) {
+            // transaction_date is YYYY-MM-DD format, parse to get date only
+            // Time is not stored in transaction_date, so we'll default to current time
+            const now = new Date()
+            const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+
             setFormState({
               type: foundTransaction.type,
               wallet_id: foundTransaction.wallet_id,
               category_id: foundTransaction.category_id,
               amount: formatVNDInput(foundTransaction.amount.toString()),
               description: foundTransaction.description || '',
-              transaction_date: foundTransaction.transaction_date,
-              tags: foundTransaction.tags || [],
+              transaction_date: foundTransaction.transaction_date.split('T')[0],
+              transaction_time: currentTime,
             })
             setUploadedImageUrls(foundTransaction.image_urls || [])
           }
         } else {
           // Reset form when creating new transaction
+          // For expense, use default wallet ID (will be set after wallets load)
+          const initialWalletId = defaultType === 'Chi' ? '' : (defaultId || '')
+          const now = new Date()
+          const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+          
           setFormState({
             type: defaultType,
-            wallet_id: defaultId || '',
+            wallet_id: initialWalletId,
             category_id: '',
             amount: '',
             description: '',
-            transaction_date: new Date().toISOString().split('T')[0],
-            tags: [],
+            transaction_date: now.toISOString().split('T')[0],
+            transaction_time: currentTime,
           })
-          setTagInput('')
           setUploadedFiles([])
           setUploadedImageUrls([])
         }
@@ -158,28 +217,41 @@ export const AddTransactionPage = () => {
     loadData()
   }, [transactionId, defaultType])
 
-  // Update total balance when wallets change
+  // Update default wallet when wallets change
   useEffect(() => {
-    const updateTotalBalance = async () => {
+    const updateDefaultWallet = async () => {
       if (wallets.length > 0) {
         try {
-          // Get selected wallet IDs (Tiền mặt + Ngân hàng by default)
+          // Get selected wallet IDs (from Quản lý ví settings)
           const walletIds = await getTotalBalanceWalletIds()
           const selectedWallets = wallets.filter((w) => walletIds.includes(w.id))
-          const total = selectedWallets.reduce((sum, w) => sum + (w.balance ?? 0), 0)
-          setTotalBalance(total)
+          
+          // Update default wallet ID if not set
+          if (selectedWallets.length > 0 && !defaultWalletId) {
+            setDefaultWalletId(selectedWallets[0].id)
+            // Auto-set wallet_id if not set
+            if (!formState.wallet_id) {
+              setFormState((prev) => ({ ...prev, wallet_id: selectedWallets[0].id }))
+            }
+          }
         } catch (error) {
-          console.error('Error updating total balance:', error)
-          // Fallback: calculate from Tiền mặt + Ngân hàng
-          const total = wallets
-            .filter((w) => (w.type === 'Tiền mặt' || w.type === 'Ngân hàng') && w.is_active)
-            .reduce((sum, w) => sum + (w.balance ?? 0), 0)
-          setTotalBalance(total)
+          console.error('Error updating default wallet:', error)
+          // Fallback: use Tiền mặt + Ngân hàng
+          const netAssetsWallets = wallets.filter((w) => (w.type === 'Tiền mặt' || w.type === 'Ngân hàng') && w.is_active)
+          
+          // Update default wallet ID if not set
+          if (netAssetsWallets.length > 0 && !defaultWalletId) {
+            setDefaultWalletId(netAssetsWallets[0].id)
+            // Auto-set wallet_id if not set
+            if (!formState.wallet_id) {
+              setFormState((prev) => ({ ...prev, wallet_id: netAssetsWallets[0].id }))
+            }
+          }
         }
       }
     }
-    updateTotalBalance()
-  }, [wallets])
+    updateDefaultWallet()
+  }, [wallets, defaultWalletId, formState.type, formState.wallet_id])
 
   // Filter categories theo type
   const filteredCategories = categories.filter((cat) => {
@@ -198,6 +270,13 @@ export const AddTransactionPage = () => {
       setFormState((prev) => ({ ...prev, category_id: '' }))
     }
   }, [formState.type, filteredCategories.length])
+
+  // Auto-set wallet_id when type changes (if not set)
+  useEffect(() => {
+    if (defaultWalletId && !formState.wallet_id) {
+      setFormState((prev) => ({ ...prev, wallet_id: defaultWalletId }))
+    }
+  }, [formState.type, defaultWalletId, formState.wallet_id])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -229,12 +308,9 @@ export const AddTransactionPage = () => {
       showError(message)
       return
     }
-    if (!formState.description || formState.description.trim() === '') {
-      const message = 'Vui lòng nhập mô tả giao dịch'
-      setError(message)
-      showError(message)
-      return
-    }
+
+    // transaction_date only stores date (YYYY-MM-DD), time is for display only
+    const finalTransactionDate = formState.transaction_date
 
     setIsSubmitting(true)
     try {
@@ -279,28 +355,100 @@ export const AddTransactionPage = () => {
           category_id: formState.category_id,
           type: formState.type,
           amount,
-          description: formState.description.trim(),
-          transaction_date: formState.transaction_date,
-          tags: formState.tags.length > 0 ? formState.tags : undefined,
+          description: formState.description.trim() || undefined,
+          transaction_date: finalTransactionDate,
           image_urls: imageUrls.length > 0 ? imageUrls : undefined,
         })
-        success(`Đã cập nhật ${formState.type === 'Thu' ? 'thu nhập' : 'chi tiêu'} thành công!`)
+        success(`Đã cập nhật ${formState.type === 'Thu' ? 'khoản thu' : 'khoản chi'} thành công!`)
+        // Navigate back after edit
+        navigate(-1)
       } else {
         await createTransaction({
           wallet_id: formState.wallet_id,
           category_id: formState.category_id,
           type: formState.type,
           amount,
-          description: formState.description.trim(),
-          transaction_date: formState.transaction_date,
-          tags: formState.tags.length > 0 ? formState.tags : undefined,
+          description: formState.description.trim() || undefined,
+          transaction_date: finalTransactionDate,
           image_urls: imageUrls.length > 0 ? imageUrls : undefined,
         })
-        success(`Đã thêm ${formState.type === 'Thu' ? 'thu nhập' : 'chi tiêu'} thành công!`)
+        success(`Đã thêm ${formState.type === 'Thu' ? 'khoản thu' : 'khoản chi'} thành công!`)
+        
+        // Reset form for continuous input instead of navigating back
+        const now = new Date()
+        const hours = String(now.getHours()).padStart(2, '0')
+        const minutes = String(now.getMinutes()).padStart(2, '0')
+        const currentTime = `${hours}:${minutes}`
+        
+        // Reload data (wallets, categories, favorites) to get updated balances
+        // Invalidate cache first to ensure we get fresh data from database
+        try {
+          await invalidateCache('fetchWallets')
+          await invalidateCache('getDefaultWallet')
+          await invalidateCache('getTotalBalanceWalletIds')
+          
+          // Small delay to ensure database transaction is committed
+          await new Promise(resolve => setTimeout(resolve, 100))
+          
+          const [walletsData, categoriesData, defaultId] = await Promise.all([
+            fetchWallets(false),
+            fetchCategories(),
+            getDefaultWallet(),
+          ])
+          
+          setWallets(walletsData)
+          setCategories(categoriesData)
+          
+          // Get selected wallets for default wallet
+          const walletIds = await getTotalBalanceWalletIds()
+          const selectedWallets = walletsData.filter((w) => walletIds.includes(w.id))
+          
+          // Determine wallet_id for reset
+          let resetWalletId = ''
+          // Use first wallet from selected wallets or default wallet
+          resetWalletId = selectedWallets.length > 0 ? selectedWallets[0].id : (defaultId || '')
+          
+          // Update default wallet ID
+          if (selectedWallets.length > 0) {
+            setDefaultWalletId(selectedWallets[0].id)
+          } else if (defaultId) {
+            setDefaultWalletId(defaultId)
+          }
+          
+          // Reload favorite categories
+          const categoryTypeForReload = formState.type === 'Chi' ? 'Chi tiêu' : 'Thu nhập'
+          const favoriteIdsArray = await getFavoriteCategories(categoryTypeForReload)
+          const favoriteIdsSet = new Set(favoriteIdsArray)
+          const favoriteCats = categoriesData.filter((cat) => favoriteIdsSet.has(cat.id))
+          setFavoriteCategories(favoriteCats)
+          
+          // Reset form after data is reloaded
+          setFormState((prev) => ({
+            ...prev,
+            amount: '',
+            category_id: '',
+            description: '',
+            wallet_id: resetWalletId,
+            transaction_date: now.toISOString().split('T')[0],
+            transaction_time: currentTime,
+          }))
+          setUploadedFiles([])
+          setUploadedImageUrls([])
+        } catch (reloadError) {
+          console.error('Error reloading data:', reloadError)
+          // Reset form even if reload fails
+          setFormState((prev) => ({
+            ...prev,
+            amount: '',
+            category_id: '',
+            description: '',
+            transaction_date: now.toISOString().split('T')[0],
+            transaction_time: currentTime,
+          }))
+          setUploadedFiles([])
+          setUploadedImageUrls([])
+        }
       }
-
-      // Navigate back
-      navigate(-1)
     } catch (err) {
       const message = err instanceof Error ? err.message : (isEditMode ? 'Không thể cập nhật giao dịch' : 'Không thể tạo giao dịch')
       setError(message)
@@ -335,11 +483,11 @@ export const AddTransactionPage = () => {
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
       <HeaderBar 
         variant="page" 
-        title={isEditMode ? 'SỬA GIAO DỊCH' : formState.type === 'Thu' ? 'THÊM THU NHẬP' : 'THÊM CHI TIÊU'}
+        title={isEditMode ? 'SỬA GIAO DỊCH' : formState.type === 'Thu' ? 'THÊM KHOẢN THU' : 'THÊM KHOẢN CHI'}
       />
 
       <main className="flex-1 overflow-y-auto overscroll-contain pb-20">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 py-4 sm:py-6">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-2 px-4 py-4 sm:py-6">
           {/* Error message */}
           {error && (
             <div className="rounded-lg bg-rose-50 p-3 text-xs text-rose-600 sm:text-sm">
@@ -348,103 +496,66 @@ export const AddTransactionPage = () => {
           )}
 
           {/* Form */}
-          <form onSubmit={handleSubmit} id="transaction-form" className="space-y-4">
+          <form onSubmit={handleSubmit} id="transaction-form" className="space-y-2">
             {/* Type selector */}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => setFormState((prev) => ({ ...prev, type: 'Thu' }))}
+                className={`group flex items-center justify-center gap-2 rounded-2xl border-2 py-3 px-4 text-center text-sm font-bold transition-all ${
+                  formState.type === 'Thu'
+                    ? 'border-emerald-500 bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300 hover:bg-emerald-50'
+                }`}
+              >
+                <FaArrowUp className="h-5 w-5" />
+                <span>Khoản thu</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setFormState((prev) => ({ ...prev, type: 'Chi' }))}
+                className={`group flex items-center justify-center gap-2 rounded-2xl border-2 py-3 px-4 text-center text-sm font-bold transition-all ${
+                  formState.type === 'Chi'
+                    ? 'border-rose-500 bg-rose-500 text-white shadow-lg shadow-rose-500/30'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-rose-300 hover:bg-rose-50'
+                }`}
+              >
+                <FaArrowDown className="h-5 w-5" />
+                <span>Khoản chi</span>
+              </button>
+            </div>
+
+            {/* Wallet Selection - For both Income and Expense */}
             <div>
-              <div className="grid grid-cols-2 gap-4">
-                <button
-                  type="button"
-                  onClick={() => setFormState((prev) => ({ ...prev, type: 'Thu' }))}
-                  className={`group relative flex items-center justify-center gap-2 rounded-2xl border-2 py-2.5 text-center text-sm font-bold transition-all sm:py-3 sm:text-base ${
-                    formState.type === 'Thu'
-                      ? 'border-emerald-500 bg-gradient-to-br from-emerald-400 via-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/30 scale-105'
-                      : 'border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 text-slate-600 hover:border-emerald-300 hover:from-emerald-50 hover:to-emerald-100 hover:text-emerald-700 hover:shadow-md'
-                  }`}
-                >
-                  <FaArrowUp className={`relative z-10 h-5 w-5 transition-transform ${formState.type === 'Thu' ? 'scale-110' : ''} sm:h-6 sm:w-6`} />
-                  <span className="relative z-10">Thu nhập</span>
-                  {formState.type === 'Thu' && (
-                    <div className="absolute inset-0 z-0 rounded-2xl bg-white/10 backdrop-blur-sm" />
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setFormState((prev) => ({ ...prev, type: 'Chi' }))}
-                  className={`group relative flex items-center justify-center gap-2 rounded-2xl border-2 py-2.5 text-center text-sm font-bold transition-all sm:py-3 sm:text-base ${
-                    formState.type === 'Chi'
-                      ? 'border-rose-500 bg-gradient-to-br from-rose-400 via-rose-500 to-rose-600 text-white shadow-lg shadow-rose-500/30 scale-105'
-                      : 'border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 text-slate-600 hover:border-rose-300 hover:from-rose-50 hover:to-rose-100 hover:text-rose-700 hover:shadow-md'
-                  }`}
-                >
-                  <FaArrowDown className={`relative z-10 h-5 w-5 transition-transform ${formState.type === 'Chi' ? 'scale-110' : ''} sm:h-6 sm:w-6`} />
-                  <span className="relative z-10">Chi tiêu</span>
-                  {formState.type === 'Chi' && (
-                    <div className="absolute inset-0 z-0 rounded-2xl bg-white/10 backdrop-blur-sm" />
-                  )}
-                </button>
-              </div>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                {formState.type === 'Chi' ? 'Chọn ví' : 'Chọn ví'} <span className="text-rose-500">*</span>
+              </label>
+              <CustomSelect
+                options={wallets.map((wallet) => ({
+                  value: wallet.id,
+                  label: wallet.name,
+                  metadata: formatCurrency(wallet.balance ?? 0),
+                  icon: <FaWallet className="h-4 w-4" />,
+                }))}
+                value={formState.wallet_id}
+                onChange={(value) => setFormState((prev) => ({ ...prev, wallet_id: value }))}
+                placeholder={formState.type === 'Chi' ? 'Chọn ví chi ra' : 'Chọn ví'}
+                loading={isLoading}
+                emptyMessage="Chưa có ví"
+                className="h-14"
+              />
             </div>
 
-            {/* Wallet and Category - Grid */}
-            <div className="grid grid-cols-2 gap-4 items-stretch">
-              {/* Wallet selector */}
-              <div>
-                <label className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
-                  Chọn ví <span className="text-rose-500">*</span>
+            {/* Amount - Compact and Clean */}
+            <div 
+              className="rounded-2xl bg-gradient-to-br from-white to-slate-50 shadow-md border border-slate-200/50 p-4 cursor-pointer active:scale-[0.98] transition-all hover:shadow-md"
+              onClick={() => setIsNumberPadOpen(true)}
+            >
+              <div className="flex items-center justify-between">
+                <label htmlFor="amount" className="text-base font-semibold text-slate-600 shrink-0">
+                  Số tiền
                 </label>
-                <CustomSelect
-                  options={wallets.map((wallet) => ({
-                    value: wallet.id,
-                    label: wallet.name,
-                    metadata: formatCurrency(totalBalance),
-                    icon: <FaWallet className="h-4 w-4" />,
-                  }))}
-                  value={formState.wallet_id}
-                  onChange={(value) => setFormState((prev) => ({ ...prev, wallet_id: value }))}
-                  placeholder="Chọn ví"
-                  loading={isLoading}
-                  emptyMessage="Chưa có ví"
-                  className="h-12"
-                />
-              </div>
-
-              {/* Category selector */}
-              <div>
-                <label className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
-                  Chọn hạng mục <span className="text-rose-500">*</span>
-                </label>
-                <button
-                  type="button"
-                  onClick={() => setIsCategoryPickerOpen(true)}
-                  className="flex h-12 w-full items-center justify-between rounded-xl border-2 border-slate-200 bg-white p-3 text-left transition-all hover:border-slate-300 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
-                >
-                  <div className="flex min-w-0 flex-1 items-center gap-2">
-                    {formState.category_id && categoryIcons[formState.category_id] && (
-                      <span className="shrink-0 text-slate-600">{categoryIcons[formState.category_id]}</span>
-                    )}
-                    <div className="min-w-0 flex-1">
-                      {formState.category_id ? (
-                        <div className="truncate text-sm font-medium text-slate-900">
-                          {filteredCategories.find((c) => c.id === formState.category_id)?.name || 'Chọn hạng mục'}
-                        </div>
-                      ) : (
-                        <div className="text-sm text-slate-400">Chọn hạng mục</div>
-                      )}
-                    </div>
-                  </div>
-                  <FaChevronDown className="h-5 w-5 shrink-0 text-slate-400" />
-                </button>
-              </div>
-            </div>
-
-            {/* Amount and Date - Grid */}
-            <div className="grid grid-cols-2 gap-4 items-stretch">
-              {/* Amount */}
-              <div>
-                <label htmlFor="amount" className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
-                  Số tiền <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
+                <div className="flex items-baseline gap-1.5 flex-1 justify-end">
                   <input
                     type="text"
                     inputMode="numeric"
@@ -452,40 +563,214 @@ export const AddTransactionPage = () => {
                     value={formState.amount}
                     onChange={handleAmountChange}
                     onFocus={() => setIsNumberPadOpen(true)}
-                    placeholder="Nhập số tiền"
-                    className="h-full w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-base font-medium text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4 sm:text-lg cursor-pointer"
+                    placeholder="0"
+                    className={`text-right bg-transparent border-0 text-3xl font-bold transition-all placeholder:text-slate-300 focus:outline-none cursor-pointer min-w-[80px] ${
+                      formState.type === 'Thu'
+                        ? 'text-emerald-600'
+                        : 'text-rose-600'
+                    }`}
                     required
                     readOnly
                   />
-                  <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-semibold text-slate-500">
+                  <span className={`text-xl font-semibold shrink-0 ${
+                    formState.type === 'Thu' ? 'text-emerald-600' : 'text-rose-600'
+                  }`}>
                     ₫
                   </span>
                 </div>
               </div>
-
-              {/* Date */}
-              <div>
-                <label htmlFor="date" className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
-                  Ngày giao dịch <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <FaCalendar className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="date"
-                    id="date"
-                    value={formState.transaction_date}
-                    onChange={(e) => setFormState((prev) => ({ ...prev, transaction_date: e.target.value }))}
-                    className="h-full w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 pl-11 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
-                    required
-                  />
-                </div>
-              </div>
             </div>
 
-            {/* Description */}
+            {/* Category Selection Section - Like in the image */}
+            <div className="rounded-3xl bg-gradient-to-br from-white to-slate-50 shadow-md border border-slate-200/50 p-5">
+              {/* Selected Category Display or Add Button */}
+              <div className="flex items-center justify-between mb-2">
+                {formState.category_id ? (
+                  // Show selected category
+                  <button
+                    type="button"
+                    onClick={() => setIsCategoryPickerOpen(true)}
+                    className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-gradient-to-br from-sky-50 to-blue-50 ring-2 ring-sky-400/30 hover:ring-sky-400/50 transition-all active:scale-95 flex-1 mr-3"
+                  >
+                    {/* Category Icon */}
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-blue-500 text-white shrink-0">
+                      {categoryIcons[formState.category_id] ? (
+                        <span className="text-xl">
+                          {categoryIcons[formState.category_id]}
+                        </span>
+                      ) : (
+                        <CategoryIcon
+                          iconId={categories.find(c => c.id === formState.category_id)?.icon_id || ''}
+                          className="h-5 w-5 text-white"
+                          fallback={
+                            <span className="text-lg font-bold text-white">
+                              {categories.find(c => c.id === formState.category_id)?.name[0]?.toUpperCase() || '?'}
+                            </span>
+                          }
+                        />
+                      )}
+                    </div>
+                    {/* Category Info */}
+                    <div className="flex flex-col items-start flex-1">
+                      <span className="text-xs font-medium text-slate-500">Mục đang chọn</span>
+                      <span className="text-sm font-semibold text-slate-900">
+                        {categories.find(c => c.id === formState.category_id)?.name || 'Chưa chọn'}
+                      </span>
+                    </div>
+                    <FaChevronRight className="h-4 w-4 text-slate-400 shrink-0" />
+                  </button>
+                ) : (
+                  // Show add button when no category selected
+                  <button
+                    type="button"
+                    onClick={() => setIsCategoryPickerOpen(true)}
+                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 transition-all active:scale-95 flex-1 mr-3"
+                  >
+                    <FaPlus className="h-4 w-4 text-slate-600" />
+                    <span className="text-sm font-semibold text-slate-900">Chọn hạng mục</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setIsCategoryPickerOpen(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-sky-600 hover:text-sky-700 transition-all shrink-0"
+                >
+                  <span>Tất cả</span>
+                  <FaChevronRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+
+              {/* Favorite Categories Section */}
+              {favoriteCategories.length > 0 && (
+                <div>
+                  {/* "Mục hay dùng" Title with Collapse Icon */}
+                  <div className="flex items-center gap-2 mb-2">
+                    <h4 className="text-base font-semibold text-slate-900">
+                      Mục hay dùng
+                    </h4>
+                    <FaChevronUp className="h-3.5 w-3.5 text-slate-400" />
+                  </div>
+                  
+                  {/* Categories Grid */}
+                  <div className="grid grid-cols-4 gap-3">
+                    {favoriteCategories.slice(0, 7).map((category) => {
+                      const isSelected = formState.category_id === category.id
+                      return (
+                        <button
+                          key={category.id}
+                          type="button"
+                          onClick={() => setFormState((prev) => ({ ...prev, category_id: category.id }))}
+                          className={`relative flex flex-col items-center gap-2 p-3 rounded-2xl transition-all active:scale-95 ${
+                            isSelected
+                              ? 'bg-gradient-to-br from-sky-50 to-blue-50 ring-2 ring-sky-400 shadow-lg'
+                              : 'bg-white hover:bg-slate-50 shadow-md border border-slate-200/50'
+                          }`}
+                        >
+                          {/* Star Icon - Top Right Corner */}
+                          <FaStar className="absolute top-2 right-2 h-3 w-3 text-amber-500 fill-current drop-shadow-md z-10" />
+                          
+                          {/* Category Icon */}
+                          <div
+                            className={`flex h-14 w-14 items-center justify-center rounded-2xl transition-all ${
+                              isSelected
+                                ? 'bg-gradient-to-br from-sky-400 to-blue-500 text-white scale-105 shadow-lg'
+                                : 'bg-gradient-to-br from-blue-50 to-sky-50 text-slate-700'
+                            }`}
+                          >
+                            {categoryIcons[category.id] ? (
+                              <span className={`text-2xl ${isSelected ? 'text-white' : ''}`}>
+                                {categoryIcons[category.id]}
+                              </span>
+                            ) : (
+                              <CategoryIcon
+                                iconId={category.icon_id}
+                                className={`h-7 w-7 ${isSelected ? 'text-white' : 'text-slate-600'}`}
+                                fallback={
+                                  <span className={`text-xl font-bold ${isSelected ? 'text-white' : 'text-slate-600'}`}>
+                                    {category.name[0]?.toUpperCase() || '?'}
+                                  </span>
+                                }
+                              />
+                            )}
+                          </div>
+                          
+                          {/* Category Name */}
+                          <span
+                            className={`text-xs font-medium text-center leading-tight line-clamp-2 ${
+                              isSelected ? 'text-sky-900 font-semibold' : 'text-slate-700'
+                            }`}
+                          >
+                            {category.name}
+                          </span>
+                        </button>
+                      )
+                    })}
+                    
+                    {/* Edit Button as 8th item */}
+                    <button
+                      type="button"
+                      onClick={() => setIsFavoriteModalOpen(true)}
+                      className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-white hover:bg-slate-50 shadow-md border border-slate-200/50 transition-all active:scale-95"
+                    >
+                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200">
+                        <FaEdit className="h-6 w-6 text-slate-600" />
+                      </div>
+                      <span className="text-xs font-medium text-center text-slate-700 leading-tight">
+                        Chỉnh sửa
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Date and Time */}
             <div>
-              <label htmlFor="description" className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
-                Mô tả giao dịch <span className="text-rose-500">*</span>
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Ngày và giờ giao dịch <span className="text-rose-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsDateTimePickerOpen(true)}
+                className="relative flex w-full items-center justify-between rounded-2xl border-2 border-slate-200 bg-white p-4 pl-12 text-left transition-all hover:border-slate-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-500/20"
+              >
+                <FaCalendar className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                <div className="flex-1 flex items-center gap-3">
+                  <div className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
+                    {(() => {
+                      const date = new Date(formState.transaction_date)
+                      const day = String(date.getDate()).padStart(2, '0')
+                      const month = String(date.getMonth() + 1).padStart(2, '0')
+                      const year = date.getFullYear()
+                      const dateStr = `${day}/${month}/${year}`
+                      
+                      // Check if today
+                      const today = new Date()
+                      today.setHours(0, 0, 0, 0)
+                      const selectedDate = new Date(date)
+                      selectedDate.setHours(0, 0, 0, 0)
+                      
+                      if (selectedDate.getTime() === today.getTime()) {
+                        return `Hôm nay - ${dateStr}`
+                      }
+                      return dateStr
+                    })()}
+                  </div>
+                  {formState.transaction_time && (
+                    <div className="flex items-center gap-1.5 text-sm text-slate-500">
+                      <FaClock className="h-4 w-4 text-slate-400" />
+                      <span className="font-medium">{formState.transaction_time}</span>
+                    </div>
+                  )}
+                </div>
+                <FaChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+              </button>
+            </div>
+
+            {/* Description - Optional */}
+            <div>
+              <label htmlFor="description" className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Mô tả (tùy chọn)
               </label>
               <input
                 type="text"
@@ -493,78 +778,13 @@ export const AddTransactionPage = () => {
                 value={formState.description}
                 onChange={(e) => setFormState((prev) => ({ ...prev, description: e.target.value }))}
                 placeholder="Nhập mô tả giao dịch..."
-                className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
-                required
+                className="w-full rounded-2xl border-2 border-slate-200 bg-white p-4 text-sm font-medium text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-500/20"
               />
             </div>
 
-            {/* Tags */}
+            {/* File Upload - Optional */}
             <div>
-              <label className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
-                Tag (tùy chọn)
-              </label>
-              <div className="rounded-xl border-2 border-slate-200 bg-white p-3.5 transition-all focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-500/20 sm:p-4">
-                {formState.tags.length > 0 && (
-                  <div className="mb-2 flex flex-wrap gap-2">
-                    {formState.tags.map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center gap-1.5 rounded-full bg-sky-100 px-3 py-1 text-xs font-medium text-sky-700"
-                      >
-                        {tag}
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setFormState((prev) => ({
-                              ...prev,
-                              tags: prev.tags.filter((t) => t !== tag),
-                            }))
-                          }
-                          className="hover:text-sky-900"
-                        >
-                          <FaTimes className="h-3 w-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                )}
-                <input
-                  type="text"
-                  id="tags"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter' || e.key === ',') {
-                      e.preventDefault()
-                      const value = tagInput.trim()
-                      if (value && !formState.tags.includes(value)) {
-                        setFormState((prev) => ({ ...prev, tags: [...prev.tags, value] }))
-                        setTagInput('')
-                      }
-                    } else if (e.key === 'Backspace' && tagInput === '' && formState.tags.length > 0) {
-                      setFormState((prev) => ({ ...prev, tags: prev.tags.slice(0, -1) }))
-                    }
-                  }}
-                  placeholder="Nhập tag và nhấn Enter (tùy chọn)..."
-                  className="w-full border-0 bg-transparent p-0 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none"
-                />
-              </div>
-              <TagSuggestions
-                selectedTags={formState.tags}
-                onTagToggle={(tag) => {
-                  setFormState((prev) => ({
-                    ...prev,
-                    tags: prev.tags.includes(tag)
-                      ? prev.tags.filter((t) => t !== tag)
-                      : [...prev.tags, tag],
-                  }))
-                }}
-              />
-            </div>
-
-            {/* File Upload */}
-            <div>
-              <label className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
+              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Tải lên ảnh/hóa đơn (tùy chọn)
               </label>
               <input
@@ -579,17 +799,17 @@ export const AddTransactionPage = () => {
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="flex w-full items-center justify-center gap-1 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-sm font-medium text-slate-600 transition-all hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 sm:p-5"
+                className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-medium text-slate-600 transition-all hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
               >
                 <FaImage className="h-5 w-5" />
-                <span>Tải lên hóa đơn/ảnh (tùy chọn)</span>
+                <span>Tải lên hóa đơn/ảnh</span>
               </button>
               {(uploadedFiles.length > 0 || uploadedImageUrls.length > 0) && (
                 <div className="mt-3 space-y-2">
                   {uploadedImageUrls.map((url, index) => (
                     <div
                       key={`url-${index}`}
-                      className="relative group rounded-lg border border-slate-200 bg-white overflow-hidden"
+                      className="relative group rounded-xl border border-slate-200 bg-white overflow-hidden"
                     >
                       <img
                         src={url}
@@ -608,19 +828,19 @@ export const AddTransactionPage = () => {
                   {uploadedFiles.map((file, index) => (
                     <div
                       key={`file-${index}`}
-                      className="flex items-center justify-between rounded-lg border border-slate-200 bg-white p-2.5 sm:p-3"
+                      className="flex items-center justify-between rounded-xl border border-slate-200 bg-white p-3"
                     >
                       <div className="flex min-w-0 flex-1 items-center gap-2">
                         <FaImage className="h-4 w-4 shrink-0 text-slate-400" />
-                        <span className="truncate text-xs text-slate-700 sm:text-sm">{file.name}</span>
+                        <span className="truncate text-sm text-slate-700">{file.name}</span>
                         <span className="shrink-0 text-xs text-slate-500">
-                          ({(file.size / 1024).toFixed(1)} KB - Chưa upload)
+                          ({(file.size / 1024).toFixed(1)} KB)
                         </span>
                       </div>
                       <button
                         type="button"
                         onClick={() => removeFile(index)}
-                        className="ml-2 flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+                        className="ml-2 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
                       >
                         <FaTimes className="h-4 w-4" />
                       </button>
@@ -635,28 +855,16 @@ export const AddTransactionPage = () => {
       </main>
 
       {/* Fixed Footer with Action Buttons */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 shrink-0 border-t border-slate-200 bg-white px-4 py-3 sm:px-6">
-        <div className="mx-auto flex w-full max-w-md gap-2 sm:gap-3">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="flex-1 rounded-lg border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 sm:py-3 sm:text-base"
-            disabled={isSubmitting}
-          >
-            Hủy
-          </button>
-          <button
-            type="submit"
-            form="transaction-form"
-            className={`flex-1 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-blue-700 disabled:opacity-50 sm:py-3 sm:text-base ${
-              formState.type === 'Thu' ? 'from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700' : ''
-            }`}
+      <ModalFooterButtons
+        onCancel={() => navigate(-1)}
+        onConfirm={() => {}}
+        confirmText={isUploadingImages ? 'Đang upload ảnh...' : isSubmitting ? 'Đang lưu...' : `${isEditMode ? 'Cập nhật' : 'Thêm'} ${formState.type === 'Thu' ? 'Thu' : 'Chi'}`}
+        isSubmitting={isSubmitting}
             disabled={isSubmitting || isLoading || isUploadingImages || wallets.length === 0 || filteredCategories.length === 0}
-          >
-            {isUploadingImages ? 'Đang upload ảnh...' : isSubmitting ? 'Đang lưu...' : `${isEditMode ? 'Cập nhật' : 'Thêm'} ${formState.type === 'Thu' ? 'Thu' : 'Chi'}`}
-          </button>
-        </div>
-      </div>
+        confirmButtonType="submit"
+        formId="transaction-form"
+        fixed={true}
+      />
 
       {/* Number Pad Modal */}
       <NumberPadModal
@@ -681,6 +889,66 @@ export const AddTransactionPage = () => {
           console.log('Edit category:', categoryId)
           setIsCategoryPickerOpen(false)
         }}
+      />
+
+      {/* DateTime Picker Modal */}
+      <DateTimePickerModal
+        isOpen={isDateTimePickerOpen}
+        onClose={() => setIsDateTimePickerOpen(false)}
+        onConfirm={(date, time) => {
+          setFormState((prev) => ({
+            ...prev,
+            transaction_date: date,
+            transaction_time: time,
+          }))
+        }}
+        initialDate={formState.transaction_date}
+        initialTime={formState.transaction_time}
+        showTime={true}
+      />
+
+      {/* Favorite Categories Modal */}
+      <FavoriteCategoriesModal
+        isOpen={isFavoriteModalOpen}
+        onClose={() => {
+          setIsFavoriteModalOpen(false)
+          // Reload favorites when modal closes
+          const reloadFavorites = async () => {
+            try {
+              const categoryTypeForReload = formState.type === 'Chi' ? 'Chi tiêu' : 'Thu nhập'
+              const [hierarchicalData, favoriteIdsArray] = await Promise.all([
+                fetchCategoriesHierarchical(),
+                getFavoriteCategories(categoryTypeForReload),
+              ])
+              const favorites: CategoryWithChildren[] = []
+              const favoriteIdsSet = new Set(favoriteIdsArray.slice(0, 7))
+
+              const findCategoryById = (cats: CategoryWithChildren[], id: string): CategoryWithChildren | null => {
+                for (const cat of cats) {
+                  if (cat.id === id) return cat
+                  if (cat.children) {
+                    const found = findCategoryById(cat.children, id)
+                    if (found) return found
+                  }
+                }
+                return null
+              }
+
+              favoriteIdsSet.forEach((id) => {
+                const category = findCategoryById(hierarchicalData, id)
+                if (category) {
+                  favorites.push(category)
+                }
+              })
+
+              setFavoriteCategories(favorites)
+            } catch (error) {
+              console.error('Error reloading favorites:', error)
+            }
+          }
+          reloadFavorites()
+        }}
+        categoryType={formState.type === 'Chi' ? 'Chi tiêu' : 'Thu nhập'}
       />
     </div>
   )

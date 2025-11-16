@@ -42,9 +42,21 @@ export const BudgetsPage = () => {
         fetchWallets(false),
       ])
 
-      const budgetsWithSpending = await Promise.all(
+      const budgetsWithSpending = await Promise.allSettled(
         budgetsData.map((b) => getBudgetWithSpending(b.id))
       )
+
+      // Filter out failed budgets and log errors
+      const successfulBudgets = budgetsWithSpending
+        .map((result, index) => {
+          if (result.status === 'fulfilled') {
+            return result.value
+          } else {
+            console.error(`Failed to load budget ${budgetsData[index].id}:`, result.reason)
+            return null
+          }
+        })
+        .filter((budget): budget is BudgetWithSpending => budget !== null)
 
       // Load icons for all categories
       const iconsMap: Record<string, React.ReactNode> = {}
@@ -76,12 +88,13 @@ export const BudgetsPage = () => {
       setCategoryIcons(iconsMap)
 
       // Sort by usage percentage (highest first) to show critical budgets first
-      budgetsWithSpending.sort((a, b) => b.usage_percentage - a.usage_percentage)
+      successfulBudgets.sort((a, b) => b.usage_percentage - a.usage_percentage)
 
-      setBudgets(budgetsWithSpending)
+      setBudgets(successfulBudgets)
       setCategories(categoriesData)
       setWallets(walletsData)
     } catch (error) {
+      console.error('Error loading budgets:', error)
       showError('Không thể tải danh sách ngân sách.')
     } finally {
       setIsLoading(false)
@@ -92,7 +105,7 @@ export const BudgetsPage = () => {
     navigate('/add-budget')
   }
 
-  const handleEdit = (budget: BudgetRecord) => {
+  const handleEdit = (budget: BudgetWithSpending) => {
     navigate(`/add-budget?id=${budget.id}`)
   }
 

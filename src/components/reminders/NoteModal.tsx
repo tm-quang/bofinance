@@ -3,6 +3,7 @@ import { FaTimes, FaCalendar } from 'react-icons/fa'
 import { createReminder, updateReminder, type ReminderRecord, type ReminderInsert } from '../../lib/reminderService'
 import { useNotification } from '../../contexts/notificationContext.helpers'
 import { ColorPicker } from './ColorPicker'
+import { ModalFooterButtons } from '../ui/ModalFooterButtons'
 
 type NoteModalProps = {
   isOpen: boolean
@@ -275,26 +276,15 @@ export const NoteModal = ({ isOpen, onClose, onSuccess, note, defaultDate }: Not
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 sm:px-6">
-          <div className="flex gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-lg border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 sm:py-3 sm:text-base"
+        <ModalFooterButtons
+          onCancel={onClose}
+          onConfirm={() => {}}
+          confirmText={isSubmitting ? 'Đang lưu...' : `${isEditMode ? 'Cập nhật' : 'Tạo'} ghi chú`}
+          isSubmitting={isSubmitting}
               disabled={isSubmitting}
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              form="note-form"
-              className="flex-1 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-blue-700 disabled:opacity-50 sm:py-3 sm:text-base"
-              disabled={isSubmitting}
-            >
-              {isSubmitting ? 'Đang lưu...' : `${isEditMode ? 'Cập nhật' : 'Tạo'} ghi chú`}
-            </button>
-          </div>
-        </div>
+          confirmButtonType="submit"
+          formId="note-form"
+        />
       </div>
     </div>
   )

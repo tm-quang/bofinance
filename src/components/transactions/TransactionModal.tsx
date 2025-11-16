@@ -7,6 +7,7 @@ import { getIconNode } from '../../utils/iconLoader'
 import { TagSuggestions } from '../ui/TagSuggestions'
 import { NumberPadModal } from '../ui/NumberPadModal'
 import { CategoryPickerModal } from '../categories/CategoryPickerModal'
+import { ModalFooterButtons } from '../ui/ModalFooterButtons'
 import { fetchCategories, type CategoryRecord, type CategoryType } from '../../lib/categoryService'
 import { createTransaction, updateTransaction, type TransactionType, type TransactionRecord } from '../../lib/transactionService'
 import { fetchWallets, getDefaultWallet, type WalletRecord } from '../../lib/walletService'
@@ -278,10 +279,11 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
         success(`Đã thêm ${formState.type === 'Thu' ? 'thu nhập' : 'chi tiêu'} thành công!`)
       }
 
-      // Reset form
+      // Reset form nhưng giữ lại wallet_id mặc định (để thêm liên tục)
+      const resetWalletId = defaultWalletId || formState.wallet_id || ''
       setFormState({
         type: defaultType,
-        wallet_id: '',
+        wallet_id: resetWalletId, // Giữ lại wallet đã chọn hoặc wallet mặc định
         category_id: '',
         amount: '',
         description: '',
@@ -293,7 +295,8 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
       setUploadedImageUrls([])
 
       onSuccess?.()
-      onClose()
+      // KHÔNG đóng modal để có thể thêm liên tục
+      // onClose()
     } catch (err) {
       const message = err instanceof Error ? err.message : (isEditMode ? 'Không thể cập nhật giao dịch' : 'Không thể tạo giao dịch')
       setError(message)
@@ -406,65 +409,69 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
           </div>
 
           {/* Wallet and Category - Grid */}
-          <div className="grid grid-cols-2 gap-4 items-stretch">
+          <div className="grid grid-cols-2 gap-4">
             {/* Wallet selector - Required */}
-            <div>
-              <label className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
+            <div className="flex flex-col">
+              <label className="mb-1.5 block text-xs font-medium text-slate-600 sm:text-sm">
                 Chọn ví <span className="text-rose-500">*</span>
               </label>
-              <CustomSelect
-                options={wallets.map((wallet) => ({
-                  value: wallet.id,
-                  label: wallet.name,
-                  metadata: formatCurrency(wallet.balance),
-                  icon: <FaWallet className="h-4 w-4" />,
-                }))}
-                value={formState.wallet_id}
-                onChange={(value) => setFormState((prev) => ({ ...prev, wallet_id: value }))}
-                placeholder="Chọn ví"
-                loading={isLoading}
-                emptyMessage="Chưa có ví"
-                className="h-12"
-              />
+              <div className="flex-1">
+                <CustomSelect
+                  options={wallets.map((wallet) => ({
+                    value: wallet.id,
+                    label: wallet.name,
+                    metadata: formatCurrency(wallet.balance),
+                    icon: <FaWallet className="h-4 w-4" />,
+                  }))}
+                  value={formState.wallet_id}
+                  onChange={(value) => setFormState((prev) => ({ ...prev, wallet_id: value }))}
+                  placeholder="Chọn ví"
+                  loading={isLoading}
+                  emptyMessage="Chưa có ví"
+                  className="h-12"
+                />
+              </div>
             </div>
 
             {/* Category selector - Required */}
-            <div>
-              <label className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
+            <div className="flex flex-col">
+              <label className="mb-1.5 block text-xs font-medium text-slate-600 sm:text-sm">
                 Chọn hạng mục <span className="text-rose-500">*</span>
               </label>
-              <button
-                type="button"
-                onClick={() => setIsCategoryPickerOpen(true)}
-                className="flex h-12 w-full items-center justify-between rounded-xl border-2 border-slate-200 bg-white p-3 text-left transition-all hover:border-slate-300 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
-              >
-                <div className="flex min-w-0 flex-1 items-center gap-2">
-                  {formState.category_id && categoryIcons[formState.category_id] && (
-                    <span className="shrink-0 text-slate-600">{categoryIcons[formState.category_id]}</span>
-                  )}
-                  <div className="min-w-0 flex-1">
-                    {formState.category_id ? (
-                      <div className="truncate text-sm font-medium text-slate-900">
-                        {filteredCategories.find((c) => c.id === formState.category_id)?.name || 'Chọn hạng mục'}
-                      </div>
-                    ) : (
-                      <div className="text-sm text-slate-400">Chọn hạng mục</div>
+              <div className="flex-1">
+                <button
+                  type="button"
+                  onClick={() => setIsCategoryPickerOpen(true)}
+                  className="flex h-12 w-full items-center justify-between rounded-xl border-2 border-slate-200 bg-white p-3 text-left transition-all hover:border-slate-300 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+                >
+                  <div className="flex min-w-0 flex-1 items-center gap-2">
+                    {formState.category_id && categoryIcons[formState.category_id] && (
+                      <span className="shrink-0 text-slate-600">{categoryIcons[formState.category_id]}</span>
                     )}
+                    <div className="min-w-0 flex-1">
+                      {formState.category_id ? (
+                        <div className="truncate text-sm font-medium text-slate-900">
+                          {filteredCategories.find((c) => c.id === formState.category_id)?.name || 'Chọn hạng mục'}
+                        </div>
+                      ) : (
+                        <div className="text-sm text-slate-400">Chọn hạng mục</div>
+                      )}
+                    </div>
                   </div>
-                </div>
-                <FaChevronDown className="h-5 w-5 shrink-0 text-slate-400" />
-              </button>
+                  <FaChevronDown className="h-5 w-5 shrink-0 text-slate-400" />
+                </button>
+              </div>
             </div>
           </div>
 
           {/* Amount and Date - Grid */}
-          <div className="grid grid-cols-2 gap-4 items-stretch">
+          <div className="grid grid-cols-2 gap-4">
             {/* Amount - Required */}
-            <div>
-              <label htmlFor="amount" className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
+            <div className="flex flex-col">
+              <label htmlFor="amount" className="mb-1.5 block text-xs font-medium text-slate-600 sm:text-sm">
                 Số tiền <span className="text-rose-500">*</span>
               </label>
-              <div className="relative">
+              <div className="relative flex-1">
                 <input
                   type="text"
                   inputMode="numeric"
@@ -473,7 +480,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
                   onChange={handleAmountChange}
                   onFocus={() => setIsNumberPadOpen(true)}
                   placeholder="Nhập số tiền"
-                  className="h-full w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-base font-meium text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4 sm:text-lg cursor-pointer"
+                  className="h-12 w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-base font-medium text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4 sm:text-lg cursor-pointer"
                   required
                   readOnly
                 />
@@ -484,18 +491,18 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
             </div>
 
             {/* Date - Required */}
-            <div>
-              <label htmlFor="date" className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
+            <div className="flex flex-col">
+              <label htmlFor="date" className="mb-1.5 block text-xs font-medium text-slate-600 sm:text-sm">
                 Ngày giao dịch <span className="text-rose-500">*</span>
               </label>
-              <div className="relative">
+              <div className="relative flex-1">
                 <FaCalendar className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   type="date"
                   id="date"
                   value={formState.transaction_date}
                   onChange={(e) => setFormState((prev) => ({ ...prev, transaction_date: e.target.value }))}
-                  className="h-full w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 pl-11 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
+                  className="h-12 w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 pl-11 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
                   required
                 />
               </div>
@@ -504,7 +511,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
 
           {/* Description - Required */}
           <div>
-            <label htmlFor="description" className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
+            <label htmlFor="description" className="mb-1.5 block text-xs font-medium text-slate-600 sm:text-sm">
               Mô tả giao dịch <span className="text-rose-500">*</span>
             </label>
             <input
@@ -520,7 +527,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
 
           {/* Tags - Optional */}
           <div>
-            <label className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
+            <label className="mb-1.5 block text-xs font-medium text-slate-600 sm:text-sm">
               Tag (tùy chọn)
             </label>
             <div className="rounded-xl border-2 border-slate-200 bg-white p-3.5 transition-all focus-within:border-sky-500 focus-within:ring-2 focus-within:ring-sky-500/20 sm:p-4">
@@ -584,7 +591,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
 
           {/* File Upload - Optional */}
           <div>
-            <label className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
+            <label className="mb-1.5 block text-xs font-medium text-slate-600 sm:text-sm">
               Tải lên ảnh/hóa đơn (tùy chọn)
             </label>
             <input
@@ -655,28 +662,15 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
         </div>
 
         {/* Footer - Fixed */}
-        <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 sm:px-6">
-          <div className="flex gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-lg border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 sm:py-3 sm:text-base"
-              disabled={isSubmitting}
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              form="transaction-form"
-              className={`flex-1 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-blue-700 disabled:opacity-50 sm:py-3 sm:text-base ${
-                formState.type === 'Thu' ? 'from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700' : ''
-              }`}
+        <ModalFooterButtons
+          onCancel={onClose}
+          onConfirm={() => {}}
+          confirmText={isUploadingImages ? 'Đang upload ảnh...' : isSubmitting ? 'Đang lưu...' : `${isEditMode ? 'Cập nhật' : 'Thêm'} ${formState.type === 'Thu' ? 'Thu' : 'Chi'}`}
+          isSubmitting={isSubmitting}
               disabled={isSubmitting || isLoading || isUploadingImages || wallets.length === 0 || filteredCategories.length === 0}
-            >
-              {isUploadingImages ? 'Đang upload ảnh...' : isSubmitting ? 'Đang lưu...' : `${isEditMode ? 'Cập nhật' : 'Thêm'} ${formState.type === 'Thu' ? 'Thu' : 'Chi'}`}
-            </button>
-          </div>
-        </div>
+          confirmButtonType="submit"
+          formId="transaction-form"
+        />
       </div>
 
       {/* Number Pad Modal */}

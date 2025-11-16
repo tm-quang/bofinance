@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { FaCalendar, FaTimes, FaArrowDown, FaArrowUp } from 'react-icons/fa'
 import { CustomSelect } from '../ui/CustomSelect'
 import { NumberPadModal } from '../ui/NumberPadModal'
+import { ModalFooterButtons } from '../ui/ModalFooterButtons'
 import { createReminder, updateReminder, type ReminderRecord, type ReminderInsert, type ReminderType, type RepeatType } from '../../lib/reminderService'
 import { fetchCategories, type CategoryRecord, type CategoryType } from '../../lib/categoryService'
 import { fetchWallets, getDefaultWallet, type WalletRecord } from '../../lib/walletService'
@@ -531,28 +532,15 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 sm:px-6">
-          <div className="flex gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-lg border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 sm:py-3 sm:text-base"
-              disabled={isSubmitting}
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              form="reminder-form"
-              className={`flex-1 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-blue-700 disabled:opacity-50 sm:py-3 sm:text-base ${
-                formState.type === 'Thu' ? 'from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700' : ''
-              }`}
+        <ModalFooterButtons
+          onCancel={onClose}
+          onConfirm={() => {}}
+          confirmText={isSubmitting ? 'Đang lưu...' : `${isEditMode ? 'Cập nhật' : 'Tạo'} nhắc nhở`}
+          isSubmitting={isSubmitting}
               disabled={isSubmitting || isLoading}
-            >
-              {isSubmitting ? 'Đang lưu...' : `${isEditMode ? 'Cập nhật' : 'Tạo'} nhắc nhở`}
-            </button>
-          </div>
-        </div>
+          confirmButtonType="submit"
+          formId="reminder-form"
+        />
       </div>
 
       {/* Number Pad Modal */}

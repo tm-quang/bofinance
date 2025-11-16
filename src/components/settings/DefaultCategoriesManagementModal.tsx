@@ -14,6 +14,7 @@ import { IconPicker } from '../categories/IconPicker'
 import { CATEGORY_ICON_MAP } from '../../constants/categoryIcons'
 import { CategoryIcon } from '../ui/CategoryIcon'
 import { seedDefaultCategoriesToDatabase, hasDefaultCategories } from '../../lib/defaultCategoriesSeeder'
+import { ModalFooterButtons } from '../ui/ModalFooterButtons'
 
 type DefaultCategoriesManagementModalProps = {
   isOpen: boolean
@@ -377,7 +378,7 @@ export const DefaultCategoriesManagementModal = ({ isOpen, onClose }: DefaultCat
               </button>
             </div>
 
-            <form onSubmit={handleSubmit} className="p-6 space-y-4">
+            <form id="default-category-form" onSubmit={handleSubmit} className="p-6 space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-slate-700 mb-2">
                   Tên hạng mục <span className="text-rose-500">*</span>
@@ -469,21 +470,16 @@ export const DefaultCategoriesManagementModal = ({ isOpen, onClose }: DefaultCat
                 />
               </div>
 
-              <div className="flex gap-3 pt-4">
-                <button
-                  type="button"
-                  onClick={closeForm}
-                  className="flex-1 rounded-lg border border-slate-200 px-4 py-2 text-slate-700 hover:bg-slate-50"
-                >
-                  Hủy
-                </button>
-                <button
-                  type="submit"
+              <div className="pt-4">
+                <ModalFooterButtons
+                  onCancel={closeForm}
+                  onConfirm={() => {}}
+                  confirmText={isSubmitting ? 'Đang lưu...' : editingCategory ? 'Cập nhật' : 'Tạo mới'}
+                  isSubmitting={isSubmitting}
                   disabled={isSubmitting}
-                  className="flex-1 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2 text-white hover:from-sky-600 hover:to-blue-700 disabled:opacity-50"
-                >
-                  {isSubmitting ? 'Đang lưu...' : editingCategory ? 'Cập nhật' : 'Tạo mới'}
-                </button>
+                  confirmButtonType="submit"
+                  formId="default-category-form"
+                />
               </div>
             </form>
           </div>

@@ -19,6 +19,7 @@ import { getIconNode } from '../utils/iconLoader'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { fetchIcons, type IconRecord } from '../lib/iconService'
 import { IconPicker } from '../components/categories/IconPicker'
+import { ModalFooterButtons } from '../components/ui/ModalFooterButtons'
 import {
     createCategory,
     deleteCategory as deleteCategoryFromDb,
@@ -83,6 +84,7 @@ export const CategoriesPage = () => {
     const [isLoading, setIsLoading] = useState(true)
     const [loadError, setLoadError] = useState<string | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [isDeleting, setIsDeleting] = useState(false)
     const [dbIcons, setDbIcons] = useState<IconRecord[]>([])
 
     const [searchParams, setSearchParams] = useSearchParams()
@@ -171,14 +173,6 @@ export const CategoriesPage = () => {
         const loadCategories = async () => {
             setIsLoading(true)
             try {
-                // Khởi tạo default categories từ default_categories table vào user categories
-                // Hàm này sẽ tự động check và chỉ sync nếu user chưa có categories
-                // Chạy trong background để không block UI
-                initializeDefaultCategories().catch((initError) => {
-                    // Không báo lỗi nếu đã có hạng mục mặc định
-                    console.log('Default categories check:', initError)
-                })
-
                 // Load categories từ cache/database (cache sẽ được dùng tự động)
                 // cacheFirstWithRefresh sẽ trả về cache ngay nếu có, fetch trong background nếu stale
                 const [flatData, hierarchicalData] = await Promise.all([
@@ -186,11 +180,34 @@ export const CategoriesPage = () => {
                     fetchCategoriesHierarchical(),
                 ])
                 
+                // Chỉ sync default categories nếu user CHƯA CÓ categories nào cả (lần đầu tiên)
+                // Không sync lại nếu user đã có categories (kể cả khi xóa một số)
+                if (flatData.length === 0) {
+                    // User chưa có categories nào, sync từ default
+                initializeDefaultCategories().catch((initError) => {
+                    // Không báo lỗi nếu đã có hạng mục mặc định
+                    console.log('Default categories check:', initError)
+                })
+
+                    // Reload lại sau khi sync
+                    const [reloadedFlat, reloadedHierarchical] = await Promise.all([
+                    fetchCategories(),
+                    fetchCategoriesHierarchical(),
+                ])
+                
+                    setCategories(sortCategories(reloadedFlat.map(record => mapRecordToCategory(record))))
+                    setHierarchicalCategories(reloadedHierarchical.map(cat => ({
+                        ...cat,
+                        children: Array.isArray(cat.children) ? cat.children : [],
+                    })))
+                } else {
+                    // User đã có categories, không sync lại
                 setCategories(sortCategories(flatData.map(record => mapRecordToCategory(record))))
                 setHierarchicalCategories(hierarchicalData.map(cat => ({
                     ...cat,
                     children: Array.isArray(cat.children) ? cat.children : [],
                 })))
+                }
                 
                 // Mặc định tất cả categories đều thu gọn
                 setExpandedParents(new Set())
@@ -503,7 +520,7 @@ export const CategoriesPage = () => {
 
             {/* Create/Edit Form Modal - Full Screen */}
             {isFormOpen && (
-                <div className="fixed inset-0 z-50 bg-white">
+                <div className="fixed inset-0 z-50 bg-[#F7F9FC]">
                     {/* Header - Giống HeaderBar */}
                     <header className="pointer-events-none relative z-10 flex-shrink-0 bg-[#F7F9FC]">
                         <div className="relative px-1 py-1">
@@ -527,8 +544,8 @@ export const CategoriesPage = () => {
                     </header>
 
                     {/* Form Content */}
-                    <form className="flex h-full flex-col" onSubmit={handleSubmit}>
-                        <div className="flex-1 overflow-y-auto overscroll-contain p-4 space-y-5">
+                    <form id="category-form" className="flex h-full flex-col" onSubmit={handleSubmit}>
+                        <div className={`flex-1 overflow-y-auto overscroll-contain bg-[#F7F9FC] p-4 space-y-5 ${editingId ? 'pb-24' : ''}`}>
                             {/* Category Name */}
                             <div className="space-y-2">
                                 <label className="block text-sm font-semibold text-slate-700">
@@ -634,79 +651,84 @@ export const CategoriesPage = () => {
                         </div>
 
                         {/* Action Buttons - Fixed at bottom */}
-                        <div className="sticky bottom-0 border-t border-slate-200 bg-white p-4">
-                            <div className="flex gap-3">
-                                {editingId ? (
-                                    <button
-                                        type="button"
-                                        onClick={async () => {
-                                            const category = categories.find(c => c.id === editingId)
-                                            if (!category) return
-
-                                            await showDialog({
-                                                message: `Bạn có chắc muốn xóa hạng mục "${category.name}"? Tất cả giao dịch liên quan sẽ không còn hạng mục.`,
-                                                type: 'warning',
-                                                title: 'Xóa hạng mục',
-                                                confirmText: 'Xóa',
-                                                cancelText: 'Hủy',
-                                                onConfirm: async () => {
-                                                    try {
-                                                        setIsSubmitting(true)
-                                                        await deleteCategoryFromDb(editingId)
-                                                        
-                                                        // Reload categories
-                                                        const [reloaded, reloadedHierarchical] = await Promise.all([
-                                                            fetchCategories(),
-                                                            fetchCategoriesHierarchical(),
-                                                        ])
-                                                        setCategories(sortCategories(reloaded.map(record => mapRecordToCategory(record))))
-                                                        setHierarchicalCategories(reloadedHierarchical.map(cat => ({
-                                                            ...cat,
-                                                            children: Array.isArray(cat.children) ? cat.children : [],
-                                                        })))
-                                                        
-                                                        success('Đã xóa hạng mục thành công!')
-                                                        closeForm()
-                                                    } catch (error) {
-                                                        const message =
-                                                            error instanceof Error
-                                                                ? `Không thể xóa hạng mục: ${error.message}`
-                                                                : 'Không thể xóa hạng mục. Vui lòng thử lại sau.'
-                                                        setFormError(message)
-                                                        showError(message)
-                                                    } finally {
-                                                        setIsSubmitting(false)
-                                                    }
-                                                },
-                                            })
-                                        }}
-                                        disabled={isSubmitting}
-                                        className="flex-1 rounded-xl border-2 border-rose-200 bg-white px-4 py-3 text-sm font-semibold text-rose-600 transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
-                                    >
-                                        {isSubmitting ? 'Đang xóa...' : 'Xóa'}
-                                    </button>
-                                ) : (
-                                    <button
-                                        type="button"
-                                        onClick={closeForm}
-                                        className="flex-1 rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-700 transition hover:border-slate-300 hover:bg-slate-50"
-                                    >
-                                        Hủy
-                                    </button>
-                                )}
+                        {editingId && (
+                            <div className="fixed bottom-20 left-0 right-0 z-40 bg-[#F7F9FC] px-4 pb-2">
                                 <button
-                                    type="submit"
-                                    disabled={isSubmitting}
-                                    className="flex-1 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-sky-500/30 transition hover:from-sky-600 hover:to-blue-700 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-70"
+                                    type="button"
+                                    onClick={async (e) => {
+                                        e.preventDefault()
+                                        e.stopPropagation()
+                                        
+                                        const editingCategory = categories.find(c => c.id === editingId)
+                                        if (!editingCategory) return
+
+                                        await showDialog({
+                                            message: `Bạn có chắc muốn xóa hạng mục "${editingCategory.name}"? Tất cả giao dịch liên quan sẽ không còn hạng mục.`,
+                                            type: 'warning',
+                                            title: 'Xóa hạng mục',
+                                            confirmText: 'Xóa',
+                                            cancelText: 'Hủy',
+                                            onConfirm: async () => {
+                                                try {
+                                                    setIsDeleting(true)
+                                                    await deleteCategoryFromDb(editingId)
+                                                    
+                                                    // Force reload categories từ database (bỏ qua cache)
+                                                    setIsLoading(true)
+                                                    const [reloaded, reloadedHierarchical] = await Promise.all([
+                                                        fetchCategories(),
+                                                        fetchCategoriesHierarchical(),
+                                                    ])
+                                                    setCategories(sortCategories(reloaded.map(record => mapRecordToCategory(record))))
+                                                    setHierarchicalCategories(reloadedHierarchical.map(cat => ({
+                                                        ...cat,
+                                                        children: Array.isArray(cat.children) ? cat.children : [],
+                                                    })))
+                                                    setIsLoading(false)
+                                                    
+                                                    success('Đã xóa hạng mục thành công!')
+                                                    closeForm()
+                                                } catch (error) {
+                                                    setIsLoading(false)
+                                                    const message =
+                                                        error instanceof Error
+                                                            ? `Không thể xóa hạng mục: ${error.message}`
+                                                            : 'Không thể xóa hạng mục. Vui lòng thử lại sau.'
+                                                    setFormError(message)
+                                                    showError(message)
+                                                } finally {
+                                                    setIsDeleting(false)
+                                                }
+                                            },
+                                        })
+                                    }}
+                                    disabled={isSubmitting || isDeleting}
+                                    className="w-full max-w-md mx-auto rounded-xl border-2 border-rose-200 bg-white px-4 py-3 text-sm font-semibold text-rose-600 transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 shadow-lg"
                                 >
-                                    {isSubmitting
+                                    {isDeleting ? 'Đang xóa...' : 'Xóa hạng mục'}
+                                </button>
+                            </div>
+                        )}
+                        <ModalFooterButtons
+                            onCancel={closeForm}
+                            onConfirm={() => {
+                                // Chỉ trigger form submit, không làm gì khác
+                                // Form submit sẽ gọi handleSubmit để lưu
+                                const form = document.getElementById('category-form') as HTMLFormElement
+                                if (form) {
+                                    form.requestSubmit()
+                                }
+                            }}
+                            confirmText={isSubmitting
                                         ? 'Đang lưu...'
                                         : editingId
                                             ? 'Lưu thay đổi'
                                             : 'Thêm hạng mục'}
-                                </button>
-                            </div>
-                        </div>
+                            isSubmitting={isSubmitting}
+                            disabled={isSubmitting || isDeleting}
+                            confirmButtonType="button"
+                            fixed={true}
+                        />
                     </form>
                 </div>
             )}

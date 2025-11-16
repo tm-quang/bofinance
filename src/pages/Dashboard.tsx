@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useDataPreloader } from '../hooks/useDataPreloader'
-import { FaPlus, FaCalendar, FaExchangeAlt, FaHandHoldingHeart, FaPaperPlane, FaCog, FaWallet, FaFolder, FaChevronLeft, FaChevronRight, FaReceipt } from 'react-icons/fa'
+import { FaPlus, FaCalendar, FaExchangeAlt, FaHandHoldingHeart, FaPaperPlane, FaCog, FaFolder, FaChevronLeft, FaChevronRight, FaReceipt, FaArrowRight, FaClock } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
 import { QuickActionsSettings } from '../components/quickActions/QuickActionsSettings'
 import { IncomeExpenseOverview } from '../components/charts/IncomeExpenseOverview'
 import { TransactionActionModal } from '../components/transactions/TransactionActionModal'
+import { TransactionCard } from '../components/transactions/TransactionCard'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { WelcomeModal } from '../components/ui/WelcomeModal'
 // import { WalletCarousel } from '../components/wallets/WalletCarousel'
@@ -23,6 +24,7 @@ import { getDefaultWallet, setDefaultWallet } from '../lib/walletService'
 import { getCurrentProfile, type ProfileRecord } from '../lib/profileService'
 import { fetchReminders, type ReminderRecord } from '../lib/reminderService'
 import { useNotification } from '../contexts/notificationContext.helpers'
+import { invalidateCache } from '../lib/cache'
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('vi-VN', {
@@ -126,6 +128,8 @@ export const DashboardPage = () => {
   const [selectedDateReminders, setSelectedDateReminders] = useState<ReminderRecord[]>([])
   const [isLoadingDateData, setIsLoadingDateData] = useState(false)
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
+  const [isReloading, setIsReloading] = useState(false)
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
   
   // Long press handler refs
   const longPressTimerRef = useRef<number | null>(null)
@@ -140,32 +144,47 @@ export const DashboardPage = () => {
         return ALL_QUICK_ACTIONS.map((action, index) => ({
           id: action.id,
           label: action.label,
-          enabled: parsed[action.id] ?? (index < 4 || action.id === 'settings'), // Mặc định 4 chức năng đầu + cài đặt
+          // Mặc định: chỉ 4 chức năng đầu tiên (không bao gồm settings)
+          enabled: parsed[action.id] ?? (index < 4 && action.id !== 'settings'),
         }))
       }
     } catch (error) {
       console.error('Error loading quick actions settings:', error)
     }
-    // Mặc định: 4 chức năng đầu tiên + cài đặt (tổng 5 chức năng)
+    // Mặc định: chỉ 4 chức năng đầu tiên (Settings là chức năng thứ 5, mặc định tắt)
     return ALL_QUICK_ACTIONS.map((action, index) => ({
       id: action.id,
       label: action.label,
-      enabled: index < 4 || action.id === 'settings',
+      enabled: index < 4 && action.id !== 'settings',
     }))
   }
 
   const [quickActionsSettings, setQuickActionsSettings] = useState(getStoredActions)
 
-  // Get enabled quick actions
+  // Get enabled quick actions (exclude settings)
   const enabledQuickActions = ALL_QUICK_ACTIONS.filter((action) => {
+    if (action.id === 'settings') return false // Loại bỏ tiện ích cài đặt
     const setting = quickActionsSettings.find((s) => s.id === action.id)
     return setting?.enabled ?? false
   })
 
   // Handle update quick actions settings
   const handleUpdateQuickActions = (updatedActions: typeof quickActionsSettings) => {
-    setQuickActionsSettings(updatedActions)
-    // Save to localStorage
+    // updatedActions đã được filter settings từ modal, chỉ cần lưu lại
+    // Đảm bảo không có quá 4 tiện ích được bật
+    const enabledCount = updatedActions.filter((a) => a.enabled).length
+    if (enabledCount > 4) {
+      // Nếu có lỗi, giới hạn lại
+      const limitedActions = updatedActions.map((action, index) => ({
+        ...action,
+        enabled: action.enabled && index < 4
+      }))
+      setQuickActionsSettings(limitedActions)
+    } else {
+      setQuickActionsSettings(updatedActions)
+    }
+    
+    // Save to localStorage (không lưu settings vì đã được filter)
     const settingsMap: Record<string, boolean> = {}
     updatedActions.forEach((action) => {
       settingsMap[action.id] = action.enabled
@@ -367,6 +386,9 @@ export const DashboardPage = () => {
 
   // Reload transactions when a new transaction is added/updated/deleted
   const handleTransactionSuccess = () => {
+    // Trigger refresh for NetAssetsCard
+    setRefreshTrigger(prev => prev + 1)
+    
     const loadTransactions = async () => {
       try {
         // Đợi một chút để đảm bảo wallet balance đã được sync
@@ -391,6 +413,107 @@ export const DashboardPage = () => {
       }
     }
     loadTransactions()
+  }
+
+  // Handle reload - invalidate cache and reload all data
+  const handleReload = async () => {
+    setIsReloading(true)
+    // Trigger refresh for NetAssetsCard
+    setRefreshTrigger(prev => prev + 1)
+    try {
+      // Invalidate all cache
+      await Promise.all([
+        invalidateCache('transactions'),
+        invalidateCache('categories'),
+        invalidateCache('categories_hierarchical'),
+        invalidateCache('wallets'),
+        invalidateCache('reminders'),
+        invalidateCache('notifications'),
+        invalidateCache('profiles'),
+        invalidateCache('getTransactionStats'),
+        invalidateCache('getWalletCashFlowStats'),
+      ])
+
+      // Reload all data
+      const loadData = async () => {
+        try {
+          setIsLoadingTransactions(true)
+          const [transactionsData, categoriesData, walletsData, remindersData, profileData] = await Promise.all([
+            fetchTransactions({ limit: 5 }),
+            fetchCategories(),
+            fetchWallets(false),
+            fetchReminders({ is_active: true }),
+            getCurrentProfile(),
+          ])
+
+          // Load icons for categories
+          const iconsMap: Record<string, React.ReactNode> = {}
+          await Promise.all(
+            categoriesData.map(async (category) => {
+              try {
+                const iconNode = await getIconNode(category.icon_id)
+                if (iconNode) {
+                  iconsMap[category.id] = <span className="h-5 w-5">{iconNode}</span>
+                } else {
+                  const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
+                  if (hardcodedIcon?.icon) {
+                    const IconComponent = hardcodedIcon.icon
+                    iconsMap[category.id] = <IconComponent className="h-5 w-5" />
+                  }
+                }
+              } catch (error) {
+                const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
+                if (hardcodedIcon?.icon) {
+                  const IconComponent = hardcodedIcon.icon
+                  iconsMap[category.id] = <IconComponent className="h-5 w-5" />
+                }
+              }
+            })
+          )
+          setCategoryIcons(iconsMap)
+
+          // Sort transactions
+          const sortedTransactions = [...transactionsData].sort((a, b) => {
+            const dateA = new Date(a.transaction_date).getTime()
+            const dateB = new Date(b.transaction_date).getTime()
+            if (dateB !== dateA) {
+              return dateB - dateA
+            }
+            const createdA = new Date(a.created_at).getTime()
+            const createdB = new Date(b.created_at).getTime()
+            return createdB - createdA
+          })
+          setTransactions(sortedTransactions)
+          setCategories(categoriesData)
+          setWallets(walletsData)
+          setProfile(profileData)
+
+          // Reload notification count
+          await loadNotificationCount()
+
+          // Reload date data
+          const dateStr = formatDateToString(selectedDate)
+          const dateReminders = remindersData.filter((r) => r.reminder_date === dateStr && !r.completed_at)
+          setSelectedDateReminders(dateReminders)
+
+          success('Đã cập nhật dữ liệu mới nhất!')
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : String(error)
+          console.error('Error reloading data:', errorMessage, error)
+          showError('Không thể tải lại dữ liệu. Vui lòng thử lại.')
+        } finally {
+          setIsLoadingTransactions(false)
+        }
+      }
+
+      await loadData()
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      console.error('Error invalidating cache:', errorMessage, error)
+      showError('Không thể làm mới dữ liệu. Vui lòng thử lại.')
+    } finally {
+      setIsReloading(false)
+    }
   }
 
   // Long press handlers
@@ -511,7 +634,7 @@ export const DashboardPage = () => {
         if (isCancelled) return
         
         const dateReminders = allReminders.filter(
-          (r) => r.reminder_date === dateStr && r.status === 'pending'
+          (r) => r.reminder_date === dateStr && !r.completed_at
         )
         setSelectedDateReminders(dateReminders)
       } catch (error) {
@@ -662,12 +785,14 @@ export const DashboardPage = () => {
         avatarUrl={profile?.avatar_url || undefined}
         badgeColor="bg-sky-500"
         unreadNotificationCount={unreadNotificationCount}
+        onReload={handleReload}
+        isReloading={isReloading}
       />
 
       <main className="flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 py-4 sm:py-4">
           {/* Tài sản ròng - Tổng quan tài chính */}
-          <NetAssetsCard />
+          <NetAssetsCard refreshTrigger={refreshTrigger} />
 
           {/* Wallet Card Carousel - Đã ẩn */}
           {/* <WalletCarousel onWalletChange={handleWalletChange} onAddWallet={handleAddWallet} /> */}
@@ -676,7 +801,7 @@ export const DashboardPage = () => {
         <IncomeExpenseOverview walletId={defaultWalletId || undefined} />
 
         {/* Date Navigation and Plan Section */}
-        <section className="rounded-3xl bg-gradient-to-br from-amber-50 via-white to-white p-5 shadow-lg ring-1 ring-amber-100">
+        <section className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100">
           {/* Date Navigation Header */}
           <div className="flex items-center justify-between mb-4">
             <button
@@ -716,17 +841,21 @@ export const DashboardPage = () => {
 
           {/* Reminders List */}
           {isLoadingDateData ? (
-            <div className="py-4 text-center text-sm text-slate-500">Đang tải...</div>
+            <div className="py-  text-center text-sm text-slate-500">Đang tải...</div>
           ) : selectedDateReminders.length === 0 ? (
-            <div className="py-8 text-center">
-              <FaCalendar className="mx-auto h-12 w-12 text-slate-300" />
-              <p className="mt-3 text-sm font-medium text-slate-500">
-                Không có kế hoạch
+            <div className="py-0 text-center">
+              <img 
+                src="/bofin-calender.png" 
+                alt="Calendar" 
+                className="mx-auto h-64 w-64 object-contain opacity-60"
+              />
+              <p className="mt-3 mb-3 text-sm font-medium text-slate-400">
+                Chưa có kế hoạch, ghi chú, thu chi
               </p>
               <button
                 type="button"
                 onClick={() => navigate('/reminders')}
-                className="mt-3 rounded-lg bg-amber-100 px-4 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-200"
+                className="rounded-xl bg-amber-100 px-4 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-200"
               >
                 Tạo nhắc nhở
               </button>
@@ -814,14 +943,16 @@ export const DashboardPage = () => {
         <section className="rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-white p-5 shadow-lg ring-1 ring-slate-100">
           <div className="flex items-center justify-between mb-6">
             <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">CHỨC NĂNG NHANH</h3>
-              <p className="mt-1 text-xs text-slate-500">Truy cập nhanh các tính năng thường dùng</p>
+              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">Tiện ích khác</h3>
+              <p className="mt-1 text-xs text-slate-500">Truy cập nhanh các tiện ích thường dùng</p>
             </div>
             <button
               type="button"
-              className="text-xs font-semibold text-sky-600 transition hover:text-sky-700 hover:underline"
+              onClick={() => setIsSettingsOpen(true)}
+              className="flex items-center gap-1.5 text-xs font-semibold text-sky-600 transition hover:text-sky-700 hover:underline"
             >
-              Xem tất cả
+              <FaCog className="h-3.5 w-3.5" />
+              <span>Cài đặt</span>
             </button>
           </div>
           <div className={`grid gap-2.5 sm:gap-3 ${
@@ -868,18 +999,24 @@ export const DashboardPage = () => {
         </section>
 
         <section className="space-y-4">
-          <header className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-[0.35em] text-slate-400">
-                Giao dịch gần đây
-              </p>
-              <p className="text-sm text-slate-500">Theo dõi lịch sử thu chi mới nhất.</p>
+          <header className="flex items-center justify-between mb-4">
+            <div className="flex-1">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-md">
+                  <FaClock className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-slate-900">Giao dịch gần đây</h3>
+                  <p className="text-xs text-slate-500 mt-0.5">Lịch sử thu chi mới nhất</p>
+                </div>
+              </div>
             </div>
             <button 
               onClick={() => navigate('/transactions')}
-              className="text-sm font-semibold text-sky-500 transition hover:text-sky-600 hover:underline"
+              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all hover:from-sky-600 hover:to-blue-700 hover:shadow-lg active:scale-95"
             >
-              Xem thêm
+              <span>Xem thêm</span>
+              <FaArrowRight className="h-3.5 w-3.5" />
             </button>
           </header>
           <div className="space-y-3">
@@ -895,97 +1032,46 @@ export const DashboardPage = () => {
             ) : (
               transactions.slice(0, 5).map((transaction) => {
                 const categoryInfo = getCategoryInfo(transaction.category_id)
-                const categoryIcon = categoryInfo.icon
-                const isIncome = transaction.type === 'Thu'
+                const walletColor = getWalletColor(transaction.wallet_id)
+                
+                // Format date with relative time (Hôm nay, Hôm qua, etc.)
+                const formatTransactionDate = (date: Date) => {
+                  const today = new Date()
+                  today.setHours(0, 0, 0, 0)
+                  const yesterday = new Date(today)
+                  yesterday.setDate(yesterday.getDate() - 1)
+                  
+                  const transactionDay = new Date(date)
+                  transactionDay.setHours(0, 0, 0, 0)
+                  
+                  if (transactionDay.getTime() === today.getTime()) {
+                    return 'Hôm nay'
+                  } else if (transactionDay.getTime() === yesterday.getTime()) {
+                    return 'Hôm qua'
+                  } else {
+                    return date.toLocaleDateString('vi-VN', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                    })
+                  }
+                }
                 
                 return (
-                  <div
+                  <TransactionCard
                     key={transaction.id}
-                    onTouchStart={() => handleLongPressStart(transaction)}
-                    onTouchEnd={handleLongPressEnd}
-                    onTouchCancel={handleLongPressCancel}
-                    onMouseDown={() => handleLongPressStart(transaction)}
-                    onMouseUp={handleLongPressEnd}
-                    onMouseLeave={handleLongPressCancel}
-                    className={`relative flex gap-2.5 rounded-2xl p-2.5 shadow-[0_20px_55px_rgba(15,40,80,0.1)] ring-1 transition-all select-none ${
-                      isIncome
-                        ? 'bg-gradient-to-r from-emerald-50 via-emerald-50/80 to-white border-l-4 border-emerald-500'
-                        : 'bg-gradient-to-r from-rose-50 via-rose-50/80 to-white border-l-4 border-rose-500'
-                    }`}
-                  >
-                    {/* Icon */}
-                    <span
-                      className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base shadow-sm transition-transform ${
-                        isIncome
-                          ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white'
-                          : 'bg-gradient-to-br from-rose-400 to-rose-600 text-white'
-                      }`}
-                    >
-                      {categoryIcon ? (
-                        categoryIcon
-                      ) : (
-                        <FaPlus className="h-5 w-5" />
-                      )}
-                    </span>
-                    
-                    {/* Content */}
-                    <div className="flex-1 min-w-0 flex items-start justify-between gap-2">
-                      {/* Left side: Description, Date, Category */}
-                      <div className="flex-1 min-w-0">
-                        {/* Description */}
-                        <p className={`truncate text-sm font-semibold mb-1 ${
-                          isIncome ? 'text-emerald-900' : 'text-rose-900'
-                        }`}>
-                          {transaction.description || 'Không có mô tả'}
-                        </p>
-                        
-                        {/* Date and Category - Compact */}
-                        <div className="flex items-center gap-2 text-xs">
-                          <div className={`flex items-center gap-1 shrink-0 ${
-                            isIncome ? 'text-emerald-700' : 'text-rose-700'
-                          }`}>
-                            <FaCalendar className="h-3 w-3" />
-                            <span className="whitespace-nowrap">
-                              {new Date(transaction.transaction_date).toLocaleDateString('vi-VN', {
-                                day: '2-digit',
-                                month: '2-digit',
-                                year: 'numeric',
-                              })}
-                            </span>
-                          </div>
-                          <span className="text-slate-400">•</span>
-                          <span className={`font-medium truncate ${
-                            isIncome ? 'text-emerald-700' : 'text-rose-700'
-                          }`}>
-                            {categoryInfo.name}
-                          </span>
-                        </div>
-                      </div>
-                      
-                      {/* Right side: Amount and Wallet */}
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        {/* Amount - Top Right */}
-                        <span className={`text-base font-bold ${
-                          isIncome ? 'text-emerald-700' : 'text-rose-700'
-                        }`}>
-                          {isIncome ? '+' : '-'}
-                          {formatCurrency(transaction.amount)}
-                        </span>
-                        {/* Wallet - Bottom Right */}
-                        {(() => {
-                          const walletColor = getWalletColor(transaction.wallet_id)
-                          return (
-                            <div className={`flex items-center gap-1 rounded-full ${walletColor.bg} px-2 py-0.5`}>
-                              <FaWallet className={`h-3 w-3 ${walletColor.icon}`} />
-                              <span className={`text-xs font-semibold ${walletColor.text} whitespace-nowrap`}>
-                                {getWalletName(transaction.wallet_id)}
-                              </span>
-                            </div>
-                          )
-                        })()}
-                      </div>
-                    </div>
-                  </div>
+                    transaction={transaction}
+                    categoryInfo={categoryInfo}
+                    walletInfo={{
+                      name: getWalletName(transaction.wallet_id),
+                      color: walletColor,
+                    }}
+                    onLongPressStart={handleLongPressStart}
+                    onLongPressEnd={handleLongPressEnd}
+                    onLongPressCancel={handleLongPressCancel}
+                    formatCurrency={formatCurrency}
+                    formatDate={formatTransactionDate}
+                  />
                 )
               })
             )}
@@ -1042,7 +1128,7 @@ export const DashboardPage = () => {
       <QuickActionsSettings
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-        actions={quickActionsSettings}
+        actions={quickActionsSettings.filter((action) => action.id !== 'settings')}
         onUpdate={handleUpdateQuickActions}
       />
 

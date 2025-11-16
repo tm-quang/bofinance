@@ -184,7 +184,7 @@ export const WalletCard = ({ wallet, isActive = false, isDefault = false }: Wall
             <p className="truncate text-[10px] font-semibold uppercase tracking-widest text-white/70 sm:text-xs">
               {wallet.type}
             </p>
-            <p className="mt-1 truncate text-base font-bold sm:text-lg">{wallet.name}</p>
+            <p className="mt-1 truncate text-base font-bold text-white sm:text-lg">{wallet.name}</p>
           </div>
           <div className="flex shrink-0 items-center gap-2">
             <span className="text-xl font-semibold text-amber-300 sm:text-xs">BO.fin</span>
@@ -204,7 +204,7 @@ export const WalletCard = ({ wallet, isActive = false, isDefault = false }: Wall
 
         {/* Balance */}
         <div className="mt-2 min-w-0">
-          <p className="truncate text-2xl font-bold tracking-tight sm:text-3xl">
+          <p className="truncate text-2xl font-bold tracking-tight text-white sm:text-3xl">
             {formatCurrency(stats.currentBalance)}
           </p>
           <div className="mt-0.5 flex items-center justify-between gap-2">
@@ -229,7 +229,7 @@ export const WalletCard = ({ wallet, isActive = false, isDefault = false }: Wall
         <div className="mt-auto flex items-start justify-between gap-3 border-t border-white/20 pt-3">
           <div className="flex-1 min-w-0">
             <p className="text-xs text-white/70 sm:text-[10px]">Thu nhập</p>
-            <p className="mt-1 break-words text-sm font-bold leading-tight sm:text-base">
+            <p className="mt-1 break-words text-sm font-bold leading-tight text-white sm:text-base">
               {isLoading ? '...' : formatCurrency(stats.income || 0)}
             </p>
             {!isLoading && stats.currentBalance > 0 && stats.income > 0 && (
@@ -241,7 +241,7 @@ export const WalletCard = ({ wallet, isActive = false, isDefault = false }: Wall
           <div className="h-12 w-px shrink-0 bg-white/20" />
           <div className="flex-1 min-w-0 text-right">
             <p className="text-xs text-white/70 sm:text-[10px]">Chi tiêu</p>
-            <p className="mt-1 break-words text-sm font-bold leading-tight sm:text-base">
+            <p className="mt-1 break-words text-sm font-bold leading-tight text-white sm:text-base">
               {isLoading ? '...' : formatCurrency(stats.expense || 0)}
             </p>
             {!isLoading && stats.currentBalance > 0 && stats.expense > 0 && (

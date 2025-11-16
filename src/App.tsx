@@ -20,6 +20,8 @@ const AddTransactionPage = lazy(() => import('./pages/AddTransaction'))
 const AddBudgetPage = lazy(() => import('./pages/AddBudget'))
 const LoginPage = lazy(() => import('./pages/Login'))
 const RegisterPage = lazy(() => import('./pages/Register'))
+const AdminCategoriesIconPage = lazy(() => import('./pages/AdminCategoriesIcon'))
+const AccountInfoPage = lazy(() => import('./pages/AccountInfo'))
 
 const PageFallback = () => (
   <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 px-6">
@@ -111,6 +113,8 @@ function AppContent() {
         <Route path="/notifications" element={<NotificationsPage />} />
         <Route path="/add-transaction" element={<AddTransactionPage />} />
         <Route path="/add-budget" element={<AddBudgetPage />} />
+        <Route path="/admin-categoriesicon" element={<AdminCategoriesIconPage />} />
+        <Route path="/account-info" element={<AccountInfoPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>
         </Suspense>
@@ -121,14 +125,29 @@ function AppContent() {
         toastOptions={{
           duration: 3000,
           style: {
-            borderRadius: '12px',
-            padding: '5px',
+            borderRadius: '10px',
+            padding: '5px 12px',
             maxWidth: '450px',
-            fontSize: '13px',
+            fontSize: '12px',
             fontWeight: '500',
+            lineHeight: '1.4',
+            background: 'linear-gradient(135deg, #0ea5e9 0%, #0284c7 100%)',
+            color: '#ffffff',
+            border: '1px solid rgba(14, 165, 233, 0.3)',
           },
           success: {
             duration: 3000,
+            style: {
+              borderRadius: '10px',
+              padding: '5px 12px',
+              maxWidth: '500px',
+              fontSize: '12px',
+              fontWeight: '500',
+              lineHeight: '1.4',
+              background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+              color: '#ffffff',
+              border: '1px solid rgba(16, 185, 129, 0.3)',
+            },
             iconTheme: {
               primary: '#ffffff',
               secondary: '#10b981',
@@ -136,6 +155,17 @@ function AppContent() {
           },
           error: {
             duration: 3000,
+            style: {
+              borderRadius: '10px',
+              padding: '5px 12px',
+              maxWidth: '500px',
+              fontSize: '12px',
+              fontWeight: '500',
+              lineHeight: '1.4',
+              background: 'linear-gradient(135deg, #ef4444 0%, #dc2626 100%)',
+              color: '#ffffff',
+              border: '1px solid rgba(239, 68, 68, 0.3)',
+            },
             iconTheme: {
               primary: '#ffffff',
               secondary: '#ef4444',
@@ -143,6 +173,17 @@ function AppContent() {
           },
           loading: {
             duration: Infinity,
+            style: {
+              borderRadius: '10px',
+              padding: '5px 12px',
+              maxWidth: '450px',
+              fontSize: '12px',
+              fontWeight: '500',
+              lineHeight: '1.4',
+              background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+              color: '#ffffff',
+              border: '1px solid rgba(59, 130, 246, 0.3)',
+            },
             iconTheme: {
               primary: '#ffffff',
               secondary: '#3b82f6',

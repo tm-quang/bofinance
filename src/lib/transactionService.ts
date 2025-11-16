@@ -1,7 +1,6 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 
 import { getSupabaseClient } from './supabaseClient'
-import { syncWalletBalanceFromTransactions } from './walletBalanceService'
 import { cacheFirstWithRefresh, cacheManager, invalidateCache } from './cache'
 import { getCachedUser } from './userCache'
 
@@ -55,6 +54,14 @@ export type TransactionFilters = {
 }
 
 const TABLE_NAME = 'transactions'
+
+// Helper function to format date as YYYY-MM-DD in local timezone
+const formatDateLocal = (date: Date): string => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 const throwIfError = (error: PostgrestError | null, fallbackMessage: string): void => {
   if (error) {
@@ -159,7 +166,7 @@ export const createTransaction = async (payload: TransactionInsert): Promise<Tra
     .insert({
       ...payload,
       user_id: user.id,
-      transaction_date: payload.transaction_date || new Date().toISOString().split('T')[0],
+      transaction_date: payload.transaction_date || formatDateLocal(new Date()),
     })
     .select()
     .single()
@@ -170,10 +177,8 @@ export const createTransaction = async (payload: TransactionInsert): Promise<Tra
     throw new Error('Không nhận được dữ liệu giao dịch sau khi tạo.')
   }
 
-  // Tự động cập nhật số dư ví từ giao dịch (chạy trong background)
-  syncWalletBalanceFromTransactions(payload.wallet_id).catch((error) => {
-    console.warn('Error syncing wallet balance after transaction creation:', error)
-  })
+  // Lưu ý: Số dư ví được tự động cập nhật bởi database trigger (update_wallet_balance)
+  // Không cần gọi syncWalletBalanceFromTransactions vì sẽ gây xung đột và tính 2 lần
 
   // Tạo thông báo cho giao dịch mới (chạy trong background)
   try {
@@ -200,6 +205,10 @@ export const createTransaction = async (payload: TransactionInsert): Promise<Tra
 
   await invalidateCache('transactions')
   await invalidateCache('getTransactionStats')
+  // Invalidate wallet cache vì balance đã được trigger cập nhật
+  await invalidateCache('fetchWallets')
+  await invalidateCache('getDefaultWallet')
+  await invalidateCache('getTotalBalanceWalletIds')
   // Invalidate wallet cash flow stats cache vì có giao dịch mới
   await invalidateCache('getWalletCashFlowStats')
 
@@ -232,17 +241,16 @@ export const updateTransaction = async (
     throw new Error('Không nhận được dữ liệu giao dịch sau khi cập nhật.')
   }
 
-  // Tự động cập nhật số dư ví từ giao dịch
-  // Cần lấy wallet_id từ giao dịch cũ hoặc mới
-  const walletId = updates.wallet_id || data.wallet_id
-  if (walletId) {
-    syncWalletBalanceFromTransactions(walletId).catch((error) => {
-      console.warn('Error syncing wallet balance after transaction update:', error)
-    })
-  }
+  // Lưu ý: Số dư ví được tự động cập nhật bởi database trigger (update_wallet_balance)
+  // Trigger tự động xử lý cả wallet cũ (nếu wallet_id thay đổi) và wallet mới
+  // Không cần gọi syncWalletBalanceFromTransactions vì sẽ gây xung đột và tính 2 lần
 
   invalidateCache('transactions')
   invalidateCache('getTransactionStats')
+  // Invalidate wallet cache vì balance đã được trigger cập nhật
+  await invalidateCache('fetchWallets')
+  await invalidateCache('getDefaultWallet')
+  await invalidateCache('getTotalBalanceWalletIds')
   // Invalidate wallet cash flow stats cache vì có giao dịch được cập nhật
   invalidateCache('getWalletCashFlowStats')
 
@@ -258,15 +266,13 @@ export const deleteTransaction = async (id: string): Promise<void> => {
     throw new Error('Bạn cần đăng nhập để xóa giao dịch.')
   }
 
-  // Lấy wallet_id trước khi xóa
-  const { data: transaction } = await supabase
+  // Lấy wallet_id trước khi xóa (để trigger có thể hoàn tác số dư)
+  const { data: _transaction } = await supabase
     .from(TABLE_NAME)
     .select('wallet_id')
     .eq('id', id)
     .eq('user_id', user.id)
     .single()
-
-  const walletId = transaction?.wallet_id
 
   const { error } = await supabase
     .from(TABLE_NAME)
@@ -276,15 +282,16 @@ export const deleteTransaction = async (id: string): Promise<void> => {
 
   throwIfError(error, 'Không thể xóa giao dịch.')
 
-  // Tự động cập nhật số dư ví từ giao dịch
-  if (walletId) {
-    syncWalletBalanceFromTransactions(walletId).catch((error) => {
-      console.warn('Error syncing wallet balance after transaction deletion:', error)
-    })
-  }
+  // Lưu ý: Số dư ví được tự động cập nhật bởi database trigger (update_wallet_balance)
+  // Trigger tự động hoàn tác số dư khi xóa giao dịch
+  // Không cần gọi syncWalletBalanceFromTransactions vì sẽ gây xung đột và tính 2 lần
 
   invalidateCache('transactions')
   invalidateCache('getTransactionStats')
+  // Invalidate wallet cache vì balance đã được trigger cập nhật
+  await invalidateCache('fetchWallets')
+  await invalidateCache('getDefaultWallet')
+  await invalidateCache('getTotalBalanceWalletIds')
   // Invalidate wallet cash flow stats cache vì có giao dịch bị xóa
   invalidateCache('getWalletCashFlowStats')
 }

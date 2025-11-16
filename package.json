@@ -8,8 +8,7 @@
     "build": "tsc -b && vite build",
     "build:pwa": "tsc -b && vite build",
     "lint": "eslint .",
-    "preview": "vite preview",
-    "create-icons": "start create-icons.html"
+    "preview": "vite preview"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.81.1",

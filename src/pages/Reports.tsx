@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  FaCalendar,
   FaDownload,
   FaSearch,
   FaChevronDown,
@@ -11,9 +10,10 @@ import {
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
-import { CombinedTrendChart } from '../components/charts/CombinedTrendChart'
+import { CashFlowBarChart } from '../components/charts/CashFlowBarChart'
 import { DateRangeFilter } from '../components/reports/DateRangeFilter'
 import { CategoryFilter } from '../components/reports/CategoryFilter'
+import { TransactionCard } from '../components/transactions/TransactionCard'
 import { TransactionListSkeleton } from '../components/skeletons'
 import { useNotification } from '../contexts/notificationContext.helpers'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
@@ -452,6 +452,42 @@ const ReportPage = () => {
     }
   }
 
+  // Get wallet name
+  const getWalletName = (walletId: string) => {
+    const wallet = wallets.find((w) => w.id === walletId)
+    return wallet?.name || 'Không xác định'
+  }
+
+  // Get wallet color based on ID (consistent color for same wallet)
+  const getWalletColor = (walletId: string) => {
+    // Array of beautiful color combinations
+    const colors = [
+      { bg: 'bg-sky-100', icon: 'text-sky-600', text: 'text-sky-700' },
+      { bg: 'bg-emerald-100', icon: 'text-emerald-600', text: 'text-emerald-700' },
+      { bg: 'bg-rose-100', icon: 'text-rose-600', text: 'text-rose-700' },
+      { bg: 'bg-amber-100', icon: 'text-amber-600', text: 'text-amber-700' },
+      { bg: 'bg-purple-100', icon: 'text-purple-600', text: 'text-purple-700' },
+      { bg: 'bg-indigo-100', icon: 'text-indigo-600', text: 'text-indigo-700' },
+      { bg: 'bg-pink-100', icon: 'text-pink-600', text: 'text-pink-700' },
+      { bg: 'bg-cyan-100', icon: 'text-cyan-600', text: 'text-cyan-700' },
+      { bg: 'bg-orange-100', icon: 'text-orange-600', text: 'text-orange-700' },
+      { bg: 'bg-teal-100', icon: 'text-teal-600', text: 'text-teal-700' },
+    ]
+
+    // Simple hash function to convert wallet ID to index
+    let hash = 0
+    for (let i = 0; i < walletId.length; i++) {
+      hash = walletId.charCodeAt(i) + ((hash << 5) - hash)
+    }
+    const index = Math.abs(hash) % colors.length
+    return colors[index]
+  }
+
+  // Long press handlers (empty handlers for Reports page - no action modal needed)
+  const handleLongPressStart = () => {}
+  const handleLongPressEnd = () => {}
+  const handleLongPressCancel = () => {}
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
       <HeaderBar variant="page" title="BÁO CÁO & THỐNG KÊ" />
@@ -489,7 +525,12 @@ const ReportPage = () => {
                   {isLoading ? '...' : formatCurrency(stats.balanceAtPeriodStart)}
                 </p>
                 <p className="mt-0.5 text-[9px] text-slate-500 sm:text-[10px]">
-                  {new Date(dateRange.start).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
+                  {(() => {
+                    // Parse dateRange.start to ensure correct display (avoid timezone issues)
+                    const [year, month, day] = dateRange.start.split('-').map(Number)
+                    const startDate = new Date(year, month - 1, day)
+                    return startDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+                  })()}
                 </p>
               </div>
               <div className="rounded-xl bg-gradient-to-br from-indigo-50 to-white px-3 py-3 shadow-sm ring-1 ring-indigo-100 sm:rounded-2xl sm:px-4 sm:py-4">
@@ -631,7 +672,7 @@ const ReportPage = () => {
               </span>
             </div>
             <div className="mt-4">
-              <CombinedTrendChart data={chartData} height={190} />
+              <CashFlowBarChart data={chartData} height={190} />
             </div>
           </section>
 
@@ -821,53 +862,35 @@ const ReportPage = () => {
                 <span>Không có giao dịch phù hợp với bộ lọc hiện tại</span>
               </div>
             ) : (
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {filteredTransactions.map((transaction) => {
                   const categoryInfo = getCategoryInfo(transaction.category_id)
-                  const categoryIcon = categoryInfo.icon
-                  const isIncome = transaction.type === 'Thu'
+                  const walletColor = getWalletColor(transaction.wallet_id)
+                  
+                  // Format date for Reports page
+                  const formatTransactionDate = (date: Date) => {
+                    return date.toLocaleDateString('vi-VN', {
+                      day: '2-digit',
+                      month: '2-digit',
+                      year: 'numeric',
+                    })
+                  }
 
                   return (
-                    <div
+                    <TransactionCard
                       key={transaction.id}
-                      className={`flex items-center justify-between gap-3 rounded-xl p-3 transition hover:shadow-md ${
-                        isIncome
-                          ? 'bg-gradient-to-r from-emerald-50 via-emerald-50/80 to-white border-l-4 border-emerald-500'
-                          : 'bg-gradient-to-r from-rose-50 via-rose-50/80 to-white border-l-4 border-rose-500'
-                      }`}
-                    >
-                      <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-                        {categoryIcon && (
-                          <span
-                            className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-base shadow-md sm:h-12 sm:w-12 sm:rounded-2xl sm:text-lg ${
-                              isIncome
-                                ? 'bg-gradient-to-br from-emerald-400 to-emerald-600 text-white'
-                                : 'bg-gradient-to-br from-rose-400 to-rose-600 text-white'
-                            }`}
-                          >
-                            {categoryIcon}
-                          </span>
-                        )}
-                        <div className="min-w-0 flex-1">
-                          <p className={`truncate text-xs font-semibold sm:text-sm ${isIncome ? 'text-emerald-900' : 'text-rose-900'}`}>
-                            {transaction.description || 'Không có mô tả'}
-                          </p>
-                          <div className={`mt-0.5 flex items-center gap-2 text-[10px] sm:text-xs ${isIncome ? 'text-emerald-700' : 'text-rose-700'}`}>
-                            <FaCalendar className="h-3 w-3" />
-                            {new Date(transaction.transaction_date).toLocaleDateString('vi-VN', {
-                              day: '2-digit',
-                              month: '2-digit',
-                              year: 'numeric',
-                            })}
-                            <span>• {categoryInfo.name}</span>
-                          </div>
-                        </div>
-                      </div>
-                      <span className={`shrink-0 text-xs font-bold sm:text-sm ${isIncome ? 'text-emerald-700' : 'text-rose-700'}`}>
-                        {isIncome ? '+' : '-'}
-                        {formatCurrency(transaction.amount)}
-                      </span>
-                    </div>
+                      transaction={transaction}
+                      categoryInfo={categoryInfo}
+                      walletInfo={{
+                        name: getWalletName(transaction.wallet_id),
+                        color: walletColor,
+                      }}
+                      onLongPressStart={handleLongPressStart}
+                      onLongPressEnd={handleLongPressEnd}
+                      onLongPressCancel={handleLongPressCancel}
+                      formatCurrency={formatCurrency}
+                      formatDate={formatTransactionDate}
+                    />
                   )
                 })}
               </div>

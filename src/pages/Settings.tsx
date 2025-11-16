@@ -1,79 +1,34 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  FaExclamationCircle,
   FaChevronRight,
   FaBell,
-  FaBug,
   FaCloud,
   FaFilter,
   FaDownload,
   FaSmile,
-  FaCommentAlt,
-  FaLock,
   FaMoon,
   FaPalette,
-  FaRedo,
-  FaMobileAlt,
   FaSun,
-  FaTrophy,
   FaUser,
   FaWallet,
-  FaDollarSign,
   FaImage,
   FaFolder,
+  FaExclamationCircle,
 } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
-import { AccountInfoModal } from '../components/settings/AccountInfoModal'
-import { SecurityModal } from '../components/settings/SecurityModal'
-import { SupportModal } from '../components/settings/SupportModal'
-import { UpgradeModal } from '../components/settings/UpgradeModal'
 import { IconManagementModal } from '../components/settings/IconManagementModal'
-import { DefaultCategoriesManagementModal } from '../components/settings/DefaultCategoriesManagementModal'
+import { NotificationSettingsModal } from '../components/settings/NotificationSettingsModal'
 import { getCurrentProfile, type ProfileRecord } from '../lib/profileService'
 import { useDialog } from '../contexts/dialogContext.helpers'
 import { getSupabaseClient } from '../lib/supabaseClient'
-import { clearAllCache } from '../lib/cache'
 import { useNotification } from '../contexts/notificationContext.helpers'
 import { clearUserCache } from '../lib/userCache'
+import { getCachedAdminStatus } from '../lib/adminService'
 
-type ToggleSetting = {
-  id: string
-  title: string
-  description: string
-  icon: React.ReactNode
-}
-
-const notificationToggleSettings: ToggleSetting[] = [
-  {
-    id: 'push',
-    title: 'Thông báo đẩy',
-    description: 'Nhận nhắc nhở thu chi, cảnh báo ngân sách khi vượt mức.',
-    icon: <FaBell className="h-5 w-5" />,
-  },
-  {
-    id: 'dailyDigest',
-    title: 'Email tổng kết hàng ngày',
-    description: 'Tổng hợp thu chi, hạn mức còn lại gửi về email lúc 20:00.',
-    icon: <FaMobileAlt className="h-5 w-5" />,
-  },
-  {
-    id: 'budgetAlert',
-    title: 'Cảnh báo vượt ngân sách',
-    description: 'Nhận thông báo khi chi tiêu gần đạt hoặc vượt hạn mức.',
-    icon: <FaExclamationCircle className="h-5 w-5" />,
-  },
-  {
-    id: 'reminder',
-    title: 'Nhắc nhở giao dịch định kỳ',
-    description: 'Nhắc nhở các khoản thu chi định kỳ (hóa đơn, lương, v.v.).',
-    icon: <FaBell className="h-5 w-5" />,
-  },
-]
-
-const financeToggleSettings: ToggleSetting[] = [
+const financeToggleSettings = [
   {
     id: 'autoCategorize',
     title: 'Tự động phân loại giao dịch',
@@ -148,23 +103,13 @@ const themeOptions = [
 const SettingsPage = () => {
   const navigate = useNavigate()
   const { showConfirm } = useDialog()
-  const { success } = useNotification()
+  const { error: showError } = useNotification()
   const [profile, setProfile] = useState<ProfileRecord | null>(null)
-  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false)
-  const [isSecurityModalOpen, setIsSecurityModalOpen] = useState(false)
-  const [isSupportModalOpen, setIsSupportModalOpen] = useState(false)
-  const [supportModalType, setSupportModalType] = useState<'feedback' | 'bug'>('feedback')
-  const [isUpgradeModalOpen, setIsUpgradeModalOpen] = useState(false)
   const [isIconManagementOpen, setIsIconManagementOpen] = useState(false)
-  const [isDefaultCategoriesManagementOpen, setIsDefaultCategoriesManagementOpen] = useState(false)
+  const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false)
   const [darkMode, setDarkMode] = useState(false)
-
-  const [notificationToggles, setNotificationToggles] = useState<Record<string, boolean>>({
-    push: true,
-    dailyDigest: false,
-    budgetAlert: true,
-    reminder: true,
-  })
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [isCheckingAdmin, setIsCheckingAdmin] = useState(true)
 
   const [financeToggles, setFinanceToggles] = useState<Record<string, boolean>>({
     autoCategorize: false,
@@ -174,7 +119,7 @@ const SettingsPage = () => {
 
   const [selectedTheme, setSelectedTheme] = useState('classic')
 
-  // Load profile
+  // Load profile and check admin status
   useEffect(() => {
     const loadProfile = async () => {
       try {
@@ -201,7 +146,22 @@ const SettingsPage = () => {
         }
       }
     }
+
+    const checkAdmin = async () => {
+      setIsCheckingAdmin(true)
+      try {
+        const adminStatus = await getCachedAdminStatus()
+        setIsAdmin(adminStatus)
+      } catch (error) {
+        console.error('Error checking admin status:', error)
+        setIsAdmin(false)
+      } finally {
+        setIsCheckingAdmin(false)
+      }
+    }
+
     loadProfile()
+    checkAdmin()
   }, [])
 
   const handleLogout = async () => {
@@ -222,38 +182,11 @@ const SettingsPage = () => {
     })
   }
 
-  const handleReloadCache = async () => {
-    await showConfirm('Bạn có muốn xóa toàn bộ cache và tải lại dữ liệu?', async () => {
-      try {
-        await clearAllCache()
-        const { clearPreloadTimestamp } = await import('../lib/dataPreloader')
-        await clearPreloadTimestamp()
-        success('Đã xóa cache thành công! Dữ liệu sẽ được tải lại khi bạn quay lại các trang.')
-        // Reload page để tải lại dữ liệu
-        window.location.reload()
-      } catch (error) {
-        console.error('Error clearing cache:', error)
-      }
-    })
-  }
-
-  const handleOpenSupport = (type: 'feedback' | 'bug') => {
-    setSupportModalType(type)
-    setIsSupportModalOpen(true)
-  }
-
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
       <HeaderBar variant="page" title="Cài đặt" />
       <main className="flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 py-4 sm:py-4">
-          <header className="rounded-3xl bg-white p-4 shadow-[0_25px_80px_rgba(15,40,80,0.08)] ring-1 ring-slate-100 sm:p-6">
-          <h1 className="text-2xl font-semibold text-slate-900 sm:text-3xl">Cài đặt & cá nhân hóa</h1>
-          <p className="mt-1.5 text-xs text-slate-500 sm:mt-2 sm:text-sm">
-            Điều chỉnh trải nghiệm BoFin theo mục tiêu quản lý tài chính của bạn.
-          </p>
-        </header>
-
         {/* Account Info Section */}
         <section className="rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
           <div className="flex flex-col gap-4">
@@ -279,16 +212,6 @@ const SettingsPage = () => {
             <div className="flex justify-end gap-2">
               <button
                 type="button"
-                onClick={handleReloadCache}
-                className="rounded-xl border-2 border-amber-200 bg-white px-4 py-2 text-xs font-semibold text-amber-600 transition hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700 sm:px-5 sm:py-2.5 sm:text-sm"
-              >
-                <span className="flex items-center justify-center gap-1.5">
-                  <FaRedo className="h-4 w-4" />
-                  Reload
-                </span>
-              </button>
-              <button
-                type="button"
                 onClick={handleLogout}
                 className="rounded-xl border-2 border-rose-200 bg-white px-4 py-2 text-xs font-semibold text-rose-600 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 sm:px-5 sm:py-2.5 sm:text-sm"
               >
@@ -306,7 +229,7 @@ const SettingsPage = () => {
           <div className="space-y-2">
             <button
               type="button"
-              onClick={() => setIsAccountModalOpen(true)}
+              onClick={() => navigate('/account-info')}
               className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md"
             >
               <div className="flex items-center gap-3">
@@ -316,22 +239,6 @@ const SettingsPage = () => {
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Thông tin cá nhân</p>
                   <p className="text-xs text-slate-500">Cập nhật họ tên, số điện thoại, ngày sinh</p>
-                </div>
-              </div>
-              <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsSecurityModalOpen(true)}
-              className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
-                  <FaLock className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">Bảo mật & xác thực</p>
-                  <p className="text-xs text-slate-500">Đổi mật khẩu, bảo mật tài khoản</p>
                 </div>
               </div>
               <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
@@ -351,22 +258,6 @@ const SettingsPage = () => {
               </div>
               <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
             </button>
-            <button
-              type="button"
-              onClick={() => navigate('/budgets')}
-              className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
-                  <FaDollarSign className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">Ngân sách</p>
-                  <p className="text-xs text-slate-500">Quản lý và theo dõi ngân sách chi tiêu</p>
-                </div>
-              </div>
-              <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
-            </button>
           </div>
         </section>
 
@@ -376,39 +267,22 @@ const SettingsPage = () => {
           <p className="mb-4 text-xs text-slate-500 sm:text-sm">
             Chủ động kiểm soát thông báo tài chính quan trọng
           </p>
-          <div className="space-y-3">
-            {notificationToggleSettings.map((item) => (
-              <div
-                  key={item.id}
-                className="flex items-start justify-between gap-3 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-100"
+          <button
+            type="button"
+            onClick={() => setIsNotificationSettingsOpen(true)}
+            className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md"
                 >
-                <div className="flex min-w-0 flex-1 items-start gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-slate-600">
-                      {item.icon}
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
+                <FaBell className="h-5 w-5" />
                     </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-800">{item.title}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">{item.description}</p>
-                  </div>
-                </div>
-                <label className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center">
-                  <input
-                    type="checkbox"
-                    checked={notificationToggles[item.id]}
-                    onChange={() =>
-                      setNotificationToggles((prev) => ({
-                        ...prev,
-                        [item.id]: !prev[item.id],
-                      }))
-                    }
-                    className="peer sr-only"
-                  />
-                  <span className="absolute h-full w-full rounded-full bg-slate-200 transition peer-checked:bg-sky-500" />
-                  <span className="absolute left-1/2 h-4 w-4 -translate-x-1/2 rounded-full bg-white transition peer-checked:left-[calc(100%-1.25rem)] peer-checked:-translate-x-0" />
-                </label>
+              <div>
+                <p className="text-sm font-semibold text-slate-800">Cài đặt thông báo hệ thống</p>
+                <p className="text-xs text-slate-500">Chỉnh sửa các loại thông báo bạn muốn nhận</p>
               </div>
-            ))}
                     </div>
+            <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+          </button>
         </section>
 
         {/* Finance Settings */}
@@ -525,6 +399,7 @@ const SettingsPage = () => {
         </section>
 
         {/* System Management (Admin) */}
+        {!isCheckingAdmin && isAdmin && (
         <section className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
           <h2 className="mb-4 text-base font-bold text-slate-900 sm:text-lg">Quản lý hệ thống</h2>
           <p className="mb-4 text-xs text-slate-500 sm:text-sm">
@@ -533,7 +408,14 @@ const SettingsPage = () => {
           <div className="space-y-2">
             <button
               type="button"
-              onClick={() => setIsIconManagementOpen(true)}
+                onClick={async () => {
+                  const adminStatus = await getCachedAdminStatus()
+                  if (!adminStatus) {
+                    showError('Bạn không có quyền truy cập. Chỉ admin mới có thể quản lý icons.')
+                    return
+                  }
+                  setIsIconManagementOpen(true)
+                }}
               className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md"
             >
               <div className="flex items-center gap-3">
@@ -549,7 +431,14 @@ const SettingsPage = () => {
             </button>
             <button
               type="button"
-              onClick={() => setIsDefaultCategoriesManagementOpen(true)}
+                onClick={async () => {
+                  const adminStatus = await getCachedAdminStatus()
+                  if (!adminStatus) {
+                    showError('Bạn không có quyền truy cập. Chỉ admin mới có thể quản lý hạng mục mặc định.')
+                    return
+                  }
+                  navigate('/admin-categoriesicon')
+                }}
               className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md"
             >
               <div className="flex items-center gap-3">
@@ -565,120 +454,21 @@ const SettingsPage = () => {
             </button>
           </div>
         </section>
+        )}
 
-        {/* Support & Upgrade */}
-        <section className="grid gap-4 sm:gap-6 lg:grid-cols-2">
-          <div className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
-            <h2 className="mb-4 text-base font-bold text-slate-900 sm:text-lg">Hỗ trợ</h2>
-            <div className="space-y-3">
-              <button
-                type="button"
-                onClick={() => handleOpenSupport('feedback')}
-                className="flex w-full items-center gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md ring-1 ring-slate-100"
-                >
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-blue-100 text-blue-600">
-                  <FaCommentAlt className="h-5 w-5" />
-                  </span>
-                  <div>
-                  <p className="text-sm font-semibold text-slate-800">Gửi góp ý</p>
-                  <p className="text-xs text-slate-500">Chia sẻ ý kiến của bạn</p>
-                </div>
-              </button>
-              <button
-                type="button"
-                onClick={() => handleOpenSupport('bug')}
-                className="flex w-full items-center gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md ring-1 ring-slate-100"
-              >
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-rose-100 text-rose-600">
-                  <FaBug className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">Báo lỗi</p>
-                  <p className="text-xs text-slate-500">Báo cáo lỗi bạn gặp phải</p>
-                </div>
-              </button>
-            </div>
-          </div>
-
-          <div className="rounded-3xl bg-gradient-to-br from-amber-50 via-amber-50/50 to-white p-5 shadow-lg ring-1 ring-amber-100 sm:p-6">
-            <div className="mb-4 flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br from-amber-400 to-orange-500 text-white shadow-lg">
-                <FaTrophy className="h-7 w-7" />
-              </div>
-              <div>
-                <h2 className="text-base font-bold text-slate-900 sm:text-lg">Nâng cấp BoFin+</h2>
-                <p className="text-xs text-slate-500 sm:text-sm">Trải nghiệm đầy đủ tính năng</p>
-              </div>
-            </div>
-            <p className="mb-4 text-xs text-slate-600 sm:text-sm">
-              Tăng giới hạn ngân sách, báo cáo chuyên sâu và AI gợi ý quản lý tài chính.
-            </p>
-            <button
-              type="button"
-              onClick={() => setIsUpgradeModalOpen(true)}
-              className="w-full rounded-xl bg-gradient-to-r from-amber-500 to-orange-600 px-4 py-3 text-sm font-bold text-white shadow-lg transition hover:from-amber-600 hover:to-orange-700"
-            >
-              Xem gói nâng cấp
-            </button>
-          </div>
-        </section>
 
         </div>
       </main>
 
       <FooterNav onAddClick={() => navigate('/add-transaction')} />
-      <AccountInfoModal
-        isOpen={isAccountModalOpen}
-        onClose={() => setIsAccountModalOpen(false)}
-        onUpdate={() => {
-          const loadProfile = async () => {
-            try {
-              const profileData = await getCurrentProfile()
-              setProfile(profileData)
-            } catch (error) {
-              // Log detailed error information
-              const errorMessage = error instanceof Error ? error.message : String(error)
-              const errorDetails = error instanceof Error ? {
-                name: error.name,
-                message: error.message,
-                stack: error.stack
-              } : error
-              
-              console.error('Error reloading profile:', {
-                message: errorMessage,
-                details: errorDetails,
-                timestamp: new Date().toISOString()
-              })
-            }
-          }
-          loadProfile()
-        }}
-      />
-
-      <SecurityModal
-        isOpen={isSecurityModalOpen}
-        onClose={() => setIsSecurityModalOpen(false)}
-      />
-
-      <SupportModal
-        isOpen={isSupportModalOpen}
-        onClose={() => setIsSupportModalOpen(false)}
-        type={supportModalType}
-      />
-
-      <UpgradeModal
-        isOpen={isUpgradeModalOpen}
-        onClose={() => setIsUpgradeModalOpen(false)}
-      />
-
       <IconManagementModal
         isOpen={isIconManagementOpen}
         onClose={() => setIsIconManagementOpen(false)}
       />
 
-      <DefaultCategoriesManagementModal
-        isOpen={isDefaultCategoriesManagementOpen}
-        onClose={() => setIsDefaultCategoriesManagementOpen(false)}
+      <NotificationSettingsModal
+        isOpen={isNotificationSettingsOpen}
+        onClose={() => setIsNotificationSettingsOpen(false)}
       />
     </div>
   )

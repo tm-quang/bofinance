@@ -1,20 +1,17 @@
 import { useEffect, useRef, useState } from 'react'
-import { FaCamera, FaTimes, FaEnvelope, FaPhone, FaUser } from 'react-icons/fa'
+import { useNavigate } from 'react-router-dom'
+import { FaCamera, FaEnvelope, FaPhone, FaUser, FaEye, FaEyeSlash, FaLock } from 'react-icons/fa'
 
-import { deleteAvatar, getCurrentProfile, updateProfile, uploadAvatar, type ProfileRecord } from '../../lib/profileService'
-import { getSupabaseClient } from '../../lib/supabaseClient'
-import { useNotification } from '../../contexts/notificationContext.helpers'
-import { AccountInfoSkeleton } from '../skeletons'
-import { compressImageForAvatar, isFileSizeAcceptable } from '../../utils/imageCompression'
-import { ModalFooterButtons } from '../ui/ModalFooterButtons'
+import HeaderBar from '../components/layout/HeaderBar'
+import { deleteAvatar, getCurrentProfile, updateProfile, uploadAvatar, changePassword, type ProfileRecord } from '../lib/profileService'
+import { getSupabaseClient } from '../lib/supabaseClient'
+import { useNotification } from '../contexts/notificationContext.helpers'
+import { AccountInfoSkeleton } from '../components/skeletons'
+import { compressImageForAvatar, isFileSizeAcceptable } from '../utils/imageCompression'
+import { ModalFooterButtons } from '../components/ui/ModalFooterButtons'
 
-type AccountInfoModalProps = {
-  isOpen: boolean
-  onClose: () => void
-  onUpdate: () => void
-}
-
-export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModalProps) => {
+const AccountInfoPage = () => {
+  const navigate = useNavigate()
   const { success, error: showError } = useNotification()
   const [profile, setProfile] = useState<ProfileRecord | null>(null)
   const [isLoading, setIsLoading] = useState(false)
@@ -33,10 +30,22 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
     date_of_birth: '',
   })
 
+  const [passwordData, setPasswordData] = useState({
+    currentPassword: '',
+    newPassword: '',
+    confirmPassword: '',
+  })
+
+  const [showPasswords, setShowPasswords] = useState({
+    current: false,
+    new: false,
+    confirm: false,
+  })
+
+  const [activeTab, setActiveTab] = useState<'info' | 'password'>('info')
+
   // Load profile data
   useEffect(() => {
-    if (!isOpen) return
-
     const loadProfile = async () => {
       setIsLoading(true)
       setError(null)
@@ -69,17 +78,7 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
     }
 
     loadProfile()
-  }, [isOpen])
-
-  // Lock body scroll when modal is open
-  useEffect(() => {
-    if (isOpen) {
-      document.body.style.overflow = 'hidden'
-      return () => {
-        document.body.style.overflow = ''
-      }
-    }
-  }, [isOpen])
+  }, [])
 
   // Cleanup preview URL
   useEffect(() => {
@@ -99,7 +98,6 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
       return
     }
 
-    // Check initial file size (before compression)
     const maxInitialSize = 10 * 1024 * 1024 // 10MB max before compression
     if (file.size > maxInitialSize) {
       setError('Kích thước ảnh quá lớn. Vui lòng chọn ảnh nhỏ hơn 10MB')
@@ -109,10 +107,8 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
     setIsAvatarProcessing(true)
     setError(null)
     try {
-      // Compress image to avatar size (200x200, max 250KB)
       const compressedFile = await compressImageForAvatar(file, 200, 200, 250, 0.8)
       
-      // Verify compressed size
       if (!isFileSizeAcceptable(compressedFile, 250)) {
         setError('Không thể nén ảnh xuống dưới 250KB. Vui lòng chọn ảnh khác')
         return
@@ -151,7 +147,6 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
       if (updatedProfile) {
         setProfile(updatedProfile)
         success('Đã xóa ảnh đại diện thành công!')
-        onUpdate()
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Không thể xóa avatar'
@@ -162,7 +157,7 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
     }
   }
 
-  const handleSubmit = async (e: React.FormEvent) => {
+  const handleSubmitInfo = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
     setIsSubmitting(true)
@@ -187,9 +182,7 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
       if (updatedProfile) {
         setProfile(updatedProfile)
         success('Đã cập nhật thông tin thành công!')
-        onUpdate()
       }
-      onClose()
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Không thể cập nhật thông tin'
       setError(message)
@@ -200,38 +193,102 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
     }
   }
 
-  if (!isOpen) return null
+  const handleSubmitPassword = async (e: React.FormEvent) => {
+    e.preventDefault()
+    setError(null)
+    setIsSubmitting(true)
+
+    // Validation
+    if (!passwordData.currentPassword || !passwordData.newPassword || !passwordData.confirmPassword) {
+      const message = 'Vui lòng điền đầy đủ thông tin'
+      setError(message)
+      showError(message)
+      setIsSubmitting(false)
+      return
+    }
+
+    if (passwordData.newPassword.length < 6) {
+      const message = 'Mật khẩu mới phải có ít nhất 6 ký tự'
+      setError(message)
+      showError(message)
+      setIsSubmitting(false)
+      return
+    }
+
+    if (passwordData.newPassword !== passwordData.confirmPassword) {
+      const message = 'Mật khẩu xác nhận không khớp'
+      setError(message)
+      showError(message)
+      setIsSubmitting(false)
+      return
+    }
+
+    if (passwordData.currentPassword === passwordData.newPassword) {
+      const message = 'Mật khẩu mới phải khác mật khẩu hiện tại'
+      setError(message)
+      showError(message)
+      setIsSubmitting(false)
+      return
+    }
+
+    try {
+      await changePassword(passwordData.currentPassword, passwordData.newPassword)
+      success('Đã đổi mật khẩu thành công!')
+      setPasswordData({
+        currentPassword: '',
+        newPassword: '',
+        confirmPassword: '',
+      })
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Không thể đổi mật khẩu'
+      setError(message)
+      showError(message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 backdrop-blur-sm bg-slate-950/50 animate-in fade-in duration-200">
-      <div className="flex w-full max-w-lg mx-auto max-h-[95vh] flex-col rounded-3xl bg-white shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-300">
-        {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50 px-4 py-4 sm:px-6 sm:py-5 rounded-t-3xl">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900 sm:text-xl">Thông tin tài khoản</h2>
-            <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">Cập nhật thông tin cá nhân của bạn</p>
+    <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
+      <HeaderBar variant="page" title="Thông tin tài khoản" />
+      <main className="flex-1 overflow-y-auto overscroll-contain pb-24">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 py-4 sm:py-4">
+          {/* Tab Selector */}
+          <div className="flex gap-2 rounded-xl bg-white p-1 shadow-lg ring-1 ring-slate-100">
+            <button
+              type="button"
+              onClick={() => setActiveTab('info')}
+              className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
+                activeTab === 'info'
+                  ? 'bg-sky-500 text-white shadow-md'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Thông tin cá nhân
+            </button>
+            <button
+              type="button"
+              onClick={() => setActiveTab('password')}
+              className={`flex-1 rounded-lg px-4 py-2.5 text-sm font-semibold transition ${
+                activeTab === 'password'
+                  ? 'bg-sky-500 text-white shadow-md'
+                  : 'text-slate-600 hover:text-slate-900'
+              }`}
+            >
+              Đổi mật khẩu
+            </button>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-all hover:bg-slate-200 hover:scale-110 active:scale-95 sm:h-10 sm:w-10"
-          >
-            <FaTimes className="h-4 w-4 sm:h-5 sm:w-5" />
-          </button>
-        </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
           {error && (
-            <div className="mb-4 rounded-lg bg-rose-50 border border-rose-200 p-3 text-sm text-rose-600">
+            <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-sm text-rose-600">
               {error}
             </div>
           )}
 
           {isLoading ? (
             <AccountInfoSkeleton />
-          ) : (
-            <form onSubmit={handleSubmit} id="account-form" className="space-y-4">
+          ) : activeTab === 'info' ? (
+            <form onSubmit={handleSubmitInfo} id="account-form" className="space-y-4 rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
               {/* Avatar */}
               <div className="flex flex-col items-center gap-4">
                 <div className="relative">
@@ -345,22 +402,120 @@ export const AccountInfoModal = ({ isOpen, onClose, onUpdate }: AccountInfoModal
                   className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
                 />
               </div>
+
+            </form>
+          ) : (
+            <form onSubmit={handleSubmitPassword} id="password-form" className="space-y-4 rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
+              {/* Current Password */}
+              <div>
+                <label htmlFor="currentPassword" className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
+                  <FaLock className="mr-1.5 inline h-4 w-4" />
+                  Mật khẩu hiện tại
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPasswords.current ? 'text' : 'password'}
+                    id="currentPassword"
+                    value={passwordData.currentPassword}
+                    onChange={(e) => setPasswordData((prev) => ({ ...prev, currentPassword: e.target.value }))}
+                    placeholder="Nhập mật khẩu hiện tại"
+                    className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 pr-12 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
+                    required
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswords((prev) => ({ ...prev, current: !prev.current }))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPasswords.current ? <FaEyeSlash className="h-5 w-5" /> : <FaEye className="h-5 w-5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* New Password */}
+              <div>
+                <label htmlFor="newPassword" className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
+                  Mật khẩu mới
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPasswords.new ? 'text' : 'password'}
+                    id="newPassword"
+                    value={passwordData.newPassword}
+                    onChange={(e) => setPasswordData((prev) => ({ ...prev, newPassword: e.target.value }))}
+                    placeholder="Nhập mật khẩu mới (tối thiểu 6 ký tự)"
+                    className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 pr-12 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
+                    required
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswords((prev) => ({ ...prev, new: !prev.new }))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPasswords.new ? <FaEyeSlash className="h-5 w-5" /> : <FaEye className="h-5 w-5" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Confirm Password */}
+              <div>
+                <label htmlFor="confirmPassword" className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
+                  Xác nhận mật khẩu mới
+                </label>
+                <div className="relative">
+                  <input
+                    type={showPasswords.confirm ? 'text' : 'password'}
+                    id="confirmPassword"
+                    value={passwordData.confirmPassword}
+                    onChange={(e) => setPasswordData((prev) => ({ ...prev, confirmPassword: e.target.value }))}
+                    placeholder="Nhập lại mật khẩu mới"
+                    className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 pr-12 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
+                    required
+                    minLength={6}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswords((prev) => ({ ...prev, confirm: !prev.confirm }))}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                  >
+                    {showPasswords.confirm ? <FaEyeSlash className="h-5 w-5" /> : <FaEye className="h-5 w-5" />}
+                  </button>
+                </div>
+              </div>
+
             </form>
           )}
         </div>
+      </main>
 
-        {/* Footer */}
+      {/* Fixed Footer with Action Buttons */}
+      {activeTab === 'info' ? (
         <ModalFooterButtons
-          onCancel={onClose}
+          onCancel={() => navigate('/settings')}
           onConfirm={() => {}}
           confirmText={isSubmitting ? (isAvatarUploading ? 'Đang tải ảnh...' : 'Đang lưu...') : 'Lưu thay đổi'}
           isSubmitting={isSubmitting}
-              disabled={isSubmitting || isLoading || isAvatarProcessing}
+          disabled={isSubmitting || isLoading || isAvatarProcessing}
           confirmButtonType="submit"
           formId="account-form"
+          fixed={true}
         />
-      </div>
+      ) : (
+        <ModalFooterButtons
+          onCancel={() => navigate('/settings')}
+          onConfirm={() => {}}
+          confirmText={isSubmitting ? 'Đang đổi...' : 'Đổi mật khẩu'}
+          isSubmitting={isSubmitting}
+          disabled={isSubmitting}
+          confirmButtonType="submit"
+          formId="password-form"
+          fixed={true}
+        />
+      )}
     </div>
   )
 }
+
+export default AccountInfoPage
 

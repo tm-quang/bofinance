@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from 'react'
-import { FaBell, FaArrowLeft } from 'react-icons/fa'
+import { FaBell, FaArrowLeft, FaRedoAlt } from 'react-icons/fa'
 import { useNavigate } from 'react-router-dom'
 
 type HeaderBarProps =
@@ -10,7 +10,9 @@ type HeaderBarProps =
     avatarText?: string
     badgeColor?: string
     onNotificationClick?: () => void
+    onReload?: () => void | Promise<void>
     unreadNotificationCount?: number
+    isReloading?: boolean
   }
   | {
     variant: 'page'
@@ -97,7 +99,9 @@ const HeaderBar = (props: HeaderBarProps) => {
     avatarText = userName.charAt(0).toUpperCase(), 
     badgeColor = 'bg-sky-600',
     onNotificationClick,
+    onReload,
     unreadNotificationCount = 0,
+    isReloading = false,
   } = props
 
   return (
@@ -130,26 +134,46 @@ const HeaderBar = (props: HeaderBarProps) => {
             <p className="text-xl font-medium text-slate-900" style={{ fontFamily: "'Lobster', cursive" }}>{userName}</p>
           </div>
         </div>
-        <button 
-          onClick={() => {
-            if (onNotificationClick) {
-              onNotificationClick()
-            } else {
-              navigate('/notifications')
-            }
-          }}
-          className="relative flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-xl ring-1 ring-slate-100 transition hover:scale-110 active:scale-95"
-          aria-label="Thông báo"
-        >
-          {unreadNotificationCount > 0 ? (
-            <span className={`absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full ${badgeColor} text-xs font-bold text-white`}>
-              {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
-            </span>
-          ) : (
-            <span className={`absolute right-1 top-1 h-2.5 w-2.5 rounded-full ${badgeColor}`} />
+        <div className="flex items-center gap-2">
+          {/* Reload Button */}
+          {onReload && (
+            <button 
+              onClick={() => {
+                if (onReload) {
+                  onReload()
+                }
+              }}
+              disabled={isReloading}
+              className="relative flex h-10 w-10 items-center justify-center rounded-full bg-white shadow-xl ring-1 ring-slate-100 transition hover:scale-110 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              aria-label="Làm mới dữ liệu"
+              title="Làm mới dữ liệu"
+            >
+              <FaRedoAlt className={`h-6 w-6 text-slate-500 ${isReloading ? 'animate-spin' : ''}`} />
+            </button>
           )}
-          <FaBell className="h-6 w-6 text-slate-500" />
-        </button>
+
+          {/* Notification Button */}
+          <button 
+            onClick={() => {
+              if (onNotificationClick) {
+                onNotificationClick()
+              } else {
+                navigate('/notifications')
+              }
+            }}
+            className="relative flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-xl ring-1 ring-slate-100 transition hover:scale-110 active:scale-95"
+            aria-label="Thông báo"
+          >
+            {unreadNotificationCount > 0 ? (
+              <span className={`absolute right-1 top-1 flex h-5 w-5 items-center justify-center rounded-full ${badgeColor} text-xs font-bold text-white`}>
+                {unreadNotificationCount > 99 ? '99+' : unreadNotificationCount}
+              </span>
+            ) : (
+              <span className={`absolute right-1 top-1 h-2.5 w-2.5 rounded-full ${badgeColor}`} />
+            )}
+            <FaBell className="h-6 w-6 text-slate-500" />
+          </button>
+        </div>
         </div>
       </div>
     </header>

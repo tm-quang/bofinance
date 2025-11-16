@@ -32,9 +32,23 @@ export const QuickActionsSettings = ({
   }, [isOpen, actions])
 
   const handleToggle = (id: string) => {
-    setLocalActions((prev) =>
-      prev.map((action) => (action.id === id ? { ...action, enabled: !action.enabled } : action))
-    )
+    setLocalActions((prev) => {
+      const currentAction = prev.find((a) => a.id === id)
+      if (!currentAction) return prev
+
+      // Nếu đang bật, cho phép tắt
+      if (currentAction.enabled) {
+        return prev.map((action) => (action.id === id ? { ...action, enabled: false } : action))
+      }
+
+      // Nếu đang tắt, chỉ cho phép bật nếu chưa đủ 4 tiện ích
+      const enabledCount = prev.filter((a) => a.enabled).length
+      if (enabledCount >= 4) {
+        return prev // Không cho phép bật thêm nếu đã đủ 4
+      }
+
+      return prev.map((action) => (action.id === id ? { ...action, enabled: true } : action))
+    })
   }
 
   const handleSave = () => {
@@ -45,7 +59,8 @@ export const QuickActionsSettings = ({
   const handleReset = () => {
     const defaultActions = actions.map((action, index) => ({
       ...action,
-      enabled: index < 4 || action.id === 'settings', // Mặc định 4 chức năng đầu tiên + cài đặt
+      // Mặc định: chỉ 4 chức năng đầu tiên (Settings là chức năng thứ 5, mặc định tắt)
+      enabled: index < 4 && action.id !== 'settings',
     }))
     setLocalActions(defaultActions)
   }
@@ -62,7 +77,7 @@ export const QuickActionsSettings = ({
           <div>
             <h2 className="text-lg font-bold text-slate-900 sm:text-xl">Cài đặt chức năng nhanh</h2>
             <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-              Chọn các chức năng hiển thị trên Dashboard ({enabledCount} đã chọn)
+              Chọn các chức năng hiển thị trên Dashboard ({enabledCount}/4 đã chọn)
             </p>
           </div>
           <button
@@ -94,8 +109,13 @@ export const QuickActionsSettings = ({
                 <button
                   type="button"
                   onClick={() => handleToggle(action.id)}
+                  disabled={!action.enabled && enabledCount >= 4}
                   className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 ${
-                    action.enabled ? 'bg-sky-500' : 'bg-slate-300'
+                    action.enabled 
+                      ? 'bg-sky-500' 
+                      : enabledCount >= 4 
+                        ? 'bg-slate-200 cursor-not-allowed opacity-50' 
+                        : 'bg-slate-300'
                   }`}
                 >
                   <span
@@ -112,6 +132,13 @@ export const QuickActionsSettings = ({
             <div className="mt-4 rounded-lg bg-amber-50 border border-amber-200 p-3">
               <p className="text-xs font-medium text-amber-800">
                 ⚠️ Bạn cần chọn ít nhất 1 chức năng để hiển thị
+              </p>
+            </div>
+          )}
+          {enabledCount >= 4 && (
+            <div className="mt-4 rounded-lg bg-blue-50 border border-blue-200 p-3">
+              <p className="text-xs font-medium text-blue-800">
+                ℹ️ Đã đạt giới hạn tối đa 4 tiện ích. Vui lòng tắt một tiện ích khác để bật tiện ích mới.
               </p>
             </div>
           )}

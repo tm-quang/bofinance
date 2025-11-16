@@ -220,11 +220,11 @@ const RemindersPage = () => {
 
   // Group reminders by date
   const today = new Date().toISOString().split('T')[0]
-  const todayReminders = reminders.filter((r) => r.reminder_date === today && r.status === 'pending')
+  const todayReminders = reminders.filter((r) => r.reminder_date === today && !r.completed_at)
   const upcomingReminders = reminders.filter(
-    (r) => r.reminder_date > today && r.status === 'pending'
+    (r) => r.reminder_date > today && !r.completed_at
   )
-  const pastReminders = reminders.filter((r) => r.reminder_date < today && r.status === 'pending')
+  const pastReminders = reminders.filter((r) => r.reminder_date < today && !r.completed_at)
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
@@ -315,7 +315,7 @@ const RemindersPage = () => {
               <div>
                 <h2 className="text-lg font-bold text-slate-900">Kế hoạch nhắc nhở</h2>
                 <p className="mt-1 text-sm text-slate-500">
-                  {reminders.filter((r) => r.status === 'pending').length} nhắc nhở đang chờ
+                  {reminders.filter((r) => !r.completed_at).length} nhắc nhở đang chờ
                 </p>
               </div>
               <button

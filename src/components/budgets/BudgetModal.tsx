@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { FaTimes } from 'react-icons/fa'
 import { CustomSelect } from '../ui/CustomSelect'
 import { NumberPadModal } from '../ui/NumberPadModal'
+import { ModalFooterButtons } from '../ui/ModalFooterButtons'
 import { fetchCategories, type CategoryRecord } from '../../lib/categoryService'
 import { fetchWallets, type WalletRecord } from '../../lib/walletService'
 import {
@@ -416,26 +417,15 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 border-t border-slate-200 bg-white px-4 py-3 sm:px-6">
-          <div className="flex gap-2 sm:gap-3">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex-1 rounded-lg border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 sm:py-3 sm:text-base"
-              disabled={isSubmitting}
-            >
-              Hủy
-            </button>
-            <button
-              type="submit"
-              form="budget-form"
-              className="flex-1 rounded-lg bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-blue-700 disabled:opacity-50 sm:py-3 sm:text-base"
+        <ModalFooterButtons
+          onCancel={onClose}
+          onConfirm={() => {}}
+          confirmText={isSubmitting ? 'Đang lưu...' : isEditMode ? 'Cập nhật' : 'Tạo ngân sách'}
+          isSubmitting={isSubmitting}
               disabled={isSubmitting || isLoading}
-            >
-              {isSubmitting ? 'Đang lưu...' : isEditMode ? 'Cập nhật' : 'Tạo ngân sách'}
-            </button>
-          </div>
-        </div>
+          confirmButtonType="submit"
+          formId="budget-form"
+        />
       </div>
 
       {/* Number Pad Modal */}

@@ -57,6 +57,11 @@ export const getUserPreferences = async (): Promise<UserPreferencesRecord | null
         if (error.code === 'PGRST116') {
           return null
         }
+        // If table doesn't exist, return null (will create on first update)
+        if (error.message?.includes('does not exist') || error.message?.includes('schema cache')) {
+          console.warn('User preferences table may not exist:', error.message)
+          return null
+        }
         // Log error for debugging but don't throw for 400 errors (might be schema issue)
         if (error.code === 'PGRST116' || error.message?.includes('400')) {
           console.warn('Error fetching user preferences (non-critical):', error.message)
@@ -82,53 +87,36 @@ export const updateUserPreferences = async (
     throw new Error('Bạn cần đăng nhập để cập nhật cài đặt.')
   }
 
-  // Try to update existing preferences
-  const { error: selectError } = await supabase
-    .from(TABLE_NAME)
-    .select('*')
-    .eq('user_id', user.id)
-    .maybeSingle()
+  // First, try to get existing preferences
+  const existing = await getUserPreferences()
 
-  if (selectError && (selectError.code === 'PGRST116' || selectError.message?.includes('400'))) {
-    // Preferences don't exist, create new record
-    const { data, error } = await supabase
-      .from(TABLE_NAME)
-      .insert({
-        user_id: user.id,
-        chart_period_type: updates.chart_period_type || 'day',
-        chart_show_advanced: updates.chart_show_advanced ?? false,
-      })
-      .select()
-      .single()
-
-    throwIfError(error, 'Không thể tạo cài đặt người dùng.')
-
-    if (!data) {
-      throw new Error('Không nhận được dữ liệu sau khi tạo cài đặt.')
-    }
-
-    // Invalidate cache
-    await invalidateCache(`getUserPreferences_${user.id}`)
-
-    return data
+  // Prepare data for upsert
+  const preferencesData = {
+    user_id: user.id,
+    chart_period_type: updates.chart_period_type || existing?.chart_period_type || 'month',
+    chart_show_advanced: updates.chart_show_advanced ?? existing?.chart_show_advanced ?? false,
   }
 
-  if (selectError) {
-    throwIfError(selectError, 'Không thể kiểm tra cài đặt hiện tại.')
-  }
-
-  // Update existing preferences
+  // Use upsert to either insert or update
   const { data, error } = await supabase
     .from(TABLE_NAME)
-    .update(updates)
-    .eq('user_id', user.id)
+    .upsert(preferencesData, {
+      onConflict: 'user_id',
+    })
     .select()
     .single()
 
-  throwIfError(error, 'Không thể cập nhật cài đặt người dùng.')
+  if (error) {
+    // If table doesn't exist or schema error, log and throw
+    if (error.message?.includes('does not exist') || error.message?.includes('schema cache')) {
+      console.warn('User preferences table may not exist:', error.message)
+      throw new Error('Bảng cài đặt người dùng chưa được tạo. Vui lòng chạy SQL migration.')
+    }
+    throwIfError(error, 'Không thể cập nhật cài đặt người dùng.')
+  }
 
   if (!data) {
-    throw new Error('Không nhận được dữ liệu sau khi cập nhật.')
+    throw new Error('Không nhận được dữ liệu sau khi cập nhật cài đặt.')
   }
 
   // Invalidate cache

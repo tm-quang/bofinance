@@ -19,14 +19,14 @@ export type ReminderRecord = {
   reminder_time: string | null
   repeat_type: RepeatType
   repeat_until: string | null
-  status: ReminderStatus
+  status?: ReminderStatus // Optional: computed from completed_at and notes, not stored in DB
   completed_at: string | null
   notes: string | null
   color: string | null
   enable_notification: boolean
   created_at: string
   updated_at: string
-  is_active: boolean
+  is_active?: boolean // Optional: computed from completed_at, not stored in DB
 }
 
 export type ReminderInsert = {
@@ -46,8 +46,8 @@ export type ReminderInsert = {
 
 export type ReminderUpdate = Partial<Omit<ReminderInsert, 'type'>> & {
   type?: ReminderType
-  status?: ReminderStatus
   completed_at?: string | null
+  // Note: status is computed from completed_at and notes, not stored in DB
 }
 
 export type ReminderFilters = {
@@ -60,6 +60,20 @@ export type ReminderFilters = {
 
 const CACHE_KEY = 'reminders'
 const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
+
+/**
+ * Helper function to compute reminder status from completed_at and notes
+ * Status column doesn't exist in database schema
+ */
+const computeReminderStatus = (reminder: { completed_at: string | null; notes: string | null }): ReminderStatus => {
+  if (!reminder.completed_at) {
+    return 'pending'
+  }
+  if (reminder.notes?.includes('[SKIPPED]')) {
+    return 'skipped'
+  }
+  return 'completed'
+}
 
 /**
  * Fetch reminders with caching
@@ -84,9 +98,8 @@ export const fetchReminders = async (filters?: ReminderFilters): Promise<Reminde
         .order('reminder_time', { ascending: true, nullsFirst: false })
 
       if (filters) {
-        if (filters.status) {
-          query = query.eq('status', filters.status)
-        }
+        // Note: status and is_active columns don't exist in database schema
+        // These filters are handled client-side after fetching data
         if (filters.type) {
           query = query.eq('type', filters.type)
         }
@@ -96,9 +109,6 @@ export const fetchReminders = async (filters?: ReminderFilters): Promise<Reminde
         if (filters.end_date) {
           query = query.lte('reminder_date', filters.end_date)
         }
-        if (filters.is_active !== undefined) {
-          query = query.eq('is_active', filters.is_active)
-        }
       }
 
       const { data, error } = await query
@@ -107,7 +117,32 @@ export const fetchReminders = async (filters?: ReminderFilters): Promise<Reminde
         throw error
       }
 
-      return (data || []) as ReminderRecord[]
+      let results = (data || []) as ReminderRecord[]
+      
+      // Compute status for each reminder (status column doesn't exist in DB)
+      results = results.map((r) => ({
+        ...r,
+        status: computeReminderStatus(r),
+        is_active: !r.completed_at,
+      }))
+      
+      // Client-side filtering for status and is_active (columns don't exist in DB)
+      if (filters) {
+        if (filters.status) {
+          results = results.filter((r) => r.status === filters.status)
+        }
+        
+        if (filters.is_active !== undefined) {
+          // is_active = true means reminder is pending (not completed)
+          if (filters.is_active) {
+            results = results.filter((r) => !r.completed_at)
+          } else {
+            results = results.filter((r) => !!r.completed_at)
+          }
+        }
+      }
+
+      return results
     },
     CACHE_TTL
   )
@@ -142,7 +177,13 @@ export const getReminderById = async (id: string): Promise<ReminderRecord | null
         throw error
       }
 
-      return data as ReminderRecord
+      // Compute status (column doesn't exist in DB)
+      const reminder = data as ReminderRecord
+      return {
+        ...reminder,
+        status: computeReminderStatus(reminder),
+        is_active: !reminder.completed_at,
+      }
     },
     CACHE_TTL
   )
@@ -164,8 +205,8 @@ export const createReminder = async (reminder: ReminderInsert): Promise<Reminder
       ...reminder,
       user_id: user.id,
       repeat_type: reminder.repeat_type || 'none',
-      is_active: true,
-      status: 'pending',
+      // Note: is_active and status columns don't exist in DB
+      // Status is computed from completed_at, is_active from completed_at
       enable_notification: reminder.enable_notification !== undefined ? reminder.enable_notification : true,
     })
     .select()
@@ -178,7 +219,13 @@ export const createReminder = async (reminder: ReminderInsert): Promise<Reminder
   // Invalidate cache
   await cacheManager.invalidate(new RegExp(`^${CACHE_KEY}:${user.id}:`))
 
-  return data as ReminderRecord
+  // Compute status (column doesn't exist in DB)
+  const reminderRecord = data as ReminderRecord
+  return {
+    ...reminderRecord,
+    status: computeReminderStatus(reminderRecord),
+    is_active: !reminderRecord.completed_at,
+  }
 }
 
 /**
@@ -194,10 +241,12 @@ export const updateReminder = async (
   }
 
   const supabase = getSupabaseClient()
+  // Remove status from updates (column doesn't exist in DB)
+  const { status, ...updateFields } = updates as any
   const { data, error } = await supabase
     .from('reminders')
     .update({
-      ...updates,
+      ...updateFields,
       updated_at: new Date().toISOString(),
     })
     .eq('id', id)
@@ -212,11 +261,17 @@ export const updateReminder = async (
   // Invalidate cache
   await cacheManager.invalidate(new RegExp(`^${CACHE_KEY}:${user.id}:`))
 
-  return data as ReminderRecord
+  // Compute status (column doesn't exist in DB)
+  const reminder = data as ReminderRecord
+  return {
+    ...reminder,
+    status: computeReminderStatus(reminder),
+    is_active: !reminder.completed_at,
+  }
 }
 
 /**
- * Delete a reminder (soft delete by setting is_active = false)
+ * Delete a reminder (hard delete since is_active column doesn't exist)
  */
 export const deleteReminder = async (id: string): Promise<void> => {
   const user = await getCachedUser()
@@ -227,7 +282,7 @@ export const deleteReminder = async (id: string): Promise<void> => {
   const supabase = getSupabaseClient()
   const { error } = await supabase
     .from('reminders')
-    .update({ is_active: false })
+    .delete()
     .eq('id', id)
     .eq('user_id', user.id)
 
@@ -241,20 +296,28 @@ export const deleteReminder = async (id: string): Promise<void> => {
 
 /**
  * Mark reminder as completed
+ * Note: status column doesn't exist in DB, we use completed_at instead
  */
 export const completeReminder = async (id: string): Promise<ReminderRecord> => {
   return updateReminder(id, {
-    status: 'completed',
     completed_at: new Date().toISOString(),
   })
 }
 
 /**
  * Mark reminder as skipped
+ * Note: status column doesn't exist in DB, we store in notes field
  */
 export const skipReminder = async (id: string): Promise<ReminderRecord> => {
+  const reminder = await getReminderById(id)
+  if (!reminder) {
+    throw new Error('Không tìm thấy nhắc nhở.')
+  }
+  const existingNotes = reminder.notes || ''
+  const notes = existingNotes ? `${existingNotes}\n[SKIPPED]` : '[SKIPPED]'
   return updateReminder(id, {
-    status: 'skipped',
+    notes,
+    completed_at: new Date().toISOString(),
   })
 }
 
@@ -275,7 +338,6 @@ export const getTodayReminders = async (): Promise<ReminderRecord[]> => {
     cacheKey,
     async () => {
       const allReminders = await fetchReminders({
-        status: 'pending',
         is_active: true,
       })
       return allReminders.filter((r) => r.reminder_date === today)
@@ -307,7 +369,6 @@ export const getUpcomingReminders = async (days: number = 7): Promise<ReminderRe
       return fetchReminders({
         start_date: today,
         end_date: futureDateStr,
-        status: 'pending',
         is_active: true,
       })
     },
