@@ -799,12 +799,12 @@ const CategoryListItem = ({
 
             {/* Icon - Clickable */}
             <div 
-                className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-slate-100 to-slate-200 text-slate-700"
+                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full"
                 onClick={handleItemClick}
             >
                 <CategoryIcon 
                     iconId={category.iconId} 
-                    className="h-6 w-6"
+                    className="h-10 w-10"
                     fallback={<span className="text-lg font-semibold text-slate-600">{category.name[0]?.toUpperCase() || '?'}</span>}
                 />
             </div>

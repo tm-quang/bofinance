@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { getIconNode } from '../../utils/iconLoader'
+import { getIconNodeFromCategory } from '../../utils/iconLoader'
 import { CATEGORY_ICON_MAP } from '../../constants/categoryIcons'
 
 type CategoryIconProps = {
   iconId: string
+  iconUrl?: string | null // URL ảnh từ category (optional, ưu tiên nếu có)
   className?: string
   fallback?: React.ReactNode
 }
@@ -11,8 +12,9 @@ type CategoryIconProps = {
 /**
  * Component để load và hiển thị icon của category
  * Tự động load từ database hoặc fallback về hardcoded icon
+ * Ưu tiên sử dụng icon_url nếu có
  */
-export const CategoryIcon = ({ iconId, className = 'h-5 w-5', fallback = null }: CategoryIconProps) => {
+export const CategoryIcon = ({ iconId, iconUrl, className = 'h-5 w-5', fallback = null }: CategoryIconProps) => {
   const [iconNode, setIconNode] = useState<React.ReactNode>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -29,21 +31,18 @@ export const CategoryIcon = ({ iconId, className = 'h-5 w-5', fallback = null }:
       }
 
       try {
-        // Try to load from database first, then fallback to hardcoded
-        const node = await getIconNode(iconId)
+        // Ưu tiên sử dụng icon_url từ category nếu có, sau đó mới load từ database
+        // Truyền className vào để ảnh fill vừa vặn container
+        const node = await getIconNodeFromCategory(iconId, iconUrl, 'h-full w-full object-cover rounded-full')
         
         if (isMounted) {
           if (node) {
-            // Clone the node and apply className if it's a React element
-            if (typeof node === 'object' && node !== null && 'props' in node) {
-              setIconNode(
-                <span className={className}>
-                  {node}
-                </span>
-              )
-            } else {
-              setIconNode(node)
-            }
+            // Wrap trong container với className để control kích thước, rounded-full
+            setIconNode(
+              <span className={`${className} flex items-center justify-center rounded-full overflow-hidden`}>
+                {node}
+              </span>
+            )
           } else {
             // Fallback to hardcoded icon
             const hardcodedIcon = CATEGORY_ICON_MAP[iconId]
@@ -77,7 +76,7 @@ export const CategoryIcon = ({ iconId, className = 'h-5 w-5', fallback = null }:
     return () => {
       isMounted = false
     }
-  }, [iconId, className, fallback])
+  }, [iconId, iconUrl, className, fallback])
 
   if (isLoading) {
     return <span className={`${className} animate-pulse bg-slate-200 rounded`} />

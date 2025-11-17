@@ -56,34 +56,11 @@ export const TransactionCard = ({
     >
       {/* Icon Container */}
       <div
-        className={`relative flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl overflow-hidden ${
-          isIncome
-            ? 'bg-gray-200'
-            : 'bg-gray-200'
-        }`}
+        className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full overflow-hidden"
       >
         {categoryIcon ? (
-          <div
-            className="absolute inset-0 flex items-center justify-center"
-            style={{
-              margin: 0,
-              padding: 0,
-            }}
-          >
-            <div
-              className="flex items-center justify-center"
-              style={{
-                width: '35px',
-                height: '35px',
-                margin: 'auto',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                lineHeight: 1,
-              }}
-            >
-              {categoryIcon}
-            </div>
+          <div className="h-full w-full flex items-center justify-center">
+            {categoryIcon}
           </div>
         ) : (
           <FaPlus className={`h-6 w-6 ${

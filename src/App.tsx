@@ -21,6 +21,7 @@ const AddBudgetPage = lazy(() => import('./pages/AddBudget'))
 const LoginPage = lazy(() => import('./pages/Login'))
 const RegisterPage = lazy(() => import('./pages/Register'))
 const AdminCategoriesIconPage = lazy(() => import('./pages/AdminCategoriesIcon'))
+const AdminIconImagesPage = lazy(() => import('./pages/AdminIconImages'))
 const AccountInfoPage = lazy(() => import('./pages/AccountInfo'))
 
 const PageFallback = () => (
@@ -114,6 +115,7 @@ function AppContent() {
         <Route path="/add-transaction" element={<AddTransactionPage />} />
         <Route path="/add-budget" element={<AddBudgetPage />} />
         <Route path="/admin-categoriesicon" element={<AdminCategoriesIconPage />} />
+        <Route path="/admin-icon-images" element={<AdminIconImagesPage />} />
         <Route path="/account-info" element={<AccountInfoPage />} />
         <Route path="*" element={<Navigate to="/login" replace />} />
       </Routes>

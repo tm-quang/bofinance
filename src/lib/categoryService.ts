@@ -82,7 +82,57 @@ export const fetchCategories = async (): Promise<CategoryRecord[]> => {
 
       throwIfError(error, 'Không thể tải hạng mục.')
 
-      return data ?? []
+      const categories = data ?? []
+      
+      // Populate icon_url từ icons table nếu chưa có
+      // Chỉ lấy cho những category có icon_id là UUID và chưa có icon_url
+      const categoriesNeedingIconUrl = categories.filter(
+        cat => !cat.icon_url && cat.icon_id && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(cat.icon_id)
+      )
+
+      if (categoriesNeedingIconUrl.length > 0) {
+        // Lấy tất cả icons cần thiết trong một query
+        const iconIds = categoriesNeedingIconUrl.map(cat => cat.icon_id)
+        const { data: iconsData } = await supabase
+          .from('icons')
+          .select('id, image_url, icon_type')
+          .in('id', iconIds)
+          .eq('is_active', true)
+          .in('icon_type', ['image', 'svg'])
+
+        if (iconsData) {
+          const iconUrlMap = new Map<string, string>()
+          iconsData.forEach(icon => {
+            if (icon.image_url) {
+              iconUrlMap.set(icon.id, icon.image_url)
+            }
+          })
+
+          // Cập nhật icon_url cho categories
+          for (const category of categoriesNeedingIconUrl) {
+            const iconUrl = iconUrlMap.get(category.icon_id)
+            if (iconUrl) {
+              category.icon_url = iconUrl
+              
+              // Optionally update in database (async, không block)
+              Promise.resolve(
+                supabase
+                  .from(TABLE_NAME)
+                  .update({ icon_url: iconUrl })
+                  .eq('id', category.id)
+              )
+                .then(() => {
+                  // Silently update, không cần log
+                })
+                .catch(() => {
+                  // Ignore errors
+                })
+            }
+          }
+        }
+      }
+
+      return categories
     },
     24 * 60 * 60 * 1000, // 24 giờ
     12 * 60 * 60 * 1000  // 12 giờ stale threshold

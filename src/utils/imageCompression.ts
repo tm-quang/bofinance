@@ -103,6 +103,163 @@ export const compressImageForAvatar = async (
 }
 
 /**
+ * Compress and resize image for icon images
+ * Icons are compressed to very small size for fast loading
+ * Supports PNG (with transparency) and JPEG formats
+ * @param file - Original image file
+ * @param maxWidth - Maximum width (default: 96 for PNG, 128 for JPEG)
+ * @param maxHeight - Maximum height (default: 96 for PNG, 128 for JPEG)
+ * @param maxSizeKB - Maximum file size in KB (default: 30 for PNG, 10 for JPEG)
+ * @param quality - JPEG quality 0-1 (default: 0.6, not used for PNG)
+ * @param preserveTransparency - Keep PNG format for transparency (default: true)
+ * @returns Compressed File
+ */
+export const compressImageForIcon = async (
+  file: File,
+  maxWidth: number = 96,
+  maxHeight: number = 96,
+  maxSizeKB: number = 30,
+  quality: number = 0.6,
+  preserveTransparency: boolean = true
+): Promise<File> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+
+    reader.onload = (e) => {
+      const img = new Image()
+      img.onload = () => {
+        // Calculate new dimensions
+        let width = img.width
+        let height = img.height
+
+        // Resize if needed while maintaining aspect ratio
+        if (width > maxWidth || height > maxHeight) {
+          const ratio = Math.min(maxWidth / width, maxHeight / height)
+          width = width * ratio
+          height = height * ratio
+        }
+
+        // Determine output format
+        // If preserveTransparency is true and original is PNG, keep PNG
+        // Otherwise use JPEG for better compression
+        const fileName = file.name.toLowerCase()
+        const isPngOriginal = fileName.endsWith('.png')
+        const usePNG = preserveTransparency && isPngOriginal
+        
+        const outputType = usePNG ? 'image/png' : 'image/jpeg'
+        const outputExtension = usePNG ? 'png' : 'jpg'
+
+        // For PNG, we can't control quality, so we need to reduce size if needed
+        // For JPEG, we can reduce quality
+        const tryCompress = (currentWidth: number, currentHeight: number, q: number): void => {
+          // Create canvas with current dimensions
+          const canvas = document.createElement('canvas')
+          canvas.width = currentWidth
+          canvas.height = currentHeight
+          const ctx = canvas.getContext('2d')
+
+          if (!ctx) {
+            reject(new Error('Không thể tạo canvas context'))
+            return
+          }
+
+          // Draw image to canvas
+          ctx.drawImage(img, 0, 0, currentWidth, currentHeight)
+
+          canvas.toBlob(
+            (blob) => {
+              if (!blob) {
+                reject(new Error('Không thể nén ảnh'))
+                return
+              }
+
+              const sizeKB = blob.size / 1024
+
+              // If size is acceptable, use this
+              if (sizeKB <= maxSizeKB) {
+                const originalName = file.name.replace(/\.[^/.]+$/, '')
+                const newFileName = `${originalName}.${outputExtension}`
+                
+                const compressedFile = new File(
+                  [blob],
+                  newFileName,
+                  {
+                    type: outputType,
+                    lastModified: Date.now(),
+                  }
+                )
+                resolve(compressedFile)
+              } else if (usePNG) {
+                // For PNG, try reducing size further (minimum 64x64)
+                const newWidth = Math.max(64, Math.floor(currentWidth * 0.8))
+                const newHeight = Math.max(64, Math.floor(currentHeight * 0.8))
+                
+                if (newWidth < currentWidth || newHeight < currentHeight) {
+                  tryCompress(newWidth, newHeight, q)
+                } else {
+                  // Can't reduce more, accept current size
+                  const originalName = file.name.replace(/\.[^/.]+$/, '')
+                  const newFileName = `${originalName}.${outputExtension}`
+                  
+                  const compressedFile = new File(
+                    [blob],
+                    newFileName,
+                    {
+                      type: outputType,
+                      lastModified: Date.now(),
+                    }
+                  )
+                  resolve(compressedFile)
+                }
+              } else {
+                // For JPEG, try lower quality
+                const minQuality = maxSizeKB <= 10 ? 0.05 : 0.1
+                const step = maxSizeKB <= 10 ? 0.05 : 0.1
+                if (q > minQuality) {
+                  tryCompress(currentWidth, currentHeight, Math.max(minQuality, q - step))
+                } else {
+                  // Can't reduce more, accept current size
+                  const originalName = file.name.replace(/\.[^/.]+$/, '')
+                  const newFileName = `${originalName}.${outputExtension}`
+                  
+                  const compressedFile = new File(
+                    [blob],
+                    newFileName,
+                    {
+                      type: outputType,
+                      lastModified: Date.now(),
+                    }
+                  )
+                  resolve(compressedFile)
+                }
+              }
+            },
+            outputType,
+            usePNG ? undefined : q // PNG doesn't support quality parameter
+          )
+        }
+
+        tryCompress(width, height, quality)
+      }
+
+      img.onerror = () => {
+        reject(new Error('Không thể load ảnh'))
+      }
+
+      if (e.target?.result) {
+        img.src = e.target.result as string
+      }
+    }
+
+    reader.onerror = () => {
+      reject(new Error('Không thể đọc file'))
+    }
+
+    reader.readAsDataURL(file)
+  })
+}
+
+/**
  * Check if file size is acceptable
  * @param file - File to check
  * @param maxSizeKB - Maximum size in KB

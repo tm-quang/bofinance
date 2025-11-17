@@ -452,6 +452,29 @@ const SettingsPage = () => {
               </div>
               <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
             </button>
+            <button
+              type="button"
+                onClick={async () => {
+                  const adminStatus = await getCachedAdminStatus()
+                  if (!adminStatus) {
+                    showError('Bạn không có quyền truy cập. Chỉ admin mới có thể quản lý icon images.')
+                    return
+                  }
+                  navigate('/admin-icon-images')
+                }}
+              className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
+                  <FaImage className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Icon_images</p>
+                  <p className="text-xs text-slate-500">Quản lý thư viện icon PNG/SVG cho hạng mục</p>
+                </div>
+              </div>
+              <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+            </button>
           </div>
         </section>
         )}

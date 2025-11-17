@@ -203,13 +203,13 @@ const ReportPage = () => {
             try {
               const iconNode = await getIconNode(category.icon_id)
               if (iconNode) {
-                iconsMap[category.id] = <span className="h-5 w-5">{iconNode}</span>
+                iconsMap[category.id] = <span className="h-14 w-14 flex items-center justify-center rounded-full overflow-hidden">{iconNode}</span>
               } else {
                 // Fallback to hardcoded icon
                 const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
                 if (hardcodedIcon?.icon) {
                   const IconComponent = hardcodedIcon.icon
-                  iconsMap[category.id] = <IconComponent className="h-5 w-5" />
+                  iconsMap[category.id] = <IconComponent className="h-14 w-14" />
                 }
               }
             } catch (error) {
@@ -218,7 +218,7 @@ const ReportPage = () => {
               const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
               if (hardcodedIcon?.icon) {
                 const IconComponent = hardcodedIcon.icon
-                iconsMap[category.id] = <IconComponent className="h-5 w-5" />
+                iconsMap[category.id] = <IconComponent className="h-14 w-14" />
               }
             }
           })
@@ -695,7 +695,7 @@ const ReportPage = () => {
                       >
                         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
                           {categoryIcon && (
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 sm:h-10 sm:w-10 sm:rounded-xl">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full overflow-hidden sm:h-10 sm:w-10">
                               {categoryIcon}
                             </span>
                           )}
@@ -731,7 +731,7 @@ const ReportPage = () => {
                       >
                         <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
                           {categoryIcon && (
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-rose-100 text-rose-600 sm:h-10 sm:w-10 sm:rounded-xl">
+                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full overflow-hidden sm:h-10 sm:w-10">
                               {categoryIcon}
                             </span>
                           )}
@@ -768,11 +768,7 @@ const ReportPage = () => {
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
                               {categoryIcon && (
-                                <span
-                                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-12 sm:w-12 sm:rounded-2xl ${
-                                    isIncome ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'
-                                  }`}
-                                >
+                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full overflow-hidden sm:h-12 sm:w-12">
                                   {categoryIcon}
                                 </span>
                               )}
@@ -813,11 +809,7 @@ const ReportPage = () => {
                           <div className="flex items-start justify-between gap-2">
                             <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
                               {categoryIcon && (
-                                <span
-                                  className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl sm:h-12 sm:w-12 sm:rounded-2xl ${
-                                    isIncome ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'
-                                  }`}
-                                >
+                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full overflow-hidden sm:h-12 sm:w-12">
                                   {categoryIcon}
                                 </span>
                               )}

@@ -5,16 +5,16 @@ import { getCachedUser } from './userCache'
 import { uploadToCloudinary } from './cloudinaryService'
 import { compressImageForIcon, isFileSizeAcceptable } from '../utils/imageCompression'
 
-export type IconType = 'react-icon' | 'image' | 'svg' | 'svg-url'
+export type IconFileType = 'png' | 'jpg' | 'jpeg' | 'svg' | 'webp'
+export type IconUsageType = 'category' | 'feature' | 'avatar' | 'general'
 
-export type IconRecord = {
+export type IconImageRecord = {
   id: string
   name: string
   label: string
-  icon_type: IconType
-  react_icon_name: string | null
-  react_icon_library: string | null
-  image_url: string | null
+  file_type: IconFileType
+  image_url: string
+  usage_type: IconUsageType
   group_id: string
   group_label: string
   is_active: boolean
@@ -24,29 +24,29 @@ export type IconRecord = {
   updated_at: string
 }
 
-export type IconInsert = {
+export type IconImageInsert = {
   name: string
   label: string
-  icon_type: IconType
-  react_icon_name?: string | null
-  react_icon_library?: string | null
-  image_url?: string | null
-  group_id: string
-  group_label: string
+  file_type: IconFileType
+  image_url?: string
+  usage_type?: IconUsageType
+  group_id?: string
+  group_label?: string
   display_order?: number
 }
 
-export type IconUpdate = Partial<Omit<IconInsert, 'name'>> & {
+export type IconImageUpdate = Partial<Omit<IconImageInsert, 'name'>> & {
   is_active?: boolean
 }
 
-export type IconFilters = {
+export type IconImageFilters = {
+  file_type?: IconFileType
+  usage_type?: IconUsageType
   group_id?: string
-  icon_type?: IconType
   is_active?: boolean
 }
 
-const TABLE_NAME = 'icons'
+const TABLE_NAME = 'icon_images'
 
 const throwIfError = (error: PostgrestError | null, fallbackMessage: string): void => {
   if (error) {
@@ -54,46 +54,45 @@ const throwIfError = (error: PostgrestError | null, fallbackMessage: string): vo
   }
 }
 
-// Icon cache map: name -> IconRecord
-// Được populate từ fetchIcons() để tránh fetch riêng lẻ
-let iconCacheMap: Map<string, IconRecord> | null = null
-let iconCachePromise: Promise<IconRecord[]> | null = null
+// Icon image cache map: name -> IconImageRecord
+let iconImageCacheMap: Map<string, IconImageRecord> | null = null
+let iconImageCachePromise: Promise<IconImageRecord[]> | null = null
 
-// Fetch all active icons
-export const fetchIcons = async (filters?: IconFilters): Promise<IconRecord[]> => {
+/**
+ * Fetch all active icon images
+ */
+export const fetchIconImages = async (filters?: IconImageFilters): Promise<IconImageRecord[]> => {
   const supabase = getSupabaseClient()
   const user = await getCachedUser()
 
   if (!user) {
-    // Không throw error, chỉ return empty array để app không crash
     return []
   }
 
-  const cacheKey = await cacheManager.generateKey('icons', filters)
+  const cacheKey = await cacheManager.generateKey('icon_images', filters)
 
-  const icons = await cacheFirstWithRefresh(
+  const iconImages = await cacheFirstWithRefresh(
     cacheKey,
     async () => {
       try {
-        // Build query từng bước để tránh lỗi
         const isActiveFilter = filters?.is_active !== undefined ? filters.is_active : true
         
-        // Bắt đầu với select đơn giản
         let query = supabase
           .from(TABLE_NAME)
           .select('*')
 
-        // Thêm filters
         query = query.eq('is_active', isActiveFilter)
 
+        if (filters?.file_type) {
+          query = query.eq('file_type', filters.file_type)
+        }
+        if (filters?.usage_type) {
+          query = query.eq('usage_type', filters.usage_type)
+        }
         if (filters?.group_id) {
           query = query.eq('group_id', filters.group_id)
         }
-        if (filters?.icon_type) {
-          query = query.eq('icon_type', filters.icon_type)
-        }
 
-        // Thêm ordering
         query = query
           .order('group_id', { ascending: true })
           .order('display_order', { ascending: true })
@@ -102,10 +101,8 @@ export const fetchIcons = async (filters?: IconFilters): Promise<IconRecord[]> =
         const { data, error } = await query
 
         if (error) {
-          // Log error nhưng không throw - có thể do RLS policy hoặc table chưa tồn tại
-          // App sẽ fallback về hardcoded icons
-          if (error.code !== 'PGRST116') { // PGRST116 = not found, không cần log
-            console.warn('Cannot fetch icons from database (will use hardcoded icons):', {
+          if (error.code !== 'PGRST116') {
+            console.warn('Cannot fetch icon images from database:', {
               code: error.code,
               message: error.message,
             })
@@ -115,10 +112,8 @@ export const fetchIcons = async (filters?: IconFilters): Promise<IconRecord[]> =
 
         return data ?? []
       } catch (err) {
-        // Silently fail - app sẽ dùng hardcoded icons
-        // Chỉ log nếu không phải là lỗi network thông thường
         if (err instanceof Error && !err.message.includes('fetch')) {
-          console.warn('Error fetching icons (will use hardcoded icons):', err)
+          console.warn('Error fetching icon images:', err)
         }
         return []
       }
@@ -127,71 +122,57 @@ export const fetchIcons = async (filters?: IconFilters): Promise<IconRecord[]> =
     12 * 60 * 60 * 1000  // 12 hours stale
   )
 
-  // Populate iconCacheMap nếu fetch tất cả active icons (không có filter đặc biệt)
-  // Điều này giúp getIconByName sử dụng cache thay vì fetch riêng lẻ
+  // Populate cache map
   if (!filters || (filters.is_active === true || filters.is_active === undefined)) {
-    if (!filters?.group_id && !filters?.icon_type) {
-      iconCacheMap = new Map(icons.map(icon => [icon.name, icon]))
+    if (!filters?.group_id && !filters?.file_type && !filters?.usage_type) {
+      iconImageCacheMap = new Map(iconImages.map(icon => [icon.name, icon]))
     }
   }
 
-  return icons
+  return iconImages
 }
 
 /**
- * Get icon by name - sử dụng cache từ fetchIcons() để tránh fetch riêng lẻ
- * Tối ưu: Chỉ fetch tất cả icons một lần, sau đó dùng cache
+ * Get icon image by name
  */
-export const getIconByName = async (name: string): Promise<IconRecord | null> => {
-  // Nếu đã có cache, dùng ngay
-  if (iconCacheMap && iconCacheMap.has(name)) {
-    return iconCacheMap.get(name) || null
+export const getIconImageByName = async (name: string): Promise<IconImageRecord | null> => {
+  if (iconImageCacheMap && iconImageCacheMap.has(name)) {
+    return iconImageCacheMap.get(name) || null
   }
 
-  // Nếu đang fetch, đợi xong rồi check lại
-  if (iconCachePromise) {
-    await iconCachePromise
-    if (iconCacheMap && iconCacheMap.has(name)) {
-      return iconCacheMap.get(name) || null
+  if (iconImageCachePromise) {
+    await iconImageCachePromise
+    if (iconImageCacheMap && iconImageCacheMap.has(name)) {
+      return iconImageCacheMap.get(name) || null
     }
   }
 
-  // Nếu chưa có cache, fetch tất cả icons một lần và cache lại
-  if (!iconCachePromise) {
-    iconCachePromise = fetchIcons({ is_active: true })
-    iconCachePromise
+  if (!iconImageCachePromise) {
+    iconImageCachePromise = fetchIconImages({ is_active: true })
+    iconImageCachePromise
       .then((icons) => {
-        iconCacheMap = new Map(icons.map(icon => [icon.name, icon]))
-        iconCachePromise = null
+        iconImageCacheMap = new Map(icons.map(icon => [icon.name, icon]))
+        iconImageCachePromise = null
       })
       .catch(() => {
-        iconCacheMap = new Map()
-        iconCachePromise = null
+        iconImageCacheMap = new Map()
+        iconImageCachePromise = null
       })
   }
 
-  await iconCachePromise
-  return iconCacheMap?.get(name) || null
+  await iconImageCachePromise
+  return iconImageCacheMap?.get(name) || null
 }
 
 /**
- * Invalidate icon cache (khi có thay đổi icons)
+ * Get icon image by ID
  */
-export const invalidateIconCache = async (): Promise<void> => {
-  iconCacheMap = null
-  iconCachePromise = null
-  // Invalidate cache from cache manager
-  const cacheKey = await cacheManager.generateKey('icons', {})
-  await cacheManager.invalidate(cacheKey)
-}
-
-// Get icon by ID
-export const getIconById = async (id: string): Promise<IconRecord | null> => {
+export const getIconImageById = async (id: string): Promise<IconImageRecord | null> => {
   const supabase = getSupabaseClient()
   const user = await getCachedUser()
 
   if (!user) {
-    throw new Error('Bạn cần đăng nhập để xem icon.')
+    throw new Error('Bạn cần đăng nhập để xem icon image.')
   }
 
   const { data, error } = await supabase
@@ -200,32 +181,58 @@ export const getIconById = async (id: string): Promise<IconRecord | null> => {
     .eq('id', id)
     .single()
 
-  throwIfError(error, 'Không thể tải icon.')
+  throwIfError(error, 'Không thể tải icon image.')
 
   return data
 }
 
-// Create icon
-export const createIcon = async (payload: IconInsert, imageFile?: File): Promise<IconRecord> => {
+/**
+ * Invalidate icon image cache
+ */
+export const invalidateIconImageCache = async (): Promise<void> => {
+  iconImageCacheMap = null
+  iconImageCachePromise = null
+  const cacheKey = await cacheManager.generateKey('icon_images', {})
+  await cacheManager.invalidate(cacheKey)
+}
+
+/**
+ * Create icon image
+ */
+export const createIconImage = async (
+  payload: IconImageInsert,
+  imageFile?: File
+): Promise<IconImageRecord> => {
   const supabase = getSupabaseClient()
   const user = await getCachedUser()
 
   if (!user) {
-    throw new Error('Bạn cần đăng nhập để tạo icon.')
+    throw new Error('Bạn cần đăng nhập để tạo icon image.')
   }
 
   // Check if icon name already exists
-  const existingIcon = await getIconByName(payload.name)
+  const existingIcon = await getIconImageByName(payload.name)
   if (existingIcon) {
     throw new Error(`Icon với tên "${payload.name}" đã tồn tại. Vui lòng chọn tên khác.`)
   }
 
-  // Upload image nếu có
+  // Upload image if provided
   let imageUrl: string | null = null
-  if (imageFile && (payload.icon_type === 'image' || payload.icon_type === 'svg')) {
+  if (imageFile) {
+    // Determine file type from file
+    const fileName = imageFile.name.toLowerCase()
+    let fileType: IconFileType = 'png'
+    if (fileName.endsWith('.svg')) {
+      fileType = 'svg'
+    } else if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
+      fileType = 'jpg'
+    } else if (fileName.endsWith('.webp')) {
+      fileType = 'webp'
+    }
+
     // Compress image before upload (except SVG which is already vector/compressed)
     let fileToUpload = imageFile
-    if (payload.icon_type === 'image') {
+    if (fileType !== 'svg') {
       try {
         // Check initial file size (max 10MB before compression)
         const maxInitialSize = 10 * 1024 * 1024 // 10MB
@@ -255,30 +262,43 @@ export const createIcon = async (payload: IconInsert, imageFile?: File): Promise
             throw new Error('Không thể nén ảnh xuống dưới 10KB. Vui lòng chọn ảnh khác')
           }
         }
+
+        // Determine file type based on compressed file
+        const compressedFileName = fileToUpload.name.toLowerCase()
+        if (compressedFileName.endsWith('.png')) {
+          fileType = 'png'
+        } else {
+          fileType = 'jpg'
+        }
       } catch (error) {
         throw new Error(error instanceof Error ? error.message : 'Không thể nén ảnh')
       }
     }
 
     const uploadResult = await uploadToCloudinary(fileToUpload, {
-      folder: 'icons',
+      folder: 'icon_images',
     })
     imageUrl = uploadResult.secure_url
-    
-    // Update file type based on compressed file
-    if (imageFile) {
-      const compressedFileName = fileToUpload.name.toLowerCase()
-      if (compressedFileName.endsWith('.png')) {
-        // Don't update payload.icon_type, it's already set
-      }
+
+    // Update file_type if not provided
+    if (!payload.file_type) {
+      payload.file_type = fileType
     }
+  }
+
+  if (!imageUrl && !payload.image_url) {
+    throw new Error('Vui lòng cung cấp ảnh hoặc URL ảnh.')
   }
 
   const { data, error } = await supabase
     .from(TABLE_NAME)
     .insert({
       ...payload,
-      image_url: imageUrl || payload.image_url,
+      image_url: imageUrl || payload.image_url || '',
+      usage_type: payload.usage_type || 'general',
+      group_id: payload.group_id || 'others',
+      group_label: payload.group_label || 'Khác',
+      display_order: payload.display_order || 0,
       created_by: user.id,
     })
     .select()
@@ -286,39 +306,51 @@ export const createIcon = async (payload: IconInsert, imageFile?: File): Promise
 
   if (error) {
     // Handle duplicate key error specifically
-    if (error.code === '23505' && error.message.includes('icons_name_key')) {
+    if (error.code === '23505' && error.message.includes('icon_images_name_key')) {
       throw new Error(`Icon với tên "${payload.name}" đã tồn tại. Vui lòng chọn tên khác.`)
     }
-    throwIfError(error, 'Không thể tạo icon.')
+    throwIfError(error, 'Không thể tạo icon image.')
   }
 
   if (!data) {
-    throw new Error('Không nhận được dữ liệu icon sau khi tạo.')
+    throw new Error('Không nhận được dữ liệu icon image sau khi tạo.')
   }
 
-  await invalidateIconCache()
+  await invalidateIconImageCache()
 
   return data
 }
 
-// Update icon
-export const updateIcon = async (
+/**
+ * Update icon image
+ */
+export const updateIconImage = async (
   id: string,
-  updates: IconUpdate,
+  updates: IconImageUpdate,
   imageFile?: File
-): Promise<IconRecord> => {
+): Promise<IconImageRecord> => {
   const supabase = getSupabaseClient()
   const user = await getCachedUser()
 
   if (!user) {
-    throw new Error('Bạn cần đăng nhập để cập nhật icon.')
+    throw new Error('Bạn cần đăng nhập để cập nhật icon image.')
   }
 
-  // Upload image mới nếu có
-  if (imageFile && (updates.icon_type === 'image' || updates.icon_type === 'svg')) {
+  // Upload new image if provided
+  if (imageFile) {
+    const fileName = imageFile.name.toLowerCase()
+    let fileType: IconFileType = 'png'
+    if (fileName.endsWith('.svg')) {
+      fileType = 'svg'
+    } else if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg')) {
+      fileType = 'jpg'
+    } else if (fileName.endsWith('.webp')) {
+      fileType = 'webp'
+    }
+
     // Compress image before upload (except SVG)
     let fileToUpload = imageFile
-    if (updates.icon_type === 'image') {
+    if (fileType !== 'svg') {
       try {
         // Check initial file size (max 10MB before compression)
         const maxInitialSize = 10 * 1024 * 1024 // 10MB
@@ -348,15 +380,24 @@ export const updateIcon = async (
             throw new Error('Không thể nén ảnh xuống dưới 10KB. Vui lòng chọn ảnh khác')
           }
         }
+
+        // Determine file type based on compressed file
+        const compressedFileName = fileToUpload.name.toLowerCase()
+        if (compressedFileName.endsWith('.png')) {
+          fileType = 'png'
+        } else {
+          fileType = 'jpg'
+        }
       } catch (error) {
         throw new Error(error instanceof Error ? error.message : 'Không thể nén ảnh')
       }
     }
 
     const uploadResult = await uploadToCloudinary(fileToUpload, {
-      folder: 'icons',
+      folder: 'icon_images',
     })
     updates.image_url = uploadResult.secure_url
+    updates.file_type = fileType
   }
 
   const { data, error } = await supabase
@@ -366,64 +407,81 @@ export const updateIcon = async (
     .select()
     .single()
 
-  throwIfError(error, 'Không thể cập nhật icon.')
+  throwIfError(error, 'Không thể cập nhật icon image.')
 
   if (!data) {
-    throw new Error('Không nhận được dữ liệu icon sau khi cập nhật.')
+    throw new Error('Không nhận được dữ liệu icon image sau khi cập nhật.')
   }
 
-  await invalidateIconCache()
+  await invalidateIconImageCache()
 
   return data
 }
 
-// Delete icon (soft delete - set is_active = false)
-export const deleteIcon = async (id: string): Promise<void> => {
+/**
+ * Delete icon image (soft delete - set is_active = false)
+ */
+export const deleteIconImage = async (id: string): Promise<void> => {
   const supabase = getSupabaseClient()
   const user = await getCachedUser()
 
   if (!user) {
-    throw new Error('Bạn cần đăng nhập để xóa icon.')
+    throw new Error('Bạn cần đăng nhập để xóa icon image.')
   }
 
-  // Soft delete
   const { error } = await supabase
     .from(TABLE_NAME)
     .update({ is_active: false })
     .eq('id', id)
 
-  throwIfError(error, 'Không thể xóa icon.')
+  throwIfError(error, 'Không thể xóa icon image.')
 
-  await invalidateIconCache()
+  await invalidateIconImageCache()
 }
 
-// Hard delete icon (permanent)
-export const hardDeleteIcon = async (id: string): Promise<void> => {
+/**
+ * Hard delete icon image (permanent)
+ */
+export const hardDeleteIconImage = async (id: string): Promise<void> => {
   const supabase = getSupabaseClient()
   const user = await getCachedUser()
 
   if (!user) {
-    throw new Error('Bạn cần đăng nhập để xóa icon.')
+    throw new Error('Bạn cần đăng nhập để xóa icon image vĩnh viễn.')
   }
 
-  const { error } = await supabase.from(TABLE_NAME).delete().eq('id', id)
+  const { error } = await supabase
+    .from(TABLE_NAME)
+    .delete()
+    .eq('id', id)
 
-  throwIfError(error, 'Không thể xóa icon vĩnh viễn.')
+  throwIfError(error, 'Không thể xóa icon image vĩnh viễn.')
 
-  await invalidateIconCache()
+  await invalidateIconImageCache()
 }
 
-// Get icon groups
-export const getIconGroups = async (): Promise<Array<{ id: string; label: string }>> => {
-  const icons = await fetchIcons({ is_active: true })
+/**
+ * Get icon image groups
+ */
+export const getIconImageGroups = async (): Promise<Array<{ id: string; label: string }>> => {
+  const iconImages = await fetchIconImages({ is_active: true })
   const groups = new Map<string, string>()
 
-  icons.forEach((icon) => {
+  iconImages.forEach((icon) => {
     if (!groups.has(icon.group_id)) {
       groups.set(icon.group_id, icon.group_label)
     }
   })
 
   return Array.from(groups.entries()).map(([id, label]) => ({ id, label }))
+}
+
+/**
+ * Get icon images by usage type
+ */
+export const getIconImagesByUsage = async (
+  usageType: IconUsageType
+): Promise<IconImageRecord[]> => {
+  return fetchIconImages({ usage_type: usageType, is_active: true })
 }
 

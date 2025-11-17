@@ -83,9 +83,44 @@ export const getIconComponent = async (iconId: string): Promise<IconType | null>
 }
 
 /**
- * Get icon as ReactNode (component hoặc image)
+ * Get icon as ReactNode từ category (ưu tiên icon_url nếu có)
+ * @param iconId - ID của icon
+ * @param iconUrl - URL ảnh trực tiếp từ category (optional, ưu tiên nếu có)
+ * @param className - CSS class cho ảnh (optional, default: 'h-6 w-6 object-contain')
  */
-export const getIconNode = async (iconId: string): Promise<React.ReactNode> => {
+export const getIconNodeFromCategory = async (
+  iconId: string,
+  iconUrl?: string | null,
+  className?: string
+): Promise<React.ReactNode> => {
+  // Nếu có icon_url trực tiếp, sử dụng nó
+  if (iconUrl) {
+    // Sử dụng className được truyền vào hoặc default (fill vừa vặn container)
+    const imgClassName = className || 'h-full w-full object-cover rounded-full'
+    return React.createElement('img', {
+      src: iconUrl,
+      alt: '',
+      className: imgClassName,
+      onError: (e: React.SyntheticEvent<HTMLImageElement>) => {
+        console.warn(`Failed to load category icon_url: ${iconUrl} for iconId: ${iconId}`)
+        e.currentTarget.style.display = 'none'
+      },
+    })
+  }
+
+  // Nếu không có icon_url, fallback về getIconNode
+  return getIconNode(iconId, className)
+}
+
+/**
+ * Get icon as ReactNode (component hoặc image)
+ * @param iconId - ID của icon
+ * @param className - CSS class cho ảnh (optional, default: 'h-6 w-6 object-contain')
+ */
+export const getIconNode = async (iconId: string, className?: string): Promise<React.ReactNode> => {
+  // Sử dụng className được truyền vào hoặc default (fill vừa vặn container)
+  const imgClassName = className || 'h-full w-full object-cover rounded-full'
+  
   // Ưu tiên load từ database trước (vì database là nguồn chính)
   try {
     const icon = await getIconByName(iconId)
@@ -96,7 +131,7 @@ export const getIconNode = async (iconId: string): Promise<React.ReactNode> => {
         return React.createElement('img', {
           src: icon.image_url,
           alt: icon.label,
-          className: 'h-6 w-6 object-contain',
+          className: imgClassName,
           onError: (e: React.SyntheticEvent<HTMLImageElement>) => {
             // Fallback nếu SVG URL không load được
             e.currentTarget.style.display = 'none'
@@ -109,7 +144,7 @@ export const getIconNode = async (iconId: string): Promise<React.ReactNode> => {
         return React.createElement('img', {
           src: icon.image_url,
           alt: icon.label,
-          className: 'h-6 w-6 object-contain',
+          className: imgClassName,
           onError: (e: React.SyntheticEvent<HTMLImageElement>) => {
             // Fallback nếu image không load được
             console.warn(`Failed to load image icon: ${icon.image_url} for iconId: ${iconId}`)

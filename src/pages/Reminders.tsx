@@ -82,12 +82,12 @@ const RemindersPage = () => {
           try {
             const iconNode = await getIconNode(category.icon_id)
             if (iconNode) {
-              iconsMap[category.id] = <span className="h-5 w-5">{iconNode}</span>
+              iconsMap[category.id] = <span className="h-14 w-14 flex items-center justify-center rounded-full overflow-hidden">{iconNode}</span>
             } else {
               const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
               if (hardcodedIcon?.icon) {
                 const IconComponent = hardcodedIcon.icon
-                iconsMap[category.id] = <IconComponent className="h-5 w-5" />
+                iconsMap[category.id] = <IconComponent className="h-14 w-14" />
               }
             }
           } catch (error) {
@@ -95,7 +95,7 @@ const RemindersPage = () => {
             const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
             if (hardcodedIcon?.icon) {
               const IconComponent = hardcodedIcon.icon
-              iconsMap[category.id] = <IconComponent className="h-5 w-5" />
+              iconsMap[category.id] = <IconComponent className="h-14 w-14" />
             }
           }
         })
