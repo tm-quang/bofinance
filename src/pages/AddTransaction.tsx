@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { FaCalendar, FaImage, FaWallet, FaArrowDown, FaArrowUp, FaChevronDown, FaTimes, FaClock, FaStar, FaEdit, FaPlus, FaChevronRight, FaChevronUp } from 'react-icons/fa'
+import { FaCalendar, FaImage, FaWallet, FaArrowDown, FaArrowUp, FaChevronDown, FaTimes, FaClock, FaStar, FaEdit, FaPlus, FaChevronRight, FaChevronUp, FaCamera } from 'react-icons/fa'
 
 import HeaderBar from '../components/layout/HeaderBar'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
@@ -72,7 +72,8 @@ export const AddTransactionPage = () => {
   const [isDateTimePickerOpen, setIsDateTimePickerOpen] = useState(false)
   const [isFavoriteModalOpen, setIsFavoriteModalOpen] = useState(false)
   const [favoriteCategories, setFavoriteCategories] = useState<CategoryWithChildren[]>([])
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const galleryInputRef = useRef<HTMLInputElement>(null)
 
   // Load wallets và categories
   useEffect(() => {
@@ -363,7 +364,7 @@ export const AddTransactionPage = () => {
         // Navigate back after edit
         navigate(-1)
       } else {
-        await createTransaction({
+        const result = await createTransaction({
           wallet_id: formState.wallet_id,
           category_id: formState.category_id,
           type: formState.type,
@@ -372,7 +373,13 @@ export const AddTransactionPage = () => {
           transaction_date: finalTransactionDate,
           image_urls: imageUrls.length > 0 ? imageUrls : undefined,
         })
-        success(`Đã thêm ${formState.type === 'Thu' ? 'khoản thu' : 'khoản chi'} thành công!`)
+        
+        // Show budget warning if exists (soft limit)
+        if (result.budgetWarning) {
+          showError(result.budgetWarning)
+        } else {
+          success(`Đã thêm ${formState.type === 'Thu' ? 'khoản thu' : 'khoản chi'} thành công!`)
+        }
         
         // Reset form for continuous input instead of navigating back
         const now = new Date()
@@ -466,8 +473,12 @@ export const AddTransactionPage = () => {
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
     setUploadedFiles((prev) => [...prev, ...files])
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
+    // Reset input value
+    if (e.target === cameraInputRef.current && cameraInputRef.current) {
+      cameraInputRef.current.value = ''
+    }
+    if (e.target === galleryInputRef.current && galleryInputRef.current) {
+      galleryInputRef.current.value = ''
     }
   }
 
@@ -487,7 +498,7 @@ export const AddTransactionPage = () => {
       />
 
       <main className="flex-1 overflow-y-auto overscroll-contain pb-20">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-2 px-4 py-4 sm:py-6">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-2 px-4 pt-2 pb-4 sm:pt-2 sm:pb-6">
           {/* Error message */}
           {error && (
             <div className="rounded-lg bg-rose-50 p-3 text-xs text-rose-600 sm:text-sm">
@@ -787,23 +798,44 @@ export const AddTransactionPage = () => {
               <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500">
                 Tải lên ảnh/hóa đơn (tùy chọn)
               </label>
+              {/* Hidden file inputs */}
               <input
-                ref={fileInputRef}
+                ref={cameraInputRef}
                 type="file"
-                id="receipt"
+                id="camera-input"
+                accept="image/*"
+                capture="environment"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+              <input
+                ref={galleryInputRef}
+                type="file"
+                id="gallery-input"
                 accept="image/*,.pdf"
                 multiple
                 onChange={handleFileChange}
                 className="hidden"
               />
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="flex w-full items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-medium text-slate-600 transition-all hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
-              >
-                <FaImage className="h-5 w-5" />
-                <span>Tải lên hóa đơn/ảnh</span>
-              </button>
+              {/* Two buttons: Camera and Gallery */}
+              <div className="grid grid-cols-2 gap-3">
+                <button
+                  type="button"
+                  onClick={() => cameraInputRef.current?.click()}
+                  className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-2 text-sm font-medium text-slate-600 transition-all hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
+                >
+                  <FaCamera className="h-6 w-6" />
+                  <span>Chụp ảnh</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => galleryInputRef.current?.click()}
+                  className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-2 text-sm font-medium text-slate-600 transition-all hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
+                >
+                  <FaImage className="h-6 w-6" />
+                  <span>Chọn từ thư viện</span>
+                </button>
+              </div>
               {(uploadedFiles.length > 0 || uploadedImageUrls.length > 0) && (
                 <div className="mt-3 space-y-2">
                   {uploadedImageUrls.map((url, index) => (

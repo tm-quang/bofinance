@@ -1,0 +1,140 @@
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { getSupabaseClient } from '../lib/supabaseClient'
+import type { User, Session } from '@supabase/supabase-js'
+
+interface AuthState {
+  user: User | null
+  session: Session | null
+  loading: boolean
+  initialized: boolean
+}
+
+/**
+ * Hook to monitor authentication state and automatically restore session
+ * This ensures users stay logged in across page refreshes and browser sessions
+ */
+export const useAuthState = () => {
+  const [authState, setAuthState] = useState<AuthState>({
+    user: null,
+    session: null,
+    loading: true,
+    initialized: false,
+  })
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    const supabase = getSupabaseClient()
+    let mounted = true
+
+    // Get initial session
+    const initializeAuth = async () => {
+      try {
+        const { data: { session }, error } = await supabase.auth.getSession()
+        
+        if (error) {
+          console.error('Error getting session:', error)
+          // Don't throw, just set to null
+        }
+
+        if (mounted) {
+          setAuthState({
+            user: session?.user ?? null,
+            session,
+            loading: false,
+            initialized: true,
+          })
+
+          // If we have a session, try to refresh it to ensure it's valid
+          if (session) {
+            const { data: { session: refreshedSession }, error: refreshError } = 
+              await supabase.auth.refreshSession()
+            
+            if (refreshError) {
+              console.warn('Session refresh failed:', refreshError)
+              // If refresh fails, clear the session
+              if (mounted) {
+                setAuthState({
+                  user: null,
+                  session: null,
+                  loading: false,
+                  initialized: true,
+                })
+              }
+            } else if (mounted && refreshedSession) {
+              setAuthState({
+                user: refreshedSession.user,
+                session: refreshedSession,
+                loading: false,
+                initialized: true,
+              })
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error initializing auth:', error)
+        if (mounted) {
+          setAuthState({
+            user: null,
+            session: null,
+            loading: false,
+            initialized: true,
+          })
+        }
+      }
+    }
+
+    initializeAuth()
+
+    // Listen for auth state changes
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (event, session) => {
+      if (!mounted) return
+
+      console.log('Auth state changed:', event, session?.user?.email)
+
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        setAuthState({
+          user: session?.user ?? null,
+          session,
+          loading: false,
+          initialized: true,
+        })
+      } else if (event === 'SIGNED_OUT') {
+        setAuthState({
+          user: null,
+          session: null,
+          loading: false,
+          initialized: true,
+        })
+        // Clear all caches on sign out
+        try {
+          const { clearAllCache } = await import('../lib/cache')
+          const { clearUserCache } = await import('../lib/userCache')
+          const { clearPreloadTimestamp } = await import('../lib/dataPreloader')
+          await clearAllCache()
+          clearUserCache()
+          await clearPreloadTimestamp()
+        } catch (e) {
+          console.warn('Error clearing cache on sign out:', e)
+        }
+        navigate('/login', { replace: true })
+      } else if (event === 'USER_UPDATED') {
+        setAuthState((prev) => ({
+          ...prev,
+          user: session?.user ?? null,
+          session,
+        }))
+      }
+    })
+
+    return () => {
+      mounted = false
+      subscription.unsubscribe()
+    }
+  }, [navigate])
+
+  return authState
+}
+

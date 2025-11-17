@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useDataPreloader } from '../hooks/useDataPreloader'
-import { FaPlus, FaCalendar, FaExchangeAlt, FaHandHoldingHeart, FaPaperPlane, FaCog, FaFolder, FaChevronLeft, FaChevronRight, FaReceipt, FaArrowRight, FaClock } from 'react-icons/fa'
+import { FaPlus, FaCalendar, FaExchangeAlt, FaHandHoldingHeart, FaPaperPlane, FaCog, FaFolder, FaChevronLeft, FaChevronRight, FaReceipt, FaArrowRight, FaClock, FaDollarSign } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
@@ -24,7 +24,8 @@ import { getDefaultWallet, setDefaultWallet } from '../lib/walletService'
 import { getCurrentProfile, type ProfileRecord } from '../lib/profileService'
 import { fetchReminders, type ReminderRecord } from '../lib/reminderService'
 import { useNotification } from '../contexts/notificationContext.helpers'
-import { invalidateCache } from '../lib/cache'
+import { useSystemSettings } from '../hooks/useSystemSettings'
+import ExchangeRatesModal from '../components/exchangeRates/ExchangeRatesModal'
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('vi-VN', {
@@ -33,11 +34,52 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value)
 
+// Component for Quick Action Button with image support
+const QuickActionButton = ({ 
+  action, 
+  Icon, 
+  onNavigate 
+}: { 
+  action: { id: string; label: string; icon: React.ComponentType<{ className?: string }>; image?: string; color: string; bgColor: string; textColor: string }
+  Icon: React.ComponentType<{ className?: string }>
+  onNavigate: (id: string) => void
+}) => {
+  const [imageError, setImageError] = useState(false)
+  
+  return (
+    <button
+      type="button"
+      onClick={() => onNavigate(action.id)}
+      className="group relative flex flex-col items-center gap-2.5 rounded-2xl bg-white p-3 text-center transition-all hover:scale-105 hover:shadow-lg active:scale-95 sm:p-4"
+    >
+      <span
+        className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${action.color} text-white shadow-md transition-all group-hover:scale-110 group-hover:shadow-xl sm:h-16 sm:w-16 overflow-hidden`}
+      >
+        {action.image && !imageError ? (
+          <img
+            src={action.image}
+            alt={action.label}
+            className="h-full w-full object-contain scale-120"
+            onError={() => setImageError(true)}
+          />
+        ) : (
+          <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
+        )}
+      </span>
+      <span className={`text-[10px] font-semibold leading-tight ${action.textColor} sm:text-xs`}>
+        {action.label}
+      </span>
+      <div className={`absolute inset-0 rounded-2xl ${action.bgColor} opacity-0 transition-opacity group-hover:opacity-20 -z-10`} />
+    </button>
+  )
+}
+
 const ALL_QUICK_ACTIONS = [
   { 
     id: 'send-money',
     label: 'Chi tiền', 
     icon: FaPaperPlane,
+    image: '/images/quick-actions/bofin-giftmoney.png', // Thêm link ảnh ở đây (tùy chọn)
     color: 'from-blue-500 to-cyan-500',
     bgColor: 'bg-blue-50',
     textColor: 'text-blue-700',
@@ -46,6 +88,7 @@ const ALL_QUICK_ACTIONS = [
     id: 'add-transaction',
     label: 'Thêm thu/chi', 
     icon: FaPlus,
+    image: '/images/quick-actions/add-transaction.png', // Thêm link ảnh ở đây (tùy chọn)
     color: 'from-emerald-500 to-teal-500',
     bgColor: 'bg-emerald-50',
     textColor: 'text-emerald-700',
@@ -54,6 +97,7 @@ const ALL_QUICK_ACTIONS = [
     id: 'categories',
     label: 'Hạng mục', 
     icon: FaFolder,
+    image: '/images/quick-actions/categories.png', // Thêm link ảnh ở đây (tùy chọn)
     color: 'from-indigo-500 to-purple-500',
     bgColor: 'bg-indigo-50',
     textColor: 'text-indigo-700',
@@ -62,6 +106,7 @@ const ALL_QUICK_ACTIONS = [
     id: 'split-bill',
     label: 'Chia khoản', 
     icon: FaExchangeAlt,
+    image: '/images/quick-actions/split-bill.png', // Thêm link ảnh ở đây (tùy chọn)
     color: 'from-purple-500 to-pink-500',
     bgColor: 'bg-purple-50',
     textColor: 'text-purple-700',
@@ -70,6 +115,7 @@ const ALL_QUICK_ACTIONS = [
     id: 'reminder',
     label: 'Nhắc thu/chi', 
     icon: FaHandHoldingHeart,
+    image: '/images/quick-actions/reminder.png', // Thêm link ảnh ở đây (tùy chọn)
     color: 'from-amber-500 to-orange-500',
     bgColor: 'bg-amber-50',
     textColor: 'text-amber-700',
@@ -78,6 +124,7 @@ const ALL_QUICK_ACTIONS = [
     id: 'settings',
     label: 'Cài đặt', 
     icon: FaCog,
+    image: '/images/quick-actions/settings.png', // Thêm link ảnh ở đây (tùy chọn)
     color: 'from-slate-500 to-slate-600',
     bgColor: 'bg-slate-50',
     textColor: 'text-slate-700',
@@ -110,6 +157,7 @@ export const DashboardPage = () => {
   const { success, error: showError } = useNotification()
   useDataPreloader() // Preload data khi vào dashboard
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
+  const [isExchangeRatesModalOpen, setIsExchangeRatesModalOpen] = useState(false)
   // const [selectedWallet, setSelectedWallet] = useState<WalletRecord | null>(null) // Reserved for future use
   const [defaultWalletId, setDefaultWalletId] = useState<string | null>(null)
   const [transactions, setTransactions] = useState<TransactionRecord[]>([])
@@ -123,6 +171,7 @@ export const DashboardPage = () => {
   const [isDeleting, setIsDeleting] = useState(false)
   const [showWelcomeModal, setShowWelcomeModal] = useState(false)
   const [profile, setProfile] = useState<ProfileRecord | null>(null)
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true)
   const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
   const [selectedDate, setSelectedDate] = useState<Date>(new Date()) // Default to today
   const [selectedDateReminders, setSelectedDateReminders] = useState<ReminderRecord[]>([])
@@ -161,8 +210,39 @@ export const DashboardPage = () => {
 
   const [quickActionsSettings, setQuickActionsSettings] = useState(getStoredActions)
 
+  // Load quick action images from settings
+  const quickActionImageKeys = [
+    'quick_action_send_money',
+    'quick_action_add_transaction',
+    'quick_action_categories',
+    'quick_action_split_bill',
+    'quick_action_reminder',
+    'quick_action_settings',
+  ]
+  const { settings: quickActionImages } = useSystemSettings(quickActionImageKeys)
+
+  // Map quick action IDs to setting keys
+  const quickActionImageMap: Record<string, string> = {
+    'send-money': 'quick_action_send_money',
+    'add-transaction': 'quick_action_add_transaction',
+    'categories': 'quick_action_categories',
+    'split-bill': 'quick_action_split_bill',
+    'reminder': 'quick_action_reminder',
+    'settings': 'quick_action_settings',
+  }
+
+  // Merge ALL_QUICK_ACTIONS with settings images
+  const quickActionsWithSettings = ALL_QUICK_ACTIONS.map((action) => {
+    const imageKey = quickActionImageMap[action.id]
+    const imageFromSettings = imageKey ? quickActionImages[imageKey] : null
+    return {
+      ...action,
+      image: imageFromSettings || action.image, // Use setting image if available, otherwise use default
+    }
+  })
+
   // Get enabled quick actions (exclude settings)
-  const enabledQuickActions = ALL_QUICK_ACTIONS.filter((action) => {
+  const enabledQuickActions = quickActionsWithSettings.filter((action) => {
     if (action.id === 'settings') return false // Loại bỏ tiện ích cài đặt
     const setting = quickActionsSettings.find((s) => s.id === action.id)
     return setting?.enabled ?? false
@@ -246,18 +326,64 @@ export const DashboardPage = () => {
   }, [])
 
 
-  // Load profile - sử dụng cache, chỉ reload khi cần
+  // Load profile - force refresh on mount, then use cache
   useEffect(() => {
-    const loadProfile = async () => {
+    let mounted = true
+    let retryCount = 0
+    const maxRetries = 3
+
+    const loadProfile = async (forceRefresh = false) => {
+      if (mounted) {
+        setIsLoadingProfile(true)
+      }
       try {
-        const profileData = await getCurrentProfile()
-        setProfile(profileData)
+        const profileData = await getCurrentProfile(forceRefresh)
+        if (mounted) {
+          setProfile(profileData)
+          setIsLoadingProfile(false)
+        }
       } catch (error) {
         console.error('Error loading profile:', error)
+        
+        // Retry logic for transient errors
+        if (retryCount < maxRetries && mounted) {
+          retryCount++
+          const delay = Math.pow(2, retryCount) * 1000 // Exponential backoff
+          setTimeout(() => {
+            if (mounted) {
+              loadProfile(true) // Force refresh on retry
+            }
+          }, delay)
+        } else if (mounted) {
+          // If all retries failed, set to null to show default
+          setProfile(null)
+          setIsLoadingProfile(false)
+        }
+      }
+    }
+
+    // Force refresh on mount to ensure fresh data
+    loadProfile(true)
+
+    return () => {
+      mounted = false
+    }
+  }, []) // Only run on mount
+
+  // Also reload profile when location changes (user navigates back)
+  useEffect(() => {
+    const loadProfile = async () => {
+      setIsLoadingProfile(true)
+      try {
+        const profileData = await getCurrentProfile(false) // Use cache if available
+        setProfile(profileData)
+        setIsLoadingProfile(false)
+      } catch (error) {
+        console.error('Error loading profile on navigation:', error)
+        setIsLoadingProfile(false)
       }
     }
     loadProfile()
-    // Chỉ reload khi location.key thay đổi (navigate từ trang khác về)
   }, [location.key])
 
   // Check for welcome modal flag from login
@@ -415,24 +541,15 @@ export const DashboardPage = () => {
     loadTransactions()
   }
 
-  // Handle reload - invalidate cache and reload all data
+  // Handle reload - clear all cache, reset state and reload all data
   const handleReload = async () => {
     setIsReloading(true)
     // Trigger refresh for NetAssetsCard
     setRefreshTrigger(prev => prev + 1)
     try {
-      // Invalidate all cache
-      await Promise.all([
-        invalidateCache('transactions'),
-        invalidateCache('categories'),
-        invalidateCache('categories_hierarchical'),
-        invalidateCache('wallets'),
-        invalidateCache('reminders'),
-        invalidateCache('notifications'),
-        invalidateCache('profiles'),
-        invalidateCache('getTransactionStats'),
-        invalidateCache('getWalletCashFlowStats'),
-      ])
+      // Clear toàn bộ cache và reset trạng thái
+      const { clearAllCacheAndState } = await import('../utils/reloadData')
+      await clearAllCacheAndState()
 
       // Reload all data
       const loadData = async () => {
@@ -443,7 +560,7 @@ export const DashboardPage = () => {
             fetchCategories(),
             fetchWallets(false),
             fetchReminders({ is_active: true }),
-            getCurrentProfile(),
+            getCurrentProfile(true), // Force refresh on reload
           ])
 
           // Load icons for categories
@@ -496,7 +613,7 @@ export const DashboardPage = () => {
           const dateReminders = remindersData.filter((r) => r.reminder_date === dateStr && !r.completed_at)
           setSelectedDateReminders(dateReminders)
 
-          success('Đã cập nhật dữ liệu mới nhất!')
+          success('Đã làm mới dữ liệu thành công!')
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : String(error)
           console.error('Error reloading data:', errorMessage, error)
@@ -509,7 +626,7 @@ export const DashboardPage = () => {
       await loadData()
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error)
-      console.error('Error invalidating cache:', errorMessage, error)
+      console.error('Error reloading data:', errorMessage, error)
       showError('Không thể làm mới dữ liệu. Vui lòng thử lại.')
     } finally {
       setIsReloading(false)
@@ -787,10 +904,11 @@ export const DashboardPage = () => {
         unreadNotificationCount={unreadNotificationCount}
         onReload={handleReload}
         isReloading={isReloading}
+        isLoadingProfile={isLoadingProfile}
       />
 
       <main className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 py-4 sm:py-4">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 pt-2 pb-4 sm:pt-2 sm:pb-4">
           {/* Tài sản ròng - Tổng quan tài chính */}
           <NetAssetsCard refreshTrigger={refreshTrigger} />
 
@@ -966,36 +1084,36 @@ export const DashboardPage = () => {
             {enabledQuickActions.map((action) => {
               const Icon = action.icon
               return (
-                <button
+                <QuickActionButton
                   key={action.id}
-                  type="button"
-                  onClick={() => {
-                    if (action.id === 'add-transaction') {
+                  action={action}
+                  Icon={Icon}
+                  onNavigate={(id) => {
+                    if (id === 'add-transaction') {
                       navigate('/add-transaction')
-                    } else if (action.id === 'settings') {
+                    } else if (id === 'settings') {
                       setIsSettingsOpen(true)
-                    } else if (action.id === 'categories') {
+                    } else if (id === 'categories') {
                       navigate('/categories')
-                    } else if (action.id === 'reminder') {
+                    } else if (id === 'reminder') {
                       navigate('/reminders')
                     }
                     // Các chức năng khác sẽ được implement sau
                   }}
-                  className="group relative flex flex-col items-center gap-2.5 rounded-2xl bg-white p-3 text-center transition-all hover:scale-105 hover:shadow-lg active:scale-95 sm:p-4"
-                >
-                  <span
-                    className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${action.color} text-white shadow-md transition-all group-hover:scale-110 group-hover:shadow-xl sm:h-16 sm:w-16`}
-                  >
-                    <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
-                  </span>
-                  <span className={`text-[10px] font-semibold leading-tight ${action.textColor} sm:text-xs`}>
-                    {action.label}
-                  </span>
-                  <div className={`absolute inset-0 rounded-2xl ${action.bgColor} opacity-0 transition-opacity group-hover:opacity-20 -z-10`} />
-                </button>
+                />
               )
             })}
           </div>
+          
+          {/* Exchange Rates Button */}
+          <button
+            type="button"
+            onClick={() => setIsExchangeRatesModalOpen(true)}
+            className="mt-4 w-full rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition-all hover:from-sky-600 hover:to-blue-700 hover:shadow-lg active:scale-95 flex items-center justify-center gap-2"
+          >
+            <FaDollarSign className="h-4 w-4" />
+            <span>Tỷ giá & Giá vàng</span>
+          </button>
         </section>
 
         <section className="space-y-4">
@@ -1137,6 +1255,12 @@ export const DashboardPage = () => {
       <WelcomeModal
         isOpen={showWelcomeModal}
         onClose={() => setShowWelcomeModal(false)}
+      />
+
+      {/* Exchange Rates Modal */}
+      <ExchangeRatesModal
+        isOpen={isExchangeRatesModalOpen}
+        onClose={() => setIsExchangeRatesModalOpen(false)}
       />
     </div>
   )

@@ -7,6 +7,8 @@ import { fetchCategories } from './categoryService'
 
 export type PeriodType = 'weekly' | 'monthly' | 'yearly'
 
+export type LimitType = 'hard' | 'soft'
+
 export type BudgetRecord = {
   id: string
   user_id: string
@@ -17,6 +19,7 @@ export type BudgetRecord = {
   period_start: string
   period_end: string
   is_active: boolean
+  limit_type: LimitType | null // 'hard' = từ chối, 'soft' = cảnh báo
   notes: string | null
   created_at: string
   updated_at: string
@@ -29,6 +32,7 @@ export type BudgetInsert = {
   period_type: PeriodType
   period_start: string
   period_end: string
+  limit_type?: LimitType | null
   notes?: string
 }
 
@@ -392,5 +396,147 @@ export const getActiveBudgetsForCurrentPeriod = async (
   )
 
   return budgetsWithSpending.sort((a, b) => b.usage_percentage - a.usage_percentage)
+}
+
+// Get active budget for a specific category, wallet, and date
+// Returns the most relevant budget (prioritizes wallet-specific budgets)
+export const getBudgetForCategory = async (
+  categoryId: string,
+  walletId: string | null,
+  date: string | Date
+): Promise<BudgetWithSpending | null> => {
+  const targetDate = typeof date === 'string' ? new Date(date) : date
+  
+  // Find active budgets that match this category
+  const budgets = await fetchBudgets({ 
+    category_id: categoryId,
+    is_active: true 
+  })
+  
+  // Filter budgets that match wallet and date
+  const matchingBudgets = budgets.filter((budget) => {
+    // Must match wallet (if budget has wallet_id, transaction must match)
+    if (budget.wallet_id && budget.wallet_id !== walletId) return false
+    
+    // Date must be within budget period
+    const periodStart = new Date(budget.period_start)
+    const periodEnd = new Date(budget.period_end)
+    if (targetDate < periodStart || targetDate > periodEnd) return false
+    
+    return true
+  })
+
+  if (matchingBudgets.length === 0) {
+    return null
+  }
+
+  // Prioritize wallet-specific budgets over general budgets
+  const walletSpecificBudget = matchingBudgets.find(b => b.wallet_id === walletId)
+  const selectedBudget = walletSpecificBudget || matchingBudgets[0]
+
+  return await getBudgetWithSpending(selectedBudget.id)
+}
+
+// Check if transaction would exceed budget limits
+// Returns: { allowed: boolean, budget: BudgetRecord | null, message: string }
+// Improved: Checks all matching budgets and returns the most restrictive limit
+export const checkBudgetLimit = async (
+  transaction: {
+    category_id: string
+    wallet_id: string
+    amount: number
+    transaction_date: string
+    type: 'Thu' | 'Chi'
+  }
+): Promise<{ allowed: boolean; budget: BudgetRecord | null; message: string }> => {
+  // Only check for expense transactions
+  if (transaction.type !== 'Chi') {
+    return { allowed: true, budget: null, message: '' }
+  }
+
+  const transactionDate = new Date(transaction.transaction_date)
+  
+  // Find active budgets that match this transaction
+  const budgets = await fetchBudgets({ is_active: true })
+  
+  const matchingBudgets = budgets.filter((budget) => {
+    // Must match category
+    if (budget.category_id !== transaction.category_id) return false
+    
+    // Must match wallet (if budget has wallet_id, transaction must match)
+    if (budget.wallet_id && budget.wallet_id !== transaction.wallet_id) return false
+    
+    // Transaction date must be within budget period
+    const periodStart = new Date(budget.period_start)
+    const periodEnd = new Date(budget.period_end)
+    if (transactionDate < periodStart || transactionDate > periodEnd) return false
+    
+    return true
+  })
+
+  if (matchingBudgets.length === 0) {
+    return { allowed: true, budget: null, message: '' }
+  }
+
+  // Prioritize wallet-specific budgets, then check all matching budgets
+  // Sort: wallet-specific first, then by period start (most recent first)
+  const sortedBudgets = matchingBudgets.sort((a, b) => {
+    // Wallet-specific budgets first
+    if (a.wallet_id === transaction.wallet_id && b.wallet_id !== transaction.wallet_id) return -1
+    if (a.wallet_id !== transaction.wallet_id && b.wallet_id === transaction.wallet_id) return 1
+    // Then by period start (most recent first)
+    return new Date(b.period_start).getTime() - new Date(a.period_start).getTime()
+  })
+
+  const formatCurrency = (value: number) =>
+    new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency: 'VND',
+      maximumFractionDigits: 0,
+    }).format(value)
+
+  // Check each matching budget (prioritize hard limits)
+  let hardLimitBudget: { budget: BudgetRecord; budgetWithSpending: BudgetWithSpending } | null = null
+  let softLimitBudget: { budget: BudgetRecord; budgetWithSpending: BudgetWithSpending } | null = null
+
+  for (const budget of sortedBudgets) {
+    const budgetWithSpending = await getBudgetWithSpending(budget.id)
+    const newSpent = budgetWithSpending.spent_amount + transaction.amount
+    const wouldExceed = newSpent > budget.amount
+
+    if (wouldExceed) {
+      if (budget.limit_type === 'hard') {
+        // Hard limit: Store and continue checking (in case there are multiple)
+        if (!hardLimitBudget) {
+          hardLimitBudget = { budget, budgetWithSpending }
+        }
+      } else {
+        // Soft limit: Store if no hard limit found yet
+        if (!softLimitBudget && !hardLimitBudget) {
+          softLimitBudget = { budget, budgetWithSpending }
+        }
+      }
+    }
+  }
+
+  // Return hard limit error if found (most restrictive)
+  if (hardLimitBudget) {
+    return {
+      allowed: false,
+      budget: hardLimitBudget.budget,
+      message: `Giao dịch này sẽ vượt quá ngân sách giới hạn cứng cho hạng mục này. Đã chi: ${formatCurrency(hardLimitBudget.budgetWithSpending.spent_amount)}/${formatCurrency(hardLimitBudget.budget.amount)}. Số tiền còn lại: ${formatCurrency(hardLimitBudget.budgetWithSpending.remaining_amount)}.`,
+    }
+  }
+
+  // Return soft limit warning if found
+  if (softLimitBudget) {
+    return {
+      allowed: true,
+      budget: softLimitBudget.budget,
+      message: `⚠️ Cảnh báo: Giao dịch này sẽ vượt quá ngân sách cho hạng mục này. Đã chi: ${formatCurrency(softLimitBudget.budgetWithSpending.spent_amount)}/${formatCurrency(softLimitBudget.budget.amount)}. Số tiền còn lại: ${formatCurrency(softLimitBudget.budgetWithSpending.remaining_amount)}.`,
+    }
+  }
+
+  return { allowed: true, budget: null, message: '' }
 }
 

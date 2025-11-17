@@ -52,6 +52,17 @@ export default function AdminIconImages() {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [viewingIcon, setViewingIcon] = useState<IconRecord | null>(null)
+  
+  // Bulk upload state
+  const [isBulkUploadMode, setIsBulkUploadMode] = useState(false)
+  const [bulkUploadFiles, setBulkUploadFiles] = useState<File[]>([])
+  const [isBulkUploading, setIsBulkUploading] = useState(false)
+  const [bulkUploadProgress, setBulkUploadProgress] = useState<{
+    current: number
+    total: number
+    fileName: string
+  } | null>(null)
+  const bulkFileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     checkAdminStatus()
@@ -163,6 +174,143 @@ export default function AdminIconImages() {
         setImagePreview(reader.result as string)
       }
       reader.readAsDataURL(file)
+
+      // Tự động lấy tên file (không có extension) và điền vào trường "Tên icon (ID)" nếu đang trống
+      if (!formData.name.trim()) {
+        // Lấy tên file, loại bỏ extension
+        const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, '')
+        // Normalize: lowercase, thay khoảng trắng và ký tự đặc biệt bằng dấu gạch dưới
+        const normalizedName = fileNameWithoutExt
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_')
+          .replace(/^_+|_+$/g, '') // Loại bỏ dấu gạch dưới ở đầu và cuối
+        
+        // Tự động điền tên hiển thị từ tên file (giữ nguyên format gốc, chỉ loại bỏ extension)
+        const displayName = fileNameWithoutExt
+          .replace(/[-_]/g, ' ') // Thay dấu gạch bằng khoảng trắng
+          .replace(/\b\w/g, (char) => char.toUpperCase()) // Viết hoa chữ cái đầu mỗi từ
+        
+        setFormData((prev) => ({
+          ...prev,
+          name: normalizedName || 'icon',
+          label: displayName || normalizedName || 'Icon',
+        }))
+      }
+    }
+  }
+
+  // Xử lý chọn nhiều file để upload hàng loạt
+  const handleBulkFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || [])
+    if (files.length === 0) return
+
+    // Validate file types
+    const validFiles: File[] = []
+    const invalidFiles: string[] = []
+
+    files.forEach((file) => {
+      const isSvg = file.name.toLowerCase().endsWith('.svg')
+      const isImage = file.type.startsWith('image/')
+      
+      if (isSvg || isImage) {
+        validFiles.push(file)
+      } else {
+        invalidFiles.push(file.name)
+      }
+    })
+
+    if (invalidFiles.length > 0) {
+      showError(`Có ${invalidFiles.length} file không hợp lệ: ${invalidFiles.slice(0, 3).join(', ')}${invalidFiles.length > 3 ? '...' : ''}`)
+    }
+
+    if (validFiles.length > 0) {
+      setBulkUploadFiles(validFiles)
+      setIsBulkUploadMode(true)
+    }
+  }
+
+  // Upload nhiều file
+  const handleBulkUpload = async () => {
+    if (bulkUploadFiles.length === 0) return
+
+    setIsBulkUploading(true)
+    setBulkUploadProgress({ current: 0, total: bulkUploadFiles.length, fileName: '' })
+
+    let successCount = 0
+    let errorCount = 0
+    const errors: string[] = []
+
+    try {
+      for (let i = 0; i < bulkUploadFiles.length; i++) {
+        const file = bulkUploadFiles[i]
+        setBulkUploadProgress({
+          current: i + 1,
+          total: bulkUploadFiles.length,
+          fileName: file.name,
+        })
+
+        try {
+          // Xác định icon_type dựa trên file extension
+          const isSvg = file.name.toLowerCase().endsWith('.svg')
+          const iconType: 'image' | 'svg' = isSvg ? 'svg' : 'image'
+
+          // Lấy tên file, loại bỏ extension
+          const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, '')
+          // Normalize: lowercase, thay khoảng trắng và ký tự đặc biệt bằng dấu gạch dưới
+          const normalizedName = fileNameWithoutExt
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '_')
+            .replace(/^_+|_+$/g, '') || 'icon'
+
+          // Tự động điền tên hiển thị từ tên file
+          const displayName = fileNameWithoutExt
+            .replace(/[-_]/g, ' ')
+            .replace(/\b\w/g, (char) => char.toUpperCase()) || normalizedName
+
+          // Tạo icon data
+          const iconData: IconInsert = {
+            name: normalizedName,
+            label: displayName,
+            icon_type: iconType,
+            group_id: formData.group_id,
+            group_label: formData.group_label,
+            display_order: formData.display_order + i, // Tăng display_order cho mỗi file
+          }
+
+          // Upload và tạo icon
+          await createIcon(iconData, file)
+          successCount++
+        } catch (error) {
+          errorCount++
+          const errorMessage = error instanceof Error ? error.message : 'Lỗi không xác định'
+          errors.push(`${file.name}: ${errorMessage}`)
+          console.error(`Error uploading ${file.name}:`, error)
+        }
+      }
+
+      // Hiển thị kết quả
+      if (successCount > 0) {
+        success(`Đã tải thành công ${successCount}/${bulkUploadFiles.length} icon!`)
+      }
+      if (errorCount > 0) {
+        showError(`Có ${errorCount} icon không thể tải. ${errors.slice(0, 3).join('; ')}${errors.length > 3 ? '...' : ''}`)
+      }
+
+      // Reload danh sách
+      await loadIcons()
+
+      // Reset
+      setBulkUploadFiles([])
+      setIsBulkUploadMode(false)
+      setBulkUploadProgress(null)
+      if (bulkFileInputRef.current) {
+        bulkFileInputRef.current.value = ''
+      }
+    } catch (error) {
+      showError('Có lỗi xảy ra khi upload nhiều file.')
+    } finally {
+      setIsBulkUploading(false)
+      setBulkUploadProgress(null)
     }
   }
 
@@ -303,21 +451,31 @@ export default function AdminIconImages() {
       />
       
       <main className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 py-4 sm:py-4">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 pt-2 pb-4 sm:pt-2 sm:pb-4">
           {/* Header with Add Button */}
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-xl font-bold text-slate-900">Icon Images</h1>
               <p className="text-sm text-slate-500 mt-1">Quản lý thư viện icon PNG/SVG</p>
             </div>
-            <button
-              onClick={handleCreate}
-              className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-white text-sm font-semibold shadow-lg hover:from-sky-600 hover:to-blue-700 transition-all"
-            >
-              <FaPlus className="h-4 w-4" />
-              <span className="hidden sm:inline">Thêm icon</span>
-              <span className="sm:hidden">Thêm</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => bulkFileInputRef.current?.click()}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-2.5 text-white text-sm font-semibold shadow-lg hover:from-emerald-600 hover:to-teal-700 transition-all"
+              >
+                <FaImage className="h-4 w-4" />
+                <span className="hidden sm:inline">Tải nhiều file</span>
+                <span className="sm:hidden">Nhiều</span>
+              </button>
+              <button
+                onClick={handleCreate}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-white text-sm font-semibold shadow-lg hover:from-sky-600 hover:to-blue-700 transition-all"
+              >
+                <FaPlus className="h-4 w-4" />
+                <span className="hidden sm:inline">Thêm icon</span>
+                <span className="sm:hidden">Thêm</span>
+              </button>
+            </div>
           </div>
 
           {isFormOpen ? (
@@ -605,6 +763,148 @@ export default function AdminIconImages() {
           )}
         </div>
       </main>
+
+      {/* Bulk Upload Input */}
+      <input
+        ref={bulkFileInputRef}
+        type="file"
+        multiple
+        accept="image/png,image/jpeg,image/jpg,image/webp,.svg"
+        onChange={handleBulkFileSelect}
+        className="hidden"
+      />
+
+      {/* Bulk Upload Modal */}
+      {isBulkUploadMode && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-slate-950/50 animate-in fade-in duration-200">
+          <div className="relative w-full max-w-md mx-4 bg-white rounded-2xl shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300">
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50 px-4 sm:px-6 py-4 sm:py-5">
+              <div className="min-w-0 flex-1">
+                <h2 className="text-lg sm:text-xl font-bold text-slate-900">Tải nhiều icon</h2>
+                <p className="mt-1 text-xs sm:text-sm text-slate-500">
+                  {bulkUploadFiles.length} file đã chọn
+                </p>
+              </div>
+              <button
+                onClick={() => {
+                  setIsBulkUploadMode(false)
+                  setBulkUploadFiles([])
+                  if (bulkFileInputRef.current) bulkFileInputRef.current.value = ''
+                }}
+                disabled={isBulkUploading}
+                className="flex h-9 w-9 sm:h-10 sm:w-10 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-all hover:bg-slate-200 shrink-0 disabled:opacity-50"
+              >
+                <FaTimes className="h-4 w-4 sm:h-5 sm:w-5" />
+              </button>
+            </div>
+
+            {/* Content */}
+            <div className="p-6 max-h-[60vh] overflow-y-auto">
+              {/* Progress */}
+              {isBulkUploading && bulkUploadProgress && (
+                <div className="mb-6 space-y-2">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-600">
+                      Đang tải {bulkUploadProgress.current}/{bulkUploadProgress.total}
+                    </span>
+                    <span className="text-slate-500 font-medium">
+                      {Math.round((bulkUploadProgress.current / bulkUploadProgress.total) * 100)}%
+                    </span>
+                  </div>
+                  <div className="w-full bg-slate-200 rounded-full h-2">
+                    <div
+                      className="bg-gradient-to-r from-emerald-500 to-teal-600 h-2 rounded-full transition-all duration-300"
+                      style={{ width: `${(bulkUploadProgress.current / bulkUploadProgress.total) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-slate-500 truncate">
+                    {bulkUploadProgress.fileName}
+                  </p>
+                </div>
+              )}
+
+              {/* File List */}
+              {!isBulkUploading && (
+                <>
+                  <div className="mb-4">
+                    <label className="mb-2 block text-sm font-semibold text-slate-700">
+                      Nhóm <span className="text-red-500">*</span>
+                    </label>
+                    <select
+                      value={formData.group_id}
+                      onChange={(e) => handleGroupChange(e.target.value)}
+                      className="w-full rounded-xl border-2 border-slate-200 bg-white p-3 text-sm focus:border-sky-500 focus:outline-none"
+                    >
+                      {ICON_GROUPS.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2 max-h-[300px] overflow-y-auto">
+                    {bulkUploadFiles.map((file, index) => {
+                      const fileNameWithoutExt = file.name.replace(/\.[^/.]+$/, '')
+                      const normalizedName = fileNameWithoutExt
+                        .toLowerCase()
+                        .replace(/[^a-z0-9]+/g, '_')
+                        .replace(/^_+|_+$/g, '') || 'icon'
+                      const displayName = fileNameWithoutExt
+                        .replace(/[-_]/g, ' ')
+                        .replace(/\b\w/g, (char) => char.toUpperCase()) || normalizedName
+                      
+                      return (
+                        <div
+                          key={index}
+                          className="flex items-center gap-3 rounded-xl border-2 border-slate-200 bg-slate-50 p-3"
+                        >
+                          <div className="h-10 w-10 shrink-0 rounded-lg bg-white border-2 border-slate-200 flex items-center justify-center">
+                            {file.name.toLowerCase().endsWith('.svg') ? (
+                              <span className="text-xs text-slate-400">SVG</span>
+                            ) : (
+                              <span className="text-xs text-slate-400">IMG</span>
+                            )}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium text-slate-900 truncate">{displayName}</p>
+                            <p className="text-xs text-slate-500 truncate">{file.name}</p>
+                            <p className="text-xs text-slate-400 mt-0.5">ID: {normalizedName}</p>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </>
+              )}
+            </div>
+
+            {/* Footer */}
+            {!isBulkUploading && (
+              <div className="flex gap-2 border-t border-slate-200 bg-slate-50 px-4 sm:px-6 py-4">
+                <button
+                  onClick={() => {
+                    setIsBulkUploadMode(false)
+                    setBulkUploadFiles([])
+                    if (bulkFileInputRef.current) bulkFileInputRef.current.value = ''
+                  }}
+                  className="flex-1 rounded-xl border-2 border-slate-300 bg-white px-4 py-3 text-sm font-semibold text-slate-700 hover:bg-slate-50 transition-colors"
+                >
+                  Hủy
+                </button>
+                <button
+                  onClick={handleBulkUpload}
+                  disabled={bulkUploadFiles.length === 0}
+                  className="flex-1 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-3 text-sm font-semibold text-white hover:from-emerald-600 hover:to-teal-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Tải lên ({bulkUploadFiles.length})
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* View Icon Modal */}
       {viewingIcon && (

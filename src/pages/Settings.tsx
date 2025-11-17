@@ -12,15 +12,17 @@ import {
   FaSun,
   FaUser,
   FaWallet,
-  FaImage,
-  FaFolder,
   FaExclamationCircle,
+  FaSignOutAlt,
+  FaCog,
 } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
 import { IconManagementModal } from '../components/settings/IconManagementModal'
 import { NotificationSettingsModal } from '../components/settings/NotificationSettingsModal'
+import { AdminSettingsModal } from '../components/settings/AdminSettingsModal'
+import ExchangeRatesCard from '../components/exchangeRates/ExchangeRatesCard'
 import { getCurrentProfile, type ProfileRecord } from '../lib/profileService'
 import { useDialog } from '../contexts/dialogContext.helpers'
 import { getSupabaseClient } from '../lib/supabaseClient'
@@ -105,8 +107,10 @@ const SettingsPage = () => {
   const { showConfirm } = useDialog()
   const { error: showError } = useNotification()
   const [profile, setProfile] = useState<ProfileRecord | null>(null)
+  const [isLoadingProfile, setIsLoadingProfile] = useState(true)
   const [isIconManagementOpen, setIsIconManagementOpen] = useState(false)
   const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false)
+  const [isAdminSettingsModalOpen, setIsAdminSettingsModalOpen] = useState(false)
   const [darkMode, setDarkMode] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true)
@@ -121,10 +125,19 @@ const SettingsPage = () => {
 
   // Load profile and check admin status
   useEffect(() => {
+    let mounted = true
+
     const loadProfile = async () => {
+      if (mounted) {
+        setIsLoadingProfile(true)
+      }
       try {
-        const profileData = await getCurrentProfile()
-        setProfile(profileData)
+        // Force refresh on mount to ensure fresh data
+        const profileData = await getCurrentProfile(true)
+        if (mounted) {
+          setProfile(profileData)
+          setIsLoadingProfile(false)
+        }
       } catch (error) {
         // Log detailed error information
         const errorMessage = error instanceof Error ? error.message : String(error)
@@ -144,6 +157,11 @@ const SettingsPage = () => {
         if (errorMessage.includes('406') || errorMessage.includes('Not Acceptable')) {
           console.warn('Profile table may not exist. Please run the migration: create_profiles_table.sql')
         }
+        
+        if (mounted) {
+          setProfile(null)
+          setIsLoadingProfile(false)
+        }
       }
     }
 
@@ -151,17 +169,27 @@ const SettingsPage = () => {
       setIsCheckingAdmin(true)
       try {
         const adminStatus = await getCachedAdminStatus()
-        setIsAdmin(adminStatus)
+        if (mounted) {
+          setIsAdmin(adminStatus)
+        }
       } catch (error) {
         console.error('Error checking admin status:', error)
-        setIsAdmin(false)
+        if (mounted) {
+          setIsAdmin(false)
+        }
       } finally {
-        setIsCheckingAdmin(false)
+        if (mounted) {
+          setIsCheckingAdmin(false)
+        }
       }
     }
 
     loadProfile()
     checkAdmin()
+
+    return () => {
+      mounted = false
+    }
   }, [])
 
   const handleLogout = async () => {
@@ -186,42 +214,82 @@ const SettingsPage = () => {
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
       <HeaderBar variant="page" title="Cài đặt" />
       <main className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 py-4 sm:py-4">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 pt-2 pb-4 sm:pt-2 sm:pb-4">
         {/* Account Info Section */}
         <section className="rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
-          <div className="flex flex-col gap-4">
           <div className="flex items-center gap-4">
-            {profile?.avatar_url ? (
+            {isLoadingProfile ? (
+              <>
+                <div className="h-16 w-16 animate-pulse rounded-full bg-slate-200 ring-4 ring-slate-100 sm:h-20 sm:w-20" />
+                <div className="flex-1 space-y-2">
+                  <div className="h-5 w-32 animate-pulse rounded bg-slate-200 sm:h-6" />
+                  <div className="h-4 w-48 animate-pulse rounded bg-slate-200" />
+                </div>
+              </>
+            ) : profile?.avatar_url ? (
               <img
                 src={profile.avatar_url}
                 alt="Avatar"
                 className="h-16 w-16 rounded-full object-cover ring-4 ring-slate-100 sm:h-20 sm:w-20"
               />
-            ) : (
+            ) : profile?.full_name && profile.full_name !== 'Người dùng' ? (
               <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-blue-600 text-white ring-4 ring-slate-100 sm:h-20 sm:w-20">
                 <FaUser className="h-8 w-8 sm:h-10 sm:w-10" />
               </div>
+            ) : null}
+            {!isLoadingProfile && profile?.full_name && profile.full_name !== 'Người dùng' && (
+              <div className="flex-1">
+                <h3 className="text-base font-bold text-slate-900 sm:text-lg">
+                  {profile.full_name}
+                </h3>
+                <p className="text-xs text-slate-500 sm:text-sm">{profile?.email || ''}</p>
+              </div>
             )}
-            <div className="flex-1">
-              <h3 className="text-base font-bold text-slate-900 sm:text-lg">
-                {profile?.full_name || 'Người dùng'}
-              </h3>
-              <p className="text-xs text-slate-500 sm:text-sm">{profile?.email || ''}</p>
-            </div>
-            </div>
-            <div className="flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={handleLogout}
-                className="rounded-xl border-2 border-rose-200 bg-white px-4 py-2 text-xs font-semibold text-rose-600 transition hover:border-rose-300 hover:bg-rose-50 hover:text-rose-700 sm:px-5 sm:py-2.5 sm:text-sm"
-              >
-                <span className="flex items-center justify-center gap-1.5">
-                  Đăng xuất
-                </span>
-              </button>
-            </div>
+            {!isLoadingProfile && (!profile?.full_name || profile.full_name === 'Người dùng') && (
+              <div className="flex-1">
+                <p className="text-xs text-slate-500 sm:text-sm">{profile?.email || ''}</p>
+              </div>
+            )}
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="flex h-10 w-10 items-center justify-center rounded-xl text-rose-600 transition hover:bg-rose-50 hover:text-rose-700 active:scale-95 sm:h-12 sm:w-12"
+              title="Đăng xuất"
+            >
+              <FaSignOutAlt className="h-6 w-6 sm:h-6 sm:w-6" />
+            </button>
           </div>
         </section>
+
+        {/* Admin Settings - Only show for admin */}
+        {!isCheckingAdmin && isAdmin && (
+          <section className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
+            <h2 className="mb-4 text-base font-bold text-slate-900 sm:text-lg">Quản trị hệ thống</h2>
+            <button
+              type="button"
+              onClick={async () => {
+                const adminStatus = await getCachedAdminStatus()
+                if (!adminStatus) {
+                  showError('Bạn không có quyền truy cập. Chỉ admin mới có thể quản lý hệ thống.')
+                  return
+                }
+                setIsAdminSettingsModalOpen(true)
+              }}
+              className="flex w-full items-center justify-between gap-3 rounded-xl bg-gradient-to-r from-sky-50 to-blue-50 p-4 text-left transition hover:from-sky-100 hover:to-blue-100 hover:shadow-md border-2 border-sky-200"
+            >
+              <div className="flex items-center gap-3">
+                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500 text-white">
+                  <FaCog className="h-5 w-5" />
+                </span>
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">Quản trị hệ thống</p>
+                  <p className="text-xs text-slate-500">Quản lý icons, hạng mục, cài đặt hệ thống</p>
+                </div>
+              </div>
+              <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
+            </button>
+          </section>
+        )}
 
         {/* Account Management */}
         <section className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
@@ -326,6 +394,9 @@ const SettingsPage = () => {
           </div>
         </section>
 
+        {/* Exchange Rates */}
+        <ExchangeRatesCard />
+
         {/* System Settings */}
         <section className="grid gap-4 sm:gap-6 lg:grid-cols-2">
           <div className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
@@ -398,86 +469,6 @@ const SettingsPage = () => {
           </div>
         </section>
 
-        {/* System Management (Admin) */}
-        {!isCheckingAdmin && isAdmin && (
-        <section className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
-          <h2 className="mb-4 text-base font-bold text-slate-900 sm:text-lg">Quản lý hệ thống</h2>
-          <p className="mb-4 text-xs text-slate-500 sm:text-sm">
-            Quản lý icons và cấu hình hệ thống
-          </p>
-          <div className="space-y-2">
-            <button
-              type="button"
-                onClick={async () => {
-                  const adminStatus = await getCachedAdminStatus()
-                  if (!adminStatus) {
-                    showError('Bạn không có quyền truy cập. Chỉ admin mới có thể quản lý icons.')
-                    return
-                  }
-                  setIsIconManagementOpen(true)
-                }}
-              className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-purple-100 text-purple-600">
-                  <FaImage className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">Quản lý Icons</p>
-                  <p className="text-xs text-slate-500">Thêm, sửa, xóa icons cho hạng mục</p>
-                </div>
-              </div>
-              <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
-            </button>
-            <button
-              type="button"
-                onClick={async () => {
-                  const adminStatus = await getCachedAdminStatus()
-                  if (!adminStatus) {
-                    showError('Bạn không có quyền truy cập. Chỉ admin mới có thể quản lý hạng mục mặc định.')
-                    return
-                  }
-                  navigate('/admin-categoriesicon')
-                }}
-              className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
-                  <FaFolder className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">Quản lý Hạng mục Mặc định</p>
-                  <p className="text-xs text-slate-500">Chỉnh sửa danh sách hạng mục Thu - Chi mặc định</p>
-                </div>
-              </div>
-              <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
-            </button>
-            <button
-              type="button"
-                onClick={async () => {
-                  const adminStatus = await getCachedAdminStatus()
-                  if (!adminStatus) {
-                    showError('Bạn không có quyền truy cập. Chỉ admin mới có thể quản lý icon images.')
-                    return
-                  }
-                  navigate('/admin-icon-images')
-                }}
-              className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600">
-                  <FaImage className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">Icon_images</p>
-                  <p className="text-xs text-slate-500">Quản lý thư viện icon PNG/SVG cho hạng mục</p>
-                </div>
-              </div>
-              <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
-            </button>
-          </div>
-        </section>
-        )}
 
 
         </div>
@@ -492,6 +483,12 @@ const SettingsPage = () => {
       <NotificationSettingsModal
         isOpen={isNotificationSettingsOpen}
         onClose={() => setIsNotificationSettingsOpen(false)}
+      />
+
+      <AdminSettingsModal
+        isOpen={isAdminSettingsModalOpen}
+        onClose={() => setIsAdminSettingsModalOpen(false)}
+        onIconManagementClick={() => setIsIconManagementOpen(true)}
       />
     </div>
   )

@@ -396,7 +396,7 @@ export const WalletsPage = () => {
       <HeaderBar variant="page" title="VÍ CỦA BẠN" />
 
       <main className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 py-6 sm:py-8">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 pt-2 pb-6 sm:pt-2 sm:pb-8">
           {/* Add button */}
           <button
             onClick={() => handleOpenForm()}
@@ -760,7 +760,7 @@ export const WalletsPage = () => {
 
           {/* Scrollable Content */}
           <main className="flex-1 overflow-y-auto overscroll-contain bg-[#F7F9FC]">
-            <div className="mx-auto w-full max-w-md px-4 py-4 sm:px-6 sm:py-5">
+            <div className="mx-auto w-full max-w-md px-4 pt-2 pb-4 sm:px-6 sm:pt-2 sm:pb-5">
               <form onSubmit={handleSubmit} id="wallet-form" className="space-y-4">
                 {/* Tên ví */}
                 <div>

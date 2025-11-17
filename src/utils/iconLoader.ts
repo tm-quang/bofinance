@@ -113,33 +113,34 @@ export const getIconNodeFromCategory = async (
 }
 
 /**
- * Get icon as ReactNode (component hoặc image)
- * @param iconId - ID của icon
+ * Get icon as ReactNode - chỉ sử dụng image_url từ icons_images
+ * @param iconId - ID của icon (UUID từ bảng icons)
  * @param className - CSS class cho ảnh (optional, default: 'h-6 w-6 object-contain')
  */
 export const getIconNode = async (iconId: string, className?: string): Promise<React.ReactNode> => {
   // Sử dụng className được truyền vào hoặc default (fill vừa vặn container)
   const imgClassName = className || 'h-full w-full object-cover rounded-full'
   
-  // Ưu tiên load từ database trước (vì database là nguồn chính)
+  // Load từ database - chỉ lấy icons có icon_type = 'image' hoặc 'svg'
   try {
-    const icon = await getIconByName(iconId)
+    // iconId có thể là UUID (từ bảng icons) hoặc name (legacy)
+    // Thử getIconById trước (UUID), nếu không có thì thử getIconByName (name)
+    let icon: IconRecord | null = null
+    
+    // Kiểm tra xem iconId có phải là UUID không (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(iconId)
+    
+    if (isUUID) {
+      // Lấy từ bảng icons bằng id
+      const { getIconById } = await import('../lib/iconService')
+      icon = await getIconById(iconId)
+    } else {
+      // Fallback: thử getIconByName (legacy support)
+      icon = await getIconByName(iconId)
+    }
     
     if (icon) {
-      // SVG URL
-      if (icon.icon_type === 'svg-url' && icon.image_url) {
-        return React.createElement('img', {
-          src: icon.image_url,
-          alt: icon.label,
-          className: imgClassName,
-          onError: (e: React.SyntheticEvent<HTMLImageElement>) => {
-            // Fallback nếu SVG URL không load được
-            e.currentTarget.style.display = 'none'
-          },
-        })
-      }
-
-      // SVG file hoặc Image
+      // Chỉ sử dụng icons có icon_type = 'image' hoặc 'svg'
       if ((icon.icon_type === 'svg' || icon.icon_type === 'image') && icon.image_url) {
         return React.createElement('img', {
           src: icon.image_url,
@@ -152,38 +153,12 @@ export const getIconNode = async (iconId: string, className?: string): Promise<R
           },
         })
       }
-      
-      // React Icon
-      if (icon.icon_type === 'react-icon' && icon.react_icon_name && icon.react_icon_library) {
-        try {
-          const library = await getCachedIconLibrary(icon.react_icon_library)
-          if (library && library[icon.react_icon_name]) {
-            const IconComponent = library[icon.react_icon_name]
-            return React.createElement(IconComponent, { className: 'h-6 w-6 text-slate-700' })
-          } else {
-            // Icon name không đúng trong library - fallback về hardcoded
-            console.warn(`Icon not found in library: ${icon.react_icon_library}.${icon.react_icon_name} for iconId: ${iconId}, falling back to hardcoded icon`)
-            // Sẽ fallback về hardcoded icon ở cuối function
-          }
-        } catch (libError) {
-          // Library không load được - fallback về hardcoded
-          console.error(`Error loading icon library ${icon.react_icon_library} for iconId ${iconId}:`, libError)
-          // Sẽ fallback về hardcoded icon ở cuối function
-        }
-      }
     }
   } catch (error) {
     // Chỉ log error nếu không phải là lỗi "not found" (đó là trường hợp bình thường)
     if (error instanceof Error && !error.message.includes('not found') && !error.message.includes('PGRST116')) {
       console.error('Error loading icon from database:', iconId, error)
     }
-  }
-
-  // Fallback về hardcoded map nếu không có trong database
-  const hardcodedIcon = CATEGORY_ICON_MAP[iconId]
-  if (hardcodedIcon?.icon) {
-    const IconComponent = hardcodedIcon.icon
-    return React.createElement(IconComponent, { className: 'h-6 w-6 text-slate-700' })
   }
 
   // Return null để component tự xử lý fallback

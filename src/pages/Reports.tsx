@@ -10,17 +10,17 @@ import {
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
-import { CashFlowBarChart } from '../components/charts/CashFlowBarChart'
+import { CashFlowBarChartMUI } from '../components/charts/CashFlowBarChartMUI'
 import { DateRangeFilter } from '../components/reports/DateRangeFilter'
 import { CategoryFilter } from '../components/reports/CategoryFilter'
-import { TransactionCard } from '../components/transactions/TransactionCard'
-import { TransactionListSkeleton } from '../components/skeletons'
+// import { TransactionCard } from '../components/transactions/TransactionCard'
+// import { TransactionListSkeleton } from '../components/skeletons'
 import { useNotification } from '../contexts/notificationContext.helpers'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
 import { getIconNode } from '../utils/iconLoader'
 import { fetchCategories, type CategoryRecord } from '../lib/categoryService'
 import { fetchTransactions, type TransactionRecord } from '../lib/transactionService'
-import { fetchWallets, type WalletRecord } from '../lib/walletService'
+// import { fetchWallets, type WalletRecord } from '../lib/walletService' // Reserved for future use
 
 type DateRangeType = 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
 
@@ -133,9 +133,8 @@ const ReportPage = () => {
   const navigate = useNavigate()
   const { success, error: showError } = useNotification()
   const [transactions, setTransactions] = useState<TransactionRecord[]>([])
-  const [transactionsBeforePeriod, setTransactionsBeforePeriod] = useState<TransactionRecord[]>([])
   const [categories, setCategories] = useState<CategoryRecord[]>([])
-  const [wallets, setWallets] = useState<WalletRecord[]>([])
+  // const [wallets, setWallets] = useState<WalletRecord[]>([]) // Reserved for future use
   const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
@@ -147,9 +146,11 @@ const ReportPage = () => {
   const [showAllCategories, setShowAllCategories] = useState(false)
   const [openFilterSections, setOpenFilterSections] = useState<Record<FilterSectionKey, boolean>>({
     range: true,
-    type: true,
     category: false,
+    type: false,
   })
+  const [isLargestTransactionExpanded, setIsLargestTransactionExpanded] = useState(false)
+  const [isSmallestTransactionExpanded, setIsSmallestTransactionExpanded] = useState(false)
 
   const filteredCategoriesByType = useMemo(() => {
     if (typeFilter === 'all') return categories
@@ -177,23 +178,13 @@ const ReportPage = () => {
     const loadData = async () => {
       setIsLoading(true)
       try {
-        // Tính ngày kết thúc để lấy giao dịch trước kỳ (ngày trước ngày bắt đầu kỳ)
-        // Ví dụ: nếu kỳ là từ 1/11, thì lấy giao dịch đến hết 31/10
-        const periodStartDate = new Date(dateRange.start)
-        periodStartDate.setDate(periodStartDate.getDate() - 1)
-        const beforePeriodEnd = periodStartDate.toISOString().split('T')[0]
-
-        const [transactionsData, transactionsBeforeData, categoriesData, walletsData] = await Promise.all([
+        const [transactionsData, categoriesData] = await Promise.all([
           fetchTransactions({
             start_date: dateRange.start,
             end_date: dateRange.end,
           }),
-          // Lấy tất cả giao dịch trước ngày bắt đầu kỳ để tính số dư đầu kỳ
-          fetchTransactions({
-            end_date: beforePeriodEnd,
-          }),
           fetchCategories(),
-          fetchWallets(false),
+          // fetchWallets(false), // Reserved for future use
         ])
         
         // Load icons for all categories
@@ -226,9 +217,8 @@ const ReportPage = () => {
         setCategoryIcons(iconsMap)
         
         setTransactions(transactionsData)
-        setTransactionsBeforePeriod(transactionsBeforeData)
         setCategories(categoriesData)
-        setWallets(walletsData)
+        // setWallets(walletsData) // Reserved for future use
       } catch (err) {
         console.error('Error loading report data:', err)
         showError('Không thể tải dữ liệu báo cáo')
@@ -283,50 +273,19 @@ const ReportPage = () => {
 
   // Calculate statistics - tính từ TẤT CẢ giao dịch trong khoảng thời gian, không phụ thuộc filter
   const stats = useMemo(() => {
-    // Thu nhập và chi tiêu trong kỳ
+    // Thu nhập và chi tiêu trong kỳ (theo period: ngày, tuần, tháng, quý, năm)
     const income = transactions.filter((t) => t.type === 'Thu').reduce((sum, t) => sum + t.amount, 0)
     const expense = transactions.filter((t) => t.type === 'Chi').reduce((sum, t) => sum + t.amount, 0)
     
-    // Tính số dư ban đầu từ tài sản ròng (chỉ Tiền mặt + Ngân hàng)
-    // Đây là số tiền thực tế có thể sử dụng để chi tiêu và nhận thu nhập
-    const netAssetsWallets = wallets.filter(
-      (w) => w.type === 'Tiền mặt' || w.type === 'Ngân hàng'
-    )
-    const initialBalance = netAssetsWallets.reduce((sum, w) => sum + (w.initial_balance ?? w.balance ?? 0), 0)
-    
-    // Tính số dư đầu kỳ: số dư ban đầu + tất cả giao dịch trước ngày bắt đầu kỳ
-    // Chỉ tính giao dịch từ các ví tài sản ròng (Tiền mặt + Ngân hàng)
-    const netAssetsWalletIds = new Set(netAssetsWallets.map((w) => w.id))
-    const incomeBefore = transactionsBeforePeriod
-      .filter((t) => t.type === 'Thu' && netAssetsWalletIds.has(t.wallet_id))
-      .reduce((sum, t) => sum + t.amount, 0)
-    const expenseBefore = transactionsBeforePeriod
-      .filter((t) => t.type === 'Chi' && netAssetsWalletIds.has(t.wallet_id))
-      .reduce((sum, t) => sum + t.amount, 0)
-    const balanceAtPeriodStart = initialBalance + incomeBefore - expenseBefore
-    
-    // Tính số dư cuối kỳ: số dư đầu kỳ + thu nhập - chi tiêu trong kỳ
-    // Chỉ tính giao dịch từ các ví tài sản ròng
-    const incomeInPeriod = transactions
-      .filter((t) => t.type === 'Thu' && netAssetsWalletIds.has(t.wallet_id))
-      .reduce((sum, t) => sum + t.amount, 0)
-    const expenseInPeriod = transactions
-      .filter((t) => t.type === 'Chi' && netAssetsWalletIds.has(t.wallet_id))
-      .reduce((sum, t) => sum + t.amount, 0)
-    const balanceAtPeriodEnd = balanceAtPeriodStart + incomeInPeriod - expenseInPeriod
-    
-    // Thay đổi số dư trong kỳ (chỉ tính từ tài sản ròng)
-    const balanceChange = incomeInPeriod - expenseInPeriod
+    // Thay đổi số dư trong kỳ = Thu nhập - Chi tiêu
+    const balance = income - expense
 
     return { 
-      income, // Tổng thu nhập (tất cả ví)
-      expense, // Tổng chi tiêu (tất cả ví)
-      balance: balanceChange, // Thay đổi số dư trong kỳ (chỉ từ tài sản ròng)
-      balanceAtPeriodStart, // Số dư đầu kỳ (tài sản ròng)
-      balanceAtPeriodEnd, // Số dư cuối kỳ (tài sản ròng)
-      initialBalance, // Số dư ban đầu (tài sản ròng)
+      income, // Tổng thu nhập trong kỳ
+      expense, // Tổng chi tiêu trong kỳ
+      balance, // Thay đổi số dư trong kỳ
     }
-  }, [transactions, transactionsBeforePeriod, wallets])
+  }, [transactions])
 
   // Group by category for top categories
   const categoryStats = useMemo(() => {
@@ -377,29 +336,44 @@ const ReportPage = () => {
 
   // Chart data - group by day/week/month based on range
   const chartData = useMemo(() => {
-    if (filteredTransactions.length === 0) return []
+    if (transactions.length === 0) return []
 
-    const dataMap = new Map<string, { income: number; expense: number }>()
+    const dataMap = new Map<string, { income: number; expense: number; date: Date }>()
 
-    filteredTransactions.forEach((transaction) => {
+    transactions.forEach((transaction) => {
       const date = new Date(transaction.transaction_date)
       let key: string
 
       if (rangeType === 'day') {
-        key = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+        // Group by hour
+        const hour = date.getHours()
+        key = `${hour}:00`
       } else if (rangeType === 'week') {
-        key = `T${date.getDay() === 0 ? 7 : date.getDay()}`
+        // Group by day of week (Monday = 1, Sunday = 7)
+        const dayOfWeek = date.getDay() === 0 ? 7 : date.getDay()
+        const dayNames = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+        key = dayNames[dayOfWeek - 1]
       } else if (rangeType === 'month') {
-        const weekNum = Math.ceil(date.getDate() / 7)
+        // Group by week of month (1-4 or 5)
+        const startOfMonth = new Date(date.getFullYear(), date.getMonth(), 1)
+        const daysSinceStart = Math.floor((date.getTime() - startOfMonth.getTime()) / (1000 * 60 * 60 * 24))
+        const weekNum = Math.floor(daysSinceStart / 7) + 1
         key = `Tuần ${weekNum}`
       } else if (rangeType === 'quarter') {
-        key = date.toLocaleDateString('vi-VN', { month: 'long' })
-      } else {
+        // Group by month
+        const monthNames = ['Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6', 'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12']
+        const month = date.getMonth()
+        key = monthNames[month]
+      } else if (rangeType === 'year') {
+        // Group by quarter
         const quarter = Math.floor(date.getMonth() / 3) + 1
         key = `Q${quarter}`
+      } else {
+        // Custom: group by day
+        key = date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
       }
 
-      const existing = dataMap.get(key) || { income: 0, expense: 0 }
+      const existing = dataMap.get(key) || { income: 0, expense: 0, date }
       if (transaction.type === 'Thu') {
         existing.income += transaction.amount
       } else {
@@ -408,18 +382,42 @@ const ReportPage = () => {
       dataMap.set(key, existing)
     })
 
-    return Array.from(dataMap.entries())
-      .map(([label, values]) => ({
+    // Create array with proper sort keys
+    const result = Array.from(dataMap.entries()).map(([label, values]) => {
+      let sortKey: string
+      if (rangeType === 'day') {
+        sortKey = `${values.date.getDate().toString().padStart(2, '0')}-${values.date.getHours().toString().padStart(2, '0')}`
+      } else if (rangeType === 'week') {
+        const dayOfWeek = values.date.getDay() === 0 ? 7 : values.date.getDay()
+        sortKey = dayOfWeek.toString().padStart(2, '0')
+      } else if (rangeType === 'month') {
+        const startOfMonth = new Date(values.date.getFullYear(), values.date.getMonth(), 1)
+        const daysSinceStart = Math.floor((values.date.getTime() - startOfMonth.getTime()) / (1000 * 60 * 60 * 24))
+        const weekNum = Math.floor(daysSinceStart / 7) + 1
+        sortKey = weekNum.toString().padStart(2, '0')
+      } else if (rangeType === 'quarter') {
+        sortKey = `${values.date.getFullYear()}-${values.date.getMonth().toString().padStart(2, '0')}`
+      } else if (rangeType === 'year') {
+        const quarter = Math.floor(values.date.getMonth() / 3) + 1
+        sortKey = `${values.date.getFullYear()}-${quarter}`
+      } else {
+        sortKey = values.date.toISOString().split('T')[0]
+      }
+      
+      return {
         label,
         income: values.income,
         expense: values.expense,
         balance: values.income - values.expense,
-      }))
-      .sort((a, b) => {
-        // Sort by date order if possible, otherwise by label
-        return a.label.localeCompare(b.label, 'vi')
-      })
-  }, [filteredTransactions, rangeType])
+        sortKey,
+      }
+    })
+
+    return result.sort((a, b) => {
+      // Sort by sortKey (chronological order)
+      return a.sortKey.localeCompare(b.sortKey)
+    })
+  }, [transactions, rangeType])
 
   const handleCategoryToggle = (categoryId: string) => {
     setSelectedCategoryIds((prev) =>
@@ -440,7 +438,7 @@ const ReportPage = () => {
     setSelectedCategoryIds([])
     setSearchTerm('')
     setShowAllCategories(false)
-    setOpenFilterSections({ range: true, type: true, category: false })
+    setOpenFilterSections({ range: true, category: false, type: false })
   }
 
   const getCategoryInfo = (categoryId: string) => {
@@ -452,96 +450,75 @@ const ReportPage = () => {
     }
   }
 
-  // Get wallet name
-  const getWalletName = (walletId: string) => {
-    const wallet = wallets.find((w) => w.id === walletId)
-    return wallet?.name || 'Không xác định'
-  }
+  // Get wallet name (reserved for future use)
+  // const getWalletName = (walletId: string) => {
+  //   const wallet = wallets.find((w) => w.id === walletId)
+  //   return wallet?.name || 'Không xác định'
+  // }
 
-  // Get wallet color based on ID (consistent color for same wallet)
-  const getWalletColor = (walletId: string) => {
-    // Array of beautiful color combinations
-    const colors = [
-      { bg: 'bg-sky-100', icon: 'text-sky-600', text: 'text-sky-700' },
-      { bg: 'bg-emerald-100', icon: 'text-emerald-600', text: 'text-emerald-700' },
-      { bg: 'bg-rose-100', icon: 'text-rose-600', text: 'text-rose-700' },
-      { bg: 'bg-amber-100', icon: 'text-amber-600', text: 'text-amber-700' },
-      { bg: 'bg-purple-100', icon: 'text-purple-600', text: 'text-purple-700' },
-      { bg: 'bg-indigo-100', icon: 'text-indigo-600', text: 'text-indigo-700' },
-      { bg: 'bg-pink-100', icon: 'text-pink-600', text: 'text-pink-700' },
-      { bg: 'bg-cyan-100', icon: 'text-cyan-600', text: 'text-cyan-700' },
-      { bg: 'bg-orange-100', icon: 'text-orange-600', text: 'text-orange-700' },
-      { bg: 'bg-teal-100', icon: 'text-teal-600', text: 'text-teal-700' },
-    ]
+  // Get wallet color based on ID (reserved for future use)
+  // const getWalletColor = (walletId: string) => {
+  //   // Array of beautiful color combinations
+  //   const colors = [
+  //     { bg: 'bg-sky-100', icon: 'text-sky-600', text: 'text-sky-700' },
+  //     { bg: 'bg-emerald-100', icon: 'text-emerald-600', text: 'text-emerald-700' },
+  //     { bg: 'bg-rose-100', icon: 'text-rose-600', text: 'text-rose-700' },
+  //     { bg: 'bg-amber-100', icon: 'text-amber-600', text: 'text-amber-700' },
+  //     { bg: 'bg-purple-100', icon: 'text-purple-600', text: 'text-purple-700' },
+  //     { bg: 'bg-indigo-100', icon: 'text-indigo-600', text: 'text-indigo-700' },
+  //     { bg: 'bg-pink-100', icon: 'text-pink-600', text: 'text-pink-700' },
+  //     { bg: 'bg-cyan-100', icon: 'text-cyan-600', text: 'text-cyan-700' },
+  //     { bg: 'bg-orange-100', icon: 'text-orange-600', text: 'text-orange-700' },
+  //     { bg: 'bg-teal-100', icon: 'text-teal-600', text: 'text-teal-700' },
+  //   ]
 
-    // Simple hash function to convert wallet ID to index
-    let hash = 0
-    for (let i = 0; i < walletId.length; i++) {
-      hash = walletId.charCodeAt(i) + ((hash << 5) - hash)
-    }
-    const index = Math.abs(hash) % colors.length
-    return colors[index]
-  }
+  //   // Simple hash function to convert wallet ID to index
+  //   let hash = 0
+  //   for (let i = 0; i < walletId.length; i++) {
+  //     hash = walletId.charCodeAt(i) + ((hash << 5) - hash)
+  //   }
+  //   const index = Math.abs(hash) % colors.length
+  //   return colors[index]
+  // }
 
-  // Long press handlers (empty handlers for Reports page - no action modal needed)
-  const handleLongPressStart = () => {}
-  const handleLongPressEnd = () => {}
-  const handleLongPressCancel = () => {}
+  // Long press handlers (reserved for future use)
+  // const handleLongPressStart = () => {}
+  // const handleLongPressEnd = () => {}
+  // const handleLongPressCancel = () => {}
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
       <HeaderBar variant="page" title="BÁO CÁO & THỐNG KÊ" />
       <main className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 py-4 sm:py-4">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 pt-2 pb-4 sm:pt-2 sm:pb-4">
           {/* Summary Cards */}
-          <div className="space-y-3">
-            {/* Thu nhập, Chi tiêu, Thay đổi số dư */}
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
-              <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-white px-2 py-2.5 shadow-sm ring-1 ring-emerald-100 sm:rounded-2xl sm:px-3 sm:py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 sm:text-xs">Thu nhập</p>
-                <p className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold text-emerald-700 sm:text-base">
-                  {isLoading ? '...' : formatCurrency(stats.income)}
-                </p>
-              </div>
-              <div className="rounded-xl bg-gradient-to-br from-rose-50 to-white px-2 py-2.5 shadow-sm ring-1 ring-rose-100 sm:rounded-2xl sm:px-3 sm:py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 sm:text-xs">Chi tiêu</p>
-                <p className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold text-rose-700 sm:text-base">
-                  {isLoading ? '...' : formatCurrency(stats.expense)}
-                </p>
-              </div>
-              <div className="rounded-xl bg-gradient-to-br from-sky-50 to-white px-2 py-2.5 shadow-sm ring-1 ring-sky-100 sm:rounded-2xl sm:px-3 sm:py-3">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-600 sm:text-xs">Thay đổi</p>
-                <p className={`mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold sm:text-base ${stats.balance >= 0 ? 'text-sky-700' : 'text-rose-700'}`}>
-                  {isLoading ? '...' : formatCurrency(stats.balance)}
-                </p>
-              </div>
+          <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-white px-2 py-2.5 shadow-sm ring-1 ring-emerald-100 sm:rounded-2xl sm:px-3 sm:py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-emerald-600 sm:text-xs">Thu nhập</p>
+              <p className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold text-emerald-700 sm:text-base">
+                {isLoading ? '...' : formatCurrency(stats.income)}
+              </p>
+              <p className="mt-0.5 text-[9px] text-slate-500 sm:text-[10px]">
+                {RANGE_LABEL_MAP[rangeType]}
+              </p>
             </div>
-
-            {/* Số dư đầu kỳ và cuối kỳ */}
-            <div className="grid grid-cols-2 gap-2 sm:gap-3">
-              <div className="rounded-xl bg-gradient-to-br from-slate-50 to-white px-3 py-3 shadow-sm ring-1 ring-slate-100 sm:rounded-2xl sm:px-4 sm:py-4">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-slate-600 sm:text-xs">Số dư đầu kỳ</p>
-                <p className="mt-1 text-base font-bold text-slate-900 sm:text-lg">
-                  {isLoading ? '...' : formatCurrency(stats.balanceAtPeriodStart)}
-                </p>
-                <p className="mt-0.5 text-[9px] text-slate-500 sm:text-[10px]">
-                  {(() => {
-                    // Parse dateRange.start to ensure correct display (avoid timezone issues)
-                    const [year, month, day] = dateRange.start.split('-').map(Number)
-                    const startDate = new Date(year, month - 1, day)
-                    return startDate.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
-                  })()}
-                </p>
-              </div>
-              <div className="rounded-xl bg-gradient-to-br from-indigo-50 to-white px-3 py-3 shadow-sm ring-1 ring-indigo-100 sm:rounded-2xl sm:px-4 sm:py-4">
-                <p className="text-[10px] font-semibold uppercase tracking-wider text-indigo-600 sm:text-xs">Số dư cuối kỳ</p>
-                <p className={`mt-1 text-base font-bold sm:text-lg ${stats.balanceAtPeriodEnd >= 0 ? 'text-indigo-900' : 'text-rose-700'}`}>
-                  {isLoading ? '...' : formatCurrency(stats.balanceAtPeriodEnd)}
-                </p>
-                <p className="mt-0.5 text-[9px] text-slate-500 sm:text-[10px]">
-                  {new Date(dateRange.end).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}
-                </p>
-              </div>
+            <div className="rounded-xl bg-gradient-to-br from-rose-50 to-white px-2 py-2.5 shadow-sm ring-1 ring-rose-100 sm:rounded-2xl sm:px-3 sm:py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-rose-600 sm:text-xs">Chi tiêu</p>
+              <p className="mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold text-rose-700 sm:text-base">
+                {isLoading ? '...' : formatCurrency(stats.expense)}
+              </p>
+              <p className="mt-0.5 text-[9px] text-slate-500 sm:text-[10px]">
+                {RANGE_LABEL_MAP[rangeType]}
+              </p>
+            </div>
+            <div className="rounded-xl bg-gradient-to-br from-sky-50 to-white px-2 py-2.5 shadow-sm ring-1 ring-sky-100 sm:rounded-2xl sm:px-3 sm:py-3">
+              <p className="text-[10px] font-semibold uppercase tracking-wider text-sky-600 sm:text-xs">Thay đổi</p>
+              <p className={`mt-1 overflow-hidden text-ellipsis whitespace-nowrap text-sm font-bold sm:text-base ${stats.balance >= 0 ? 'text-sky-700' : 'text-rose-700'}`}>
+                {isLoading ? '...' : formatCurrency(stats.balance)}
+              </p>
+              <p className="mt-0.5 text-[9px] text-slate-500 sm:text-[10px]">
+                {RANGE_LABEL_MAP[rangeType]}
+              </p>
             </div>
           </div>
 
@@ -570,68 +547,37 @@ const ReportPage = () => {
                   Xuất báo cáo
                 </button>
               </div>
-              </div>
+            </div>
 
+            {/* Khoảng thời gian - Luôn hiển thị đầu tiên */}
             <FilterAccordionSection
               title="Khoảng thời gian"
-              subtitle="Chọn nhanh theo ngày, tuần, tháng hoặc tùy chỉnh"
+              subtitle="Chọn nhanh theo ngày, tuần, tháng, quý, năm hoặc tùy chỉnh"
               isOpen={openFilterSections.range}
               onToggle={() => toggleSection('range')}
             >
-                <DateRangeFilter
-                  rangeType={rangeType}
-                  onRangeTypeChange={setRangeType}
-                  startDate={customStartDate}
-                  endDate={customEndDate}
-                  onStartDateChange={setCustomStartDate}
-                  onEndDateChange={setCustomEndDate}
-                />
+              <DateRangeFilter
+                rangeType={rangeType}
+                onRangeTypeChange={setRangeType}
+                startDate={customStartDate}
+                endDate={customEndDate}
+                onStartDateChange={setCustomStartDate}
+                onEndDateChange={setCustomEndDate}
+              />
             </FilterAccordionSection>
 
-            <FilterAccordionSection
-              title="Loại giao dịch"
-              subtitle="Xem nhanh thu, chi hoặc toàn bộ"
-              isOpen={openFilterSections.type}
-              onToggle={() => toggleSection('type')}
-            >
-              <div className="grid grid-cols-3 gap-2">
-                  {(['all', 'Thu', 'Chi'] as const).map((type) => {
-                    const isActive = typeFilter === type
-                    return (
-                      <button
-                        key={type}
-                        type="button"
-                        onClick={() => setTypeFilter(type)}
-                      className={`flex items-center justify-center gap-1.5 rounded-2xl px-4 py-3 text-sm font-semibold transition ${
-                          isActive
-                            ? type === 'Thu'
-                            ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/30'
-                              : type === 'Chi'
-                              ? 'bg-gradient-to-r from-rose-500 to-rose-600 text-white shadow-lg shadow-rose-500/30'
-                              : 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-lg shadow-sky-500/30'
-                          : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                        }`}
-                      >
-                      {type === 'Thu' && <FaChevronUp className="h-4 w-4" />}
-                      {type === 'Chi' && <FaChevronDown className="h-4 w-4" />}
-                        {type === 'all' ? 'Tất cả' : type}
-                      </button>
-                    )
-                  })}
-                </div>
-            </FilterAccordionSection>
-
+            {/* Hạng mục & tìm kiếm - Hiển thị thứ hai */}
             <FilterAccordionSection
               title="Hạng mục & tìm kiếm"
               subtitle="Chọn nhanh hạng mục và tìm kiếm giao dịch"
               isOpen={openFilterSections.category}
               onToggle={() => toggleSection('category')}
             >
-                <CategoryFilter
+              <CategoryFilter
                 categories={displayCategories}
-                  selectedCategoryIds={selectedCategoryIds}
-                  onCategoryToggle={handleCategoryToggle}
-                  onClearAll={() => setSelectedCategoryIds([])}
+                selectedCategoryIds={selectedCategoryIds}
+                onCategoryToggle={handleCategoryToggle}
+                onClearAll={() => setSelectedCategoryIds([])}
                 type="all"
               />
               {filteredCategoriesByType.length > 8 && (
@@ -643,7 +589,7 @@ const ReportPage = () => {
                   >
                     {showAllCategories ? 'Thu gọn hạng mục' : `Xem thêm ${filteredCategoriesByType.length - 8} hạng mục`}
                   </button>
-              </div>
+                </div>
               )}
               <div className="mt-4">
                 <p className="mb-2 text-xs font-medium text-slate-600 sm:text-sm">Từ khóa</p>
@@ -656,6 +602,40 @@ const ReportPage = () => {
                     className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
                   />
                 </div>
+              </div>
+            </FilterAccordionSection>
+
+            {/* Loại giao dịch - Hiển thị cuối cùng */}
+            <FilterAccordionSection
+              title="Loại giao dịch"
+              subtitle="Xem nhanh thu, chi hoặc toàn bộ"
+              isOpen={openFilterSections.type}
+              onToggle={() => toggleSection('type')}
+            >
+              <div className="grid grid-cols-3 gap-2">
+                {(['all', 'Thu', 'Chi'] as const).map((type) => {
+                  const isActive = typeFilter === type
+                  return (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => setTypeFilter(type)}
+                      className={`flex items-center justify-center gap-1.5 rounded-2xl px-4 py-3 text-sm font-semibold transition ${
+                        isActive
+                          ? type === 'Thu'
+                          ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/30'
+                            : type === 'Chi'
+                            ? 'bg-gradient-to-r from-rose-500 to-rose-600 text-white shadow-lg shadow-rose-500/30'
+                            : 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-lg shadow-sky-500/30'
+                          : 'border border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                      }`}
+                    >
+                      {type === 'Thu' && <FaChevronUp className="h-4 w-4" />}
+                      {type === 'Chi' && <FaChevronDown className="h-4 w-4" />}
+                      {type === 'all' ? 'Tất cả' : type}
+                    </button>
+                  )
+                })}
               </div>
             </FilterAccordionSection>
           </div>
@@ -672,7 +652,7 @@ const ReportPage = () => {
               </span>
             </div>
             <div className="mt-4">
-              <CashFlowBarChart data={chartData} height={190} />
+              <CashFlowBarChartMUI data={chartData} height={300} />
             </div>
           </section>
 
@@ -691,20 +671,26 @@ const ReportPage = () => {
                     return (
                       <div
                         key={stat.category.id}
-                        className="flex items-center justify-between gap-2 rounded-xl bg-emerald-50 p-2.5 ring-1 ring-emerald-100 sm:p-3"
+                        className="flex items-center justify-between gap-3 rounded-xl bg-emerald-50 p-3 ring-1 ring-emerald-100 sm:p-4"
                       >
-                        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-                          {categoryIcon && (
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full overflow-hidden sm:h-10 sm:w-10">
-                              {categoryIcon}
-                            </span>
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          {categoryIcon ? (
+                            <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full overflow-hidden">
+                              <div className="h-full w-full flex items-center justify-center">
+                                {categoryIcon}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-100">
+                              <span className="text-slate-400 text-lg">?</span>
+                            </div>
                           )}
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-xs font-semibold text-slate-700 sm:text-sm">{stat.category.name}</p>
-                            <p className="text-[10px] text-emerald-600 sm:text-xs">{percentage}% tổng thu</p>
+                          <div className="min-w-0 flex-1 flex flex-col justify-center">
+                            <p className="truncate text-sm font-semibold mb-1 text-slate-900">{stat.category.name}</p>
+                            <p className="text-xs text-emerald-600 font-medium truncate">{percentage}% tổng thu</p>
                           </div>
                         </div>
-                        <span className="shrink-0 text-xs font-bold text-emerald-700 sm:text-sm">
+                        <span className="shrink-0 text-base font-bold text-emerald-600 whitespace-nowrap">
                           +{formatCurrency(stat.income)}
                         </span>
                       </div>
@@ -727,20 +713,26 @@ const ReportPage = () => {
                     return (
                       <div
                         key={stat.category.id}
-                        className="flex items-center justify-between gap-2 rounded-xl bg-rose-50 p-2.5 ring-1 ring-rose-100 sm:p-3"
+                        className="flex items-center justify-between gap-3 rounded-xl bg-rose-50 p-3 ring-1 ring-rose-100 sm:p-4"
                       >
-                        <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-                          {categoryIcon && (
-                            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full overflow-hidden sm:h-10 sm:w-10">
-                              {categoryIcon}
-                            </span>
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          {categoryIcon ? (
+                            <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full overflow-hidden">
+                              <div className="h-full w-full flex items-center justify-center">
+                                {categoryIcon}
+                              </div>
+                            </div>
+                          ) : (
+                            <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-100">
+                              <span className="text-slate-400 text-lg">?</span>
+                            </div>
                           )}
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-xs font-semibold text-slate-700 sm:text-sm">{stat.category.name}</p>
-                            <p className="text-[10px] text-rose-600 sm:text-xs">{percentage}% tổng chi</p>
+                          <div className="min-w-0 flex-1 flex flex-col justify-center">
+                            <p className="truncate text-sm font-semibold mb-1 text-slate-900">{stat.category.name}</p>
+                            <p className="text-xs text-rose-600 font-medium truncate">{percentage}% tổng chi</p>
                           </div>
                         </div>
-                        <span className="shrink-0 text-xs font-bold text-rose-700 sm:text-sm">
+                        <span className="shrink-0 text-base font-bold text-rose-600 whitespace-nowrap">
                           -{formatCurrency(stat.expense)}
                         </span>
                       </div>
@@ -756,7 +748,22 @@ const ReportPage = () => {
             <div className="grid gap-4 sm:grid-cols-2 sm:gap-5">
               {largestTransaction && (
                 <section className="rounded-2xl bg-gradient-to-br from-amber-50 to-white p-4 shadow-sm ring-1 ring-amber-100 sm:rounded-3xl sm:p-5">
-                  <h2 className="mb-3 text-sm font-bold text-slate-900 sm:text-base">Giao dịch lớn nhất</h2>
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-sm font-bold text-slate-900 sm:text-base">Giao dịch lớn nhất</h2>
+                    <button
+                      type="button"
+                      onClick={() => setIsLargestTransactionExpanded(!isLargestTransactionExpanded)}
+                      className="flex items-center justify-center rounded-lg p-1.5 text-slate-500 transition hover:bg-white/50 hover:text-slate-700"
+                      aria-label={isLargestTransactionExpanded ? 'Thu gọn' : 'Mở rộng'}
+                    >
+                      {isLargestTransactionExpanded ? (
+                        <FaChevronUp className="h-4 w-4" />
+                      ) : (
+                        <FaChevronDown className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  {isLargestTransactionExpanded && (
                   <div className="space-y-2">
                     {(() => {
                       const categoryInfo = getCategoryInfo(largestTransaction.category_id)
@@ -765,23 +772,29 @@ const ReportPage = () => {
 
                       return (
                         <div className="rounded-xl bg-white p-3 ring-1 ring-amber-200 sm:p-4">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-                              {categoryIcon && (
-                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full overflow-hidden sm:h-12 sm:w-12">
-                                  {categoryIcon}
-                                </span>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex min-w-0 flex-1 items-center gap-3">
+                              {categoryIcon ? (
+                                <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full overflow-hidden">
+                                  <div className="h-full w-full flex items-center justify-center">
+                                    {categoryIcon}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-100">
+                                  <span className="text-slate-400 text-lg">?</span>
+                                </div>
                               )}
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-xs font-semibold text-slate-700 sm:text-sm">
-                                  {largestTransaction.description || 'Không có mô tả'}
+                              <div className="min-w-0 flex-1 flex flex-col justify-center">
+                                <p className="truncate text-sm font-semibold mb-1 text-slate-900">
+                                  {largestTransaction.description || categoryInfo.name || 'Không có mô tả'}
                                 </p>
-                                <p className="text-[10px] text-slate-500 sm:text-xs">{categoryInfo.name}</p>
+                                <p className="text-xs text-slate-600 font-medium truncate">{categoryInfo.name}</p>
                               </div>
                             </div>
                             <span
-                              className={`shrink-0 text-sm font-bold sm:text-base ${
-                                isIncome ? 'text-emerald-700' : 'text-rose-700'
+                              className={`shrink-0 text-base font-bold whitespace-nowrap ${
+                                isIncome ? 'text-emerald-600' : 'text-rose-600'
                               }`}
                             >
                               {isIncome ? '+' : '-'}
@@ -792,12 +805,28 @@ const ReportPage = () => {
                       )
                     })()}
                   </div>
+                  )}
                 </section>
               )}
 
               {smallestTransaction && (
                 <section className="rounded-2xl bg-gradient-to-br from-blue-50 to-white p-4 shadow-sm ring-1 ring-blue-100 sm:rounded-3xl sm:p-5">
-                  <h2 className="mb-3 text-sm font-bold text-slate-900 sm:text-base">Giao dịch nhỏ nhất</h2>
+                  <div className="flex items-center justify-between mb-3">
+                    <h2 className="text-sm font-bold text-slate-900 sm:text-base">Giao dịch nhỏ nhất</h2>
+                    <button
+                      type="button"
+                      onClick={() => setIsSmallestTransactionExpanded(!isSmallestTransactionExpanded)}
+                      className="flex items-center justify-center rounded-lg p-1.5 text-slate-500 transition hover:bg-white/50 hover:text-slate-700"
+                      aria-label={isSmallestTransactionExpanded ? 'Thu gọn' : 'Mở rộng'}
+                    >
+                      {isSmallestTransactionExpanded ? (
+                        <FaChevronUp className="h-4 w-4" />
+                      ) : (
+                        <FaChevronDown className="h-4 w-4" />
+                      )}
+                    </button>
+                  </div>
+                  {isSmallestTransactionExpanded && (
                   <div className="space-y-2">
                     {(() => {
                       const categoryInfo = getCategoryInfo(smallestTransaction.category_id)
@@ -806,23 +835,29 @@ const ReportPage = () => {
 
                       return (
                         <div className="rounded-xl bg-white p-3 ring-1 ring-blue-200 sm:p-4">
-                          <div className="flex items-start justify-between gap-2">
-                            <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
-                              {categoryIcon && (
-                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full overflow-hidden sm:h-12 sm:w-12">
-                                  {categoryIcon}
-                                </span>
+                          <div className="flex items-center justify-between gap-3">
+                            <div className="flex min-w-0 flex-1 items-center gap-3">
+                              {categoryIcon ? (
+                                <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full overflow-hidden">
+                                  <div className="h-full w-full flex items-center justify-center">
+                                    {categoryIcon}
+                                  </div>
+                                </div>
+                              ) : (
+                                <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-100">
+                                  <span className="text-slate-400 text-lg">?</span>
+                                </div>
                               )}
-                              <div className="min-w-0 flex-1">
-                                <p className="truncate text-xs font-semibold text-slate-700 sm:text-sm">
-                                  {smallestTransaction.description || 'Không có mô tả'}
+                              <div className="min-w-0 flex-1 flex flex-col justify-center">
+                                <p className="truncate text-sm font-semibold mb-1 text-slate-900">
+                                  {smallestTransaction.description || categoryInfo.name || 'Không có mô tả'}
                                 </p>
-                                <p className="text-[10px] text-slate-500 sm:text-xs">{categoryInfo.name}</p>
+                                <p className="text-xs text-slate-600 font-medium truncate">{categoryInfo.name}</p>
                               </div>
                             </div>
                             <span
-                              className={`shrink-0 text-sm font-bold sm:text-base ${
-                                isIncome ? 'text-emerald-700' : 'text-rose-700'
+                              className={`shrink-0 text-base font-bold whitespace-nowrap ${
+                                isIncome ? 'text-emerald-600' : 'text-rose-600'
                               }`}
                             >
                               {isIncome ? '+' : '-'}
@@ -833,61 +868,12 @@ const ReportPage = () => {
                       )
                     })()}
                   </div>
+                  )}
                 </section>
               )}
             </div>
           )}
 
-          {/* Transaction List */}
-          <section className="rounded-2xl bg-white p-4 shadow-sm ring-1 ring-slate-100 sm:rounded-3xl sm:p-5">
-            <h2 className="mb-4 text-sm font-bold text-slate-900 sm:text-base">
-              Lịch sử giao dịch ({filteredTransactions.length})
-            </h2>
-
-            {isLoading ? (
-              <TransactionListSkeleton count={5} />
-            ) : filteredTransactions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-xl bg-slate-50 p-8 text-sm text-slate-500">
-                <div className="mb-3 rounded-full bg-white p-3">
-                  <FaSearch className="h-6 w-6 text-slate-400" />
-                </div>
-                <span>Không có giao dịch phù hợp với bộ lọc hiện tại</span>
-              </div>
-            ) : (
-              <div className="space-y-3">
-                {filteredTransactions.map((transaction) => {
-                  const categoryInfo = getCategoryInfo(transaction.category_id)
-                  const walletColor = getWalletColor(transaction.wallet_id)
-                  
-                  // Format date for Reports page
-                  const formatTransactionDate = (date: Date) => {
-                    return date.toLocaleDateString('vi-VN', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric',
-                    })
-                  }
-
-                  return (
-                    <TransactionCard
-                      key={transaction.id}
-                      transaction={transaction}
-                      categoryInfo={categoryInfo}
-                      walletInfo={{
-                        name: getWalletName(transaction.wallet_id),
-                        color: walletColor,
-                      }}
-                      onLongPressStart={handleLongPressStart}
-                      onLongPressEnd={handleLongPressEnd}
-                      onLongPressCancel={handleLongPressCancel}
-                      formatCurrency={formatCurrency}
-                      formatDate={formatTransactionDate}
-                    />
-                  )
-                })}
-              </div>
-            )}
-          </section>
         </div>
       </main>
 

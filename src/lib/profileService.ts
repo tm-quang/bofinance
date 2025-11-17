@@ -32,7 +32,7 @@ const throwIfError = (error: PostgrestError | AuthError | null, fallbackMessage:
 }
 
 // Lấy thông tin profile của user hiện tại
-export const getCurrentProfile = async (): Promise<ProfileRecord | null> => {
+export const getCurrentProfile = async (forceRefresh = false): Promise<ProfileRecord | null> => {
   const supabase = getSupabaseClient()
   const user = await getCachedUser()
 
@@ -40,6 +40,43 @@ export const getCurrentProfile = async (): Promise<ProfileRecord | null> => {
     return null
   }
 
+  // If force refresh, invalidate cache first
+  if (forceRefresh) {
+    await invalidateCache('getCurrentProfile')
+  }
+
+  // Try to get from cache first (unless force refresh)
+  if (!forceRefresh) {
+    try {
+      const { cacheFirstWithRefresh } = await import('./cache')
+      const cachedResult = await cacheFirstWithRefresh<ProfileRecord>(
+        'getCurrentProfile',
+        async () => {
+          const { data, error } = await supabase
+            .from(TABLE_NAME)
+            .select('*')
+            .eq('id', user.id)
+            .single()
+
+          if (error) {
+            throw error
+          }
+
+          return data
+        },
+        5 * 60 * 1000 // 5 minutes cache
+      )
+
+      if (cachedResult) {
+        return cachedResult
+      }
+    } catch (cacheError) {
+      console.warn('Cache error, fetching fresh profile:', cacheError)
+      // Fall through to direct fetch
+    }
+  }
+
+  // Direct fetch (bypass cache or if cache failed)
   const { data, error } = await supabase
     .from(TABLE_NAME)
     .select('*')
@@ -76,6 +113,9 @@ export const getCurrentProfile = async (): Promise<ProfileRecord | null> => {
           throwIfError(insertError, 'Không thể tạo thông tin cá nhân.')
         }
         
+        // Invalidate cache after creating profile
+        await invalidateCache('getCurrentProfile')
+        
         return newProfile
       } catch (createError) {
         console.error('Failed to bootstrap profile record after missing profile error:', createError)
@@ -84,6 +124,16 @@ export const getCurrentProfile = async (): Promise<ProfileRecord | null> => {
     }
     
     throwIfError(error, 'Không thể tải thông tin cá nhân.')
+  }
+
+  // Update cache with fresh data
+  if (data) {
+    try {
+      const { cacheManager } = await import('./cache')
+      await cacheManager.set('getCurrentProfile', data, 5 * 60 * 1000)
+    } catch (cacheError) {
+      console.warn('Failed to update profile cache:', cacheError)
+    }
   }
 
   return data

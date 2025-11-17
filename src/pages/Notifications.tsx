@@ -15,6 +15,7 @@ import {
 } from 'react-icons/fa'
 
 import { useNotification } from '../contexts/notificationContext.helpers'
+import { NotificationListSkeleton } from '../components/skeletons'
 import {
   getAllNotifications,
   markNotificationAsRead,
@@ -282,16 +283,9 @@ export const NotificationsPage = () => {
 
       {/* Content */}
       <main className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto flex w-full max-w-md flex-col px-4 py-4">
+        <div className="mx-auto flex w-full max-w-md flex-col px-4 pt-2 pb-4">
           {isLoading ? (
-            <div className="space-y-3">
-              {[...Array(5)].map((_, i) => (
-                <div
-                  key={i}
-                  className="h-24 animate-pulse rounded-2xl bg-slate-200"
-                />
-              ))}
-            </div>
+            <NotificationListSkeleton count={5} />
           ) : Object.keys(groupedNotifications).length === 0 ? (
             <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 bg-slate-50/50 rounded-2xl p-10 text-center mt-8">
               <div className="mb-4 rounded-full bg-slate-100 p-4">

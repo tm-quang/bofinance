@@ -1,20 +1,42 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { getIconNodeFromCategory } from '../../utils/iconLoader'
-import { CATEGORY_ICON_MAP } from '../../constants/categoryIcons'
 
 type CategoryIconProps = {
   iconId: string
   iconUrl?: string | null // URL ảnh từ category (optional, ưu tiên nếu có)
   className?: string
   fallback?: React.ReactNode
+  size?: number | string // Kích thước icon (ví dụ: 96, "96x96", "h-24 w-24")
 }
 
 /**
  * Component để load và hiển thị icon của category
- * Tự động load từ database hoặc fallback về hardcoded icon
- * Ưu tiên sử dụng icon_url nếu có
+ * Chỉ sử dụng image_url từ bảng icons_images (icon_type = 'image' hoặc 'svg')
+ * Ưu tiên sử dụng icon_url từ category nếu có
+ * 
+ * @param size - Kích thước icon (ví dụ: 96 cho 96x96px, hoặc "h-24 w-24" cho Tailwind classes)
  */
-export const CategoryIcon = ({ iconId, iconUrl, className = 'h-5 w-5', fallback = null }: CategoryIconProps) => {
+export const CategoryIcon = ({ iconId, iconUrl, className, fallback = null, size }: CategoryIconProps) => {
+  // Xác định className dựa trên size prop hoặc className mặc định
+  const finalClassName = useMemo(() => {
+    if (className) return className
+    
+    if (typeof size === 'number') {
+      // Nếu size là số, tạo className với pixel
+      return `h-[${size}px] w-[${size}px]`
+    } else if (typeof size === 'string' && size.includes('x')) {
+      // Nếu size là "96x96", tách ra
+      const [width, height] = size.split('x')
+      return `h-[${height}px] w-[${width}px]`
+    } else if (typeof size === 'string') {
+      // Nếu size là Tailwind class như "h-24 w-24"
+      return size
+    } else {
+      // Mặc định
+      return 'h-5 w-5'
+    }
+  }, [className, size])
+  
   const [iconNode, setIconNode] = useState<React.ReactNode>(null)
   const [isLoading, setIsLoading] = useState(true)
 
@@ -37,35 +59,23 @@ export const CategoryIcon = ({ iconId, iconUrl, className = 'h-5 w-5', fallback 
         
         if (isMounted) {
           if (node) {
-            // Wrap trong container với className để control kích thước, rounded-full
+            // Wrap trong container với className để control kích thước
             setIconNode(
-              <span className={`${className} flex items-center justify-center rounded-full overflow-hidden`}>
+              <span className={`${finalClassName} flex items-center justify-center overflow-hidden`}>
                 {node}
               </span>
             )
           } else {
-            // Fallback to hardcoded icon
-            const hardcodedIcon = CATEGORY_ICON_MAP[iconId]
-            if (hardcodedIcon?.icon) {
-              const IconComponent = hardcodedIcon.icon
-              setIconNode(<IconComponent className={className} />)
-            } else {
-              setIconNode(fallback)
-            }
+            // Không tìm thấy icon, sử dụng fallback
+            setIconNode(fallback)
           }
           setIsLoading(false)
         }
       } catch (error) {
         console.error('Error loading category icon:', iconId, error)
         if (isMounted) {
-          // Fallback to hardcoded icon on error
-          const hardcodedIcon = CATEGORY_ICON_MAP[iconId]
-          if (hardcodedIcon?.icon) {
-            const IconComponent = hardcodedIcon.icon
-            setIconNode(<IconComponent className={className} />)
-          } else {
-            setIconNode(fallback)
-          }
+          // Lỗi khi load icon, sử dụng fallback
+          setIconNode(fallback)
           setIsLoading(false)
         }
       }
@@ -76,10 +86,10 @@ export const CategoryIcon = ({ iconId, iconUrl, className = 'h-5 w-5', fallback 
     return () => {
       isMounted = false
     }
-  }, [iconId, iconUrl, className, fallback])
+  }, [iconId, iconUrl, finalClassName, fallback])
 
   if (isLoading) {
-    return <span className={`${className} animate-pulse bg-slate-200 rounded`} />
+    return <span className={`${finalClassName} animate-pulse bg-slate-200 rounded`} />
   }
 
   // Nếu không có icon, hiển thị fallback hoặc chữ cái đầu
@@ -89,7 +99,7 @@ export const CategoryIcon = ({ iconId, iconUrl, className = 'h-5 w-5', fallback 
     }
     // Fallback mặc định: hiển thị chữ cái đầu của iconId
     return (
-      <span className={`${className} flex items-center justify-center rounded-full bg-slate-200 text-slate-500 text-xs font-semibold`}>
+      <span className={`${finalClassName} flex items-center justify-center text-slate-400 text-xs font-semibold`}>
         {iconId?.[0]?.toUpperCase() || '?'}
       </span>
     )

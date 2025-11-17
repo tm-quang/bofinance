@@ -6,6 +6,9 @@ import { NotificationProvider } from './contexts/NotificationContext'
 import { DialogProvider } from './contexts/DialogContext'
 import ToastStackLimiter from './components/ui/ToastStackLimiter'
 import { isInstalledPWA } from './utils/nativeAppBehavior'
+import { useSystemSetting } from './hooks/useSystemSettings'
+import ErrorBoundary from './components/ErrorBoundary'
+import { ProtectedRoute } from './components/ProtectedRoute'
 
 const DashboardPage = lazy(() => import('./pages/Dashboard'))
 const CategoriesPage = lazy(() => import('./pages/Categories'))
@@ -23,42 +26,47 @@ const RegisterPage = lazy(() => import('./pages/Register'))
 const AdminCategoriesIconPage = lazy(() => import('./pages/AdminCategoriesIcon'))
 const AdminIconImagesPage = lazy(() => import('./pages/AdminIconImages'))
 const AccountInfoPage = lazy(() => import('./pages/AccountInfo'))
+const AdminSettingsPage = lazy(() => import('./pages/AdminSettings'))
 
-const PageFallback = () => (
-  <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 px-6">
-    <div className="flex w-full max-w-sm flex-col items-center gap-6">
-      <div className="relative h-32 w-32">
-        <div className="absolute -inset-6 rounded-full bg-sky-200/30 blur-[40px]" />
-        <div className="absolute inset-0 flex items-center justify-center">
-          <div className="absolute h-40 w-40 rounded-full border border-sky-200/80 ripple-wave" />
-          <div className="absolute h-48 w-48 rounded-full border border-sky-100/70 ripple-wave-delay-1" />
-          <div className="absolute h-56 w-56 rounded-full border border-sky-50/60 ripple-wave-delay-2" />
-        </div>
-        <div className="absolute inset-0 rounded-full bg-sky-200/40 blur-xl animate-waveGlow" />
-        <div
-          className="absolute inset-2 rounded-full bg-sky-100/30 blur-xl animate-waveGlow"
-          style={{ animationDelay: '0.3s' }}
-        />
-        <img
-          src="/bogin-logo.png"
-          alt="BO.fin logo"
-          className="relative h-32 w-32 animate-[scalePulse_3s_ease-in-out_infinite]"
-        />
-      </div>
-      <div className="flex items-center gap-3">
-        {[0, 1, 2, 3, 4].map((dot) => (
-          <span
-            key={dot}
-            className="h-3 w-3 rounded-full bg-gradient-to-r from-sky-400 to-blue-500"
-            style={{
-              animation: `dotPulse 1.2s ease-in-out ${dot * 0.12}s infinite`,
-            }}
+const PageFallback = () => {
+  const { value: splashLogo } = useSystemSetting('app_splash_logo', '/logo-nontext.png')
+  
+  return (
+    <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 px-6">
+      <div className="flex w-full max-w-sm flex-col items-center gap-6">
+        <div className="relative h-32 w-32">
+          <div className="absolute -inset-6 rounded-full bg-sky-200/30 blur-[40px]" />
+          <div className="absolute inset-0 flex items-center justify-center">
+            <div className="absolute h-40 w-40 rounded-full border border-sky-200/80 ripple-wave" />
+            <div className="absolute h-48 w-48 rounded-full border border-sky-100/70 ripple-wave-delay-1" />
+            <div className="absolute h-56 w-56 rounded-full border border-sky-50/60 ripple-wave-delay-2" />
+          </div>
+          <div className="absolute inset-0 rounded-full bg-sky-200/40 blur-xl animate-waveGlow" />
+          <div
+            className="absolute inset-2 rounded-full bg-sky-100/30 blur-xl animate-waveGlow"
+            style={{ animationDelay: '0.3s' }}
           />
-        ))}
+          <img
+            src={splashLogo || '/logo-nontext.png'}
+            alt="BO.fin logo"
+            className="relative h-32 w-32 animate-[scalePulse_3s_ease-in-out_infinite]"
+          />
+        </div>
+        <div className="flex items-center gap-3">
+          {[0, 1, 2, 3, 4].map((dot) => (
+            <span
+              key={dot}
+              className="h-3 w-3 rounded-full bg-sky-500"
+              style={{
+                animation: `dotPulse 1.2s ease-in-out ${dot * 0.12}s infinite`,
+              }}
+            />
+          ))}
+        </div>
       </div>
     </div>
-  </div>
-)
+  )
+}
 
 function AppContent() {
   const location = useLocation()
@@ -99,26 +107,146 @@ function AppContent() {
         <PageFallback />
       ) : (
         <Suspense fallback={null}>
-      <Routes>
-        <Route path="/" element={<Navigate to="/login" replace />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/register" element={<RegisterPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/categories" element={<CategoriesPage />} />
-        <Route path="/reports" element={<ReportsPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/wallets" element={<WalletsPage />} />
-        <Route path="/transactions" element={<TransactionsPage />} />
-        <Route path="/budgets" element={<BudgetsPage />} />
-        <Route path="/reminders" element={<RemindersPage />} />
-        <Route path="/notifications" element={<NotificationsPage />} />
-        <Route path="/add-transaction" element={<AddTransactionPage />} />
-        <Route path="/add-budget" element={<AddBudgetPage />} />
-        <Route path="/admin-categoriesicon" element={<AdminCategoriesIconPage />} />
-        <Route path="/admin-icon-images" element={<AdminIconImagesPage />} />
-        <Route path="/account-info" element={<AccountInfoPage />} />
-        <Route path="*" element={<Navigate to="/login" replace />} />
-      </Routes>
+          <Routes>
+            <Route path="/" element={<Navigate to="/login" replace />} />
+            <Route 
+              path="/login" 
+              element={
+                <ProtectedRoute requireAuth={false}>
+                  <LoginPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/register" 
+              element={
+                <ProtectedRoute requireAuth={false}>
+                  <RegisterPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/dashboard" 
+              element={
+                <ProtectedRoute>
+                  <DashboardPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/categories" 
+              element={
+                <ProtectedRoute>
+                  <CategoriesPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/reports" 
+              element={
+                <ProtectedRoute>
+                  <ReportsPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/settings" 
+              element={
+                <ProtectedRoute>
+                  <SettingsPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/wallets" 
+              element={
+                <ProtectedRoute>
+                  <WalletsPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/transactions" 
+              element={
+                <ProtectedRoute>
+                  <TransactionsPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/budgets" 
+              element={
+                <ProtectedRoute>
+                  <BudgetsPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/reminders" 
+              element={
+                <ProtectedRoute>
+                  <RemindersPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/notifications" 
+              element={
+                <ProtectedRoute>
+                  <NotificationsPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/add-transaction" 
+              element={
+                <ProtectedRoute>
+                  <AddTransactionPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/add-budget" 
+              element={
+                <ProtectedRoute>
+                  <AddBudgetPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin-categoriesicon" 
+              element={
+                <ProtectedRoute>
+                  <AdminCategoriesIconPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin-icon-images" 
+              element={
+                <ProtectedRoute>
+                  <AdminIconImagesPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/admin-settings" 
+              element={
+                <ProtectedRoute>
+                  <AdminSettingsPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route 
+              path="/account-info" 
+              element={
+                <ProtectedRoute>
+                  <AccountInfoPage />
+                </ProtectedRoute>
+              } 
+            />
+            <Route path="*" element={<Navigate to="/login" replace />} />
+          </Routes>
         </Suspense>
       )}
       <Toaster
@@ -200,13 +328,15 @@ function AppContent() {
 
 function App() {
   return (
-    <BrowserRouter>
-      <NotificationProvider>
-        <DialogProvider>
-          <AppContent />
-        </DialogProvider>
-      </NotificationProvider>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <NotificationProvider>
+          <DialogProvider>
+            <AppContent />
+          </DialogProvider>
+        </NotificationProvider>
+      </BrowserRouter>
+    </ErrorBoundary>
   )
 }
 

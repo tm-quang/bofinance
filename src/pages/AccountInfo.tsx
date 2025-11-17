@@ -252,7 +252,7 @@ const AccountInfoPage = () => {
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
       <HeaderBar variant="page" title="Thông tin tài khoản" />
       <main className="flex-1 overflow-y-auto overscroll-contain pb-24">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 py-4 sm:py-4">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 pt-2 pb-4 sm:pt-2 sm:pb-4">
           {/* Tab Selector */}
           <div className="flex gap-2 rounded-xl bg-white p-1 shadow-lg ring-1 ring-slate-100">
             <button

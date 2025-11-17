@@ -20,6 +20,7 @@ import {
 import { fetchCategories, type CategoryRecord } from '../lib/categoryService'
 import { fetchWallets, type WalletRecord } from '../lib/walletService'
 import { useNotification } from '../contexts/notificationContext.helpers'
+import { ReminderListSkeleton } from '../components/skeletons'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
 import { getIconNode } from '../utils/iconLoader'
 import { formatVNDDisplay } from '../utils/currencyInput'
@@ -298,7 +299,7 @@ const RemindersPage = () => {
       <HeaderBar variant="page" title="Kế hoạch nhắc nhở" />
 
       <main className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 py-4 sm:py-4">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 pt-2 pb-4 sm:pt-2 sm:pb-4">
           {/* Notification Settings */}
           <NotificationSettings />
 
@@ -309,26 +310,31 @@ const RemindersPage = () => {
             selectedDate={selectedCalendarDate}
           />
 
-          {/* Header with Add Button */}
-          {reminders.length > 0 && (
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-lg font-bold text-slate-900">Kế hoạch nhắc nhở</h2>
-                <p className="mt-1 text-sm text-slate-500">
-                  {reminders.filter((r) => !r.completed_at).length} nhắc nhở đang chờ
-                </p>
-              </div>
-              <button
-                onClick={handleAddClick}
-                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-blue-700 active:scale-95"
-              >
-                <FaPlus className="h-4 w-4" />
-                Thêm mới
-              </button>
-            </div>
-          )}
+          {/* Loading State */}
+          {isLoading ? (
+            <ReminderListSkeleton count={5} />
+          ) : (
+            <>
+              {/* Header with Add Button */}
+              {reminders.length > 0 && (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h2 className="text-lg font-bold text-slate-900">Kế hoạch nhắc nhở</h2>
+                    <p className="mt-1 text-sm text-slate-500">
+                      {reminders.filter((r) => !r.completed_at).length} nhắc nhở đang chờ
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleAddClick}
+                    className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-blue-700 active:scale-95"
+                  >
+                    <FaPlus className="h-4 w-4" />
+                    Thêm mới
+                  </button>
+                </div>
+              )}
 
-          {/* Today's Reminders */}
+              {/* Today's Reminders */}
           {todayReminders.length > 0 && (
             <section className="space-y-3">
               <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700">
@@ -577,8 +583,8 @@ const RemindersPage = () => {
             </section>
           )}
 
-          {/* Empty State */}
-          {!isLoading && reminders.length === 0 && (
+              {/* Empty State */}
+              {reminders.length === 0 && (
             <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-12 shadow-lg ring-1 ring-slate-100">
               <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
                 <FaCalendar className="h-8 w-8 text-slate-400" />
@@ -597,6 +603,8 @@ const RemindersPage = () => {
                 Tạo nhắc nhở đầu tiên
               </button>
             </div>
+              )}
+            </>
           )}
         </div>
       </main>

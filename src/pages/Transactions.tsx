@@ -4,7 +4,7 @@ import { useDataPreloader } from '../hooks/useDataPreloader'
 import {
   FaSearch,
   FaReceipt,
-  FaEllipsisV,
+  FaBars,
 } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
@@ -438,14 +438,14 @@ const TransactionsPage = () => {
               className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100 transition hover:scale-110 active:scale-95"
               aria-label="Menu"
             >
-              <FaEllipsisV className="h-4 w-4 text-slate-600" />
+              <FaBars className="h-4 w-4 text-slate-600" />
             </button>
           </div>
         }
       />
 
       <main className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 py-4 sm:py-6">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 pt-2 pb-4 sm:pt-2 sm:pb-6">
           {/* Search Bar (conditional) */}
           {isSearchOpen && (
             <div className="relative">

@@ -153,12 +153,44 @@ export const getTransactionById = async (id: string): Promise<TransactionRecord 
 }
 
 // Tạo giao dịch mới
-export const createTransaction = async (payload: TransactionInsert): Promise<TransactionRecord> => {
+// Returns: { transaction: TransactionRecord, budgetWarning?: string }
+export const createTransaction = async (
+  payload: TransactionInsert
+): Promise<{ transaction: TransactionRecord; budgetWarning?: string }> => {
   const supabase = getSupabaseClient()
   const user = await getCachedUser()
 
   if (!user) {
     throw new Error('Bạn cần đăng nhập để tạo giao dịch.')
+  }
+
+  let budgetWarning: string | undefined
+
+  // Check budget limits before creating transaction (only for expense transactions)
+  if (payload.type === 'Chi') {
+    try {
+      const { checkBudgetLimit } = await import('./budgetService')
+      const budgetCheck = await checkBudgetLimit({
+        category_id: payload.category_id,
+        wallet_id: payload.wallet_id,
+        amount: payload.amount,
+        transaction_date: payload.transaction_date || formatDateLocal(new Date()),
+        type: payload.type,
+      })
+
+      // Hard limit: Reject transaction
+      if (!budgetCheck.allowed) {
+        throw new Error(budgetCheck.message)
+      }
+
+      // Soft limit: Store warning message to return to caller
+      if (budgetCheck.message) {
+        budgetWarning = budgetCheck.message
+      }
+    } catch (error) {
+      // Re-throw budget limit errors
+      throw error
+    }
   }
 
   const { data, error } = await supabase
@@ -212,7 +244,8 @@ export const createTransaction = async (payload: TransactionInsert): Promise<Tra
   // Invalidate wallet cash flow stats cache vì có giao dịch mới
   await invalidateCache('getWalletCashFlowStats')
 
-  return data
+  // Return transaction with optional budget warning
+  return { transaction: data, budgetWarning }
 }
 
 // Cập nhật giao dịch

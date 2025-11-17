@@ -1,7 +1,5 @@
 import React, { useEffect, useState } from 'react'
 import { FaSearch, FaArrowLeft } from 'react-icons/fa'
-import { CATEGORY_ICON_GROUPS } from '../../constants/categoryIcons'
-import { getCachedIconLibrary } from '../../utils/iconLoader'
 import { fetchIcons } from '../../lib/iconService'
 
 type IconPickerProps = {
@@ -27,109 +25,64 @@ export const IconPicker: React.FC<IconPickerProps> = ({
     selectedIconId,
     usedIconIds = new Set(),
 }: IconPickerProps) => {
-    const [activeIconGroup, setActiveIconGroup] = useState<string>('all')
     const [iconSearchTerm, setIconSearchTerm] = useState('')
     const [allIcons, setAllIcons] = useState<IconItem[]>([])
     const [isLoadingIcons, setIsLoadingIcons] = useState(false)
 
-    // Load all icons when modal opens
+    // Load all icons when modal opens - chỉ lấy từ icons_images (image hoặc svg)
     useEffect(() => {
         if (isOpen) {
             const loadAllIcons = async () => {
                 setIsLoadingIcons(true)
                 try {
-                    // Preload all icon libraries
-                    const libraries = ['fa', 'bs', 'lu', 'hi2', 'md']
-                    await Promise.all(
-                        libraries.map((lib) => getCachedIconLibrary(lib))
+                    // Chỉ fetch icons từ database có icon_type = 'image' hoặc 'svg'
+                    const dbIconsData = await fetchIcons({ is_active: true })
+                    const imageIcons = dbIconsData.filter(
+                        icon => icon.icon_type === 'image' || icon.icon_type === 'svg'
                     )
 
-                    // Fetch all icons from database
-                    const dbIconsData = await fetchIcons({ is_active: true })
+                    // Chuyển đổi sang IconItem format
+                    const iconItems: IconItem[] = imageIcons.map((dbIcon) => {
+                        let iconNode: React.ReactNode = null
+                        if (dbIcon.image_url) {
+                            iconNode = (
+                                <img
+                                    src={dbIcon.image_url}
+                                    alt={dbIcon.label}
+                                    className="h-full w-full object-contain"
+                                />
+                            )
+                        }
 
-                    // Combine hardcoded icons and database icons
-                    const combinedIcons: IconItem[] = []
-
-                    // Add hardcoded icons
-                    CATEGORY_ICON_GROUPS.forEach((group) => {
-                        group.icons.forEach((icon) => {
-                            const IconComponent = icon.icon
-                            combinedIcons.push({
-                                id: icon.id,
-                                label: icon.label,
-                                groupId: group.id,
-                                iconNode: React.createElement(IconComponent, {
-                                    className: 'h-6 w-6',
-                                }),
-                                isUsed: usedIconIds.has(icon.id),
-                            })
-                        })
+                        return {
+                            id: dbIcon.id, // Sử dụng id (UUID) thay vì name
+                            label: dbIcon.label,
+                            groupId: dbIcon.group_id,
+                            iconNode,
+                            isUsed: usedIconIds.has(dbIcon.id),
+                        }
                     })
 
-                    // Add database icons (avoid duplicates)
-                    const hardcodedIds = new Set(combinedIcons.map((i) => i.id))
-                    for (const dbIcon of dbIconsData) {
-                        if (!hardcodedIds.has(dbIcon.name)) {
-                            let iconNode: React.ReactNode = null
-                            try {
-                                if (
-                                    dbIcon.icon_type === 'react-icon' &&
-                                    dbIcon.react_icon_name &&
-                                    dbIcon.react_icon_library
-                                ) {
-                                    const library = await getCachedIconLibrary(
-                                        dbIcon.react_icon_library
-                                    )
-                                    if (
-                                        library &&
-                                        library[dbIcon.react_icon_name]
-                                    ) {
-                                        const IconComponent =
-                                            library[dbIcon.react_icon_name]
-                                        iconNode = React.createElement(
-                                            IconComponent,
-                                            { className: 'h-6 w-6' }
-                                        )
-                                    }
-                                } else if (dbIcon.image_url) {
-                                    iconNode = (
-                                        <img
-                                            src={dbIcon.image_url}
-                                            alt={dbIcon.label}
-                                            className="h-6 w-6 object-contain"
-                                        />
-                                    )
-                                }
-                            } catch (error) {
-                                console.error(
-                                    'Error loading icon:',
-                                    dbIcon.name,
-                                    error
-                                )
-                            }
-
-                            combinedIcons.push({
-                                id: dbIcon.name,
-                                label: dbIcon.label,
-                                groupId: dbIcon.group_id,
-                                iconNode,
-                                isUsed: usedIconIds.has(dbIcon.name),
-                            })
-                        }
-                    }
-
-                    // Sort: used icons first, then by group, then by label
-                    combinedIcons.sort((a, b) => {
+                    // Sort: used icons first, then by group, then by display_order, then by label
+                    iconItems.sort((a, b) => {
                         if (a.isUsed !== b.isUsed) {
                             return a.isUsed ? -1 : 1
                         }
                         if (a.groupId !== b.groupId) {
                             return a.groupId.localeCompare(b.groupId)
                         }
+                        // Tìm display_order từ dbIconsData
+                        const iconA = imageIcons.find(i => i.id === a.id)
+                        const iconB = imageIcons.find(i => i.id === b.id)
+                        const orderA = iconA?.display_order || 0
+                        const orderB = iconB?.display_order || 0
+                        if (orderA !== orderB) {
+                            return orderA - orderB
+                        }
                         return a.label.localeCompare(b.label)
                     })
 
-                    setAllIcons(combinedIcons)
+                    setAllIcons(iconItems)
                 } catch (error) {
                     console.error('Error loading icons:', error)
                 } finally {
@@ -140,7 +93,6 @@ export const IconPicker: React.FC<IconPickerProps> = ({
         } else {
             // Reset when closing
             setIconSearchTerm('')
-            setActiveIconGroup('all')
         }
     }, [isOpen, usedIconIds])
 
@@ -151,10 +103,6 @@ export const IconPicker: React.FC<IconPickerProps> = ({
     }
 
     const filteredIcons = allIcons.filter((icon) => {
-        // Filter by group
-        if (activeIconGroup !== 'all' && icon.groupId !== activeIconGroup) {
-            return false
-        }
         // Filter by search term
         if (iconSearchTerm) {
             const searchLower = iconSearchTerm.toLowerCase()
@@ -206,40 +154,6 @@ export const IconPicker: React.FC<IconPickerProps> = ({
                 </div>
             </div>
 
-            {/* Group Filter Tabs */}
-            <div className="shrink-0 border-b border-slate-200 bg-white px-4 py-2">
-                <div className="flex gap-2 overflow-x-auto pb-2">
-                    <button
-                        type="button"
-                        onClick={() => setActiveIconGroup('all')}
-                        className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
-                            activeIconGroup === 'all'
-                                ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md'
-                                : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                        }`}
-                    >
-                        Tất cả
-                    </button>
-                    {CATEGORY_ICON_GROUPS.map((group) => {
-                        const isActive = activeIconGroup === group.id
-                        return (
-                            <button
-                                key={group.id}
-                                type="button"
-                                onClick={() => setActiveIconGroup(group.id)}
-                                className={`shrink-0 rounded-lg px-3 py-1.5 text-xs font-semibold transition-all ${
-                                    isActive
-                                        ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md'
-                                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                                }`}
-                            >
-                                {group.label}
-                            </button>
-                        )
-                    })}
-                </div>
-            </div>
-
             {/* Icons Grid - Scrollable */}
             <div className="flex-1 overflow-y-auto overscroll-contain p-3 min-h-0">
                 {isLoadingIcons ? (
@@ -255,7 +169,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
                         </span>
                     </div>
                 ) : (
-                    <div className="grid grid-cols-8 gap-2">
+                    <div className="grid grid-cols-5 sm:grid-cols-8 gap-2">
                         {filteredIcons.map((icon) => {
                             const isSelected = selectedIconId === icon.id
                             return (
@@ -263,10 +177,10 @@ export const IconPicker: React.FC<IconPickerProps> = ({
                                     key={icon.id}
                                     type="button"
                                     onClick={() => handleIconSelect(icon.id)}
-                                    className={`flex h-12 w-12 items-center justify-center rounded-lg border-2 transition-all active:scale-95 ${
+                                    className={`flex h-16 w-16 items-center justify-center rounded-lg transition-all active:scale-95 ${
                                         isSelected
-                                            ? 'border-sky-500 bg-sky-50 shadow-md shadow-sky-500/20'
-                                            : 'border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50'
+                                            ? 'ring-2 ring-sky-500 ring-offset-1'
+                                            : 'hover:opacity-80'
                                     }`}
                                     title={icon.label}
                                 >

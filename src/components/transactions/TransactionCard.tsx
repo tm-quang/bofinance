@@ -48,7 +48,7 @@ export const TransactionCard = ({
       onMouseDown={() => onLongPressStart(transaction)}
       onMouseUp={onLongPressEnd}
       onMouseLeave={onLongPressCancel}
-      className={`group relative flex gap-3 rounded-3xl p-3 shadow-lg ring-1 transition-all select-none cursor-pointer hover:shadow-md active:scale-[0.98] ${
+      className={`group relative flex items-center gap-3 rounded-3xl p-3 shadow-lg ring-1 transition-all select-none cursor-pointer hover:shadow-md active:scale-[0.98] ${
         isIncome
           ? 'bg-emerald-50/30 ring-emerald-100/50 hover:ring-emerald-200/50'
           : 'bg-rose-50/40 ring-1 ring-rose-200/90 hover:ring-rose-500/50'
@@ -70,16 +70,16 @@ export const TransactionCard = ({
       </div>
 
       {/* Content */}
-      <div className="flex-1 min-w-0 flex items-start justify-between gap-3">
+      <div className="flex-1 min-w-0 flex items-center justify-between gap-3">
         {/* Left side: Description, Date, Category, Tags */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 flex flex-col justify-center">
           {/* Description - Nếu null thì hiển thị tên hạng mục */}
-          <p className="truncate text-sm font-semibold mb-1.5 text-slate-900">
+          <p className="truncate text-sm font-semibold mb-1 text-slate-900">
             {transaction.description || categoryInfo.name}
           </p>
 
           {/* Date */}
-          <div className="flex items-center gap-1 mb-1.5 text-xs text-slate-600">
+          <div className="flex items-center gap-1 mb-1 text-xs text-slate-600">
             <FaCalendar className="h-3 w-3 text-slate-400" />
             <span className="whitespace-nowrap font-medium">
               {formatDate(transactionDate)}
@@ -87,7 +87,7 @@ export const TransactionCard = ({
           </div>
 
           {/* Category - Hiển thị dưới ngày */}
-          <div className="mb-1.5 text-xs text-slate-600">
+          <div className="mb-1 text-xs text-slate-600">
             <span className="font-medium truncate">
               {categoryInfo.name}
             </span>
@@ -95,7 +95,7 @@ export const TransactionCard = ({
 
           {/* Tags */}
           {transaction.tags && transaction.tags.length > 0 && (
-            <div className="flex items-center gap-1.5 flex-wrap mt-1">
+            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
               {transaction.tags.slice(0, 2).map((tag, index) => (
                 <span
                   key={index}
@@ -114,7 +114,7 @@ export const TransactionCard = ({
         </div>
 
         {/* Right side: Amount and Wallet */}
-        <div className="flex flex-col items-end gap-1.5 shrink-0">
+        <div className="flex flex-col items-end justify-center gap-1.5 shrink-0">
           {/* Amount */}
           <span className={`text-base font-bold whitespace-nowrap ${
             isIncome ? 'text-emerald-600' : 'text-rose-600'

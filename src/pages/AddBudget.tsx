@@ -55,6 +55,7 @@ export const AddBudgetPage = () => {
     period_type: 'monthly' as PeriodType,
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
+    limit_type: 'soft' as 'hard' | 'soft',
     notes: '',
   })
 
@@ -80,21 +81,26 @@ export const AddBudgetPage = () => {
         // Filter only expense categories
         const expenseCategories = categoriesData.filter(c => c.type === 'Chi tiêu')
         
-        // Load icons for all categories
+        // Load icons for all categories - ensure small size
         const iconsMap: Record<string, React.ReactNode> = {}
         await Promise.all(
           expenseCategories.map(async (category) => {
             try {
               const iconNode = await getIconNode(category.icon_id)
               if (iconNode) {
-                iconsMap[category.id] = iconNode
+                // Wrap icon to ensure consistent small size
+                iconsMap[category.id] = (
+                  <span className="text-sm inline-flex items-center justify-center">
+                    {iconNode}
+                  </span>
+                )
               } else {
                 const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
                 if (hardcodedIcon?.icon) {
                   const IconComponent = hardcodedIcon.icon
-                  iconsMap[category.id] = <IconComponent className="h-4 w-4" />
+                  iconsMap[category.id] = <IconComponent className="h-3.5 w-3.5" />
                 } else {
-                  iconsMap[category.id] = '💰'
+                  iconsMap[category.id] = <span className="text-sm">💰</span>
                 }
               }
             } catch (error) {
@@ -102,9 +108,9 @@ export const AddBudgetPage = () => {
               const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
               if (hardcodedIcon?.icon) {
                 const IconComponent = hardcodedIcon.icon
-                iconsMap[category.id] = <IconComponent className="h-4 w-4" />
+                iconsMap[category.id] = <IconComponent className="h-3.5 w-3.5" />
               } else {
-                iconsMap[category.id] = '💰'
+                iconsMap[category.id] = <span className="text-sm">💰</span>
               }
             }
           })
@@ -126,6 +132,7 @@ export const AddBudgetPage = () => {
               period_type: budget.period_type,
               month: periodStart.getMonth() + 1,
               year: periodStart.getFullYear(),
+              limit_type: budget.limit_type || 'soft',
               notes: budget.notes || '',
             })
           }
@@ -139,6 +146,7 @@ export const AddBudgetPage = () => {
             period_type: 'monthly',
             month: now.getMonth() + 1,
             year: now.getFullYear(),
+            limit_type: 'soft',
             notes: '',
           })
         }
@@ -190,6 +198,7 @@ export const AddBudgetPage = () => {
         period_type: formData.period_type,
         period_start: period.start.toISOString().split('T')[0],
         period_end: period.end.toISOString().split('T')[0],
+        limit_type: formData.limit_type,
         notes: formData.notes || undefined,
       }
 
@@ -242,20 +251,23 @@ export const AddBudgetPage = () => {
       />
 
       <main className="flex-1 overflow-y-auto overscroll-contain pb-20">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 py-4 sm:py-6">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-5 px-4 pt-2 pb-5 sm:pt-2 sm:pb-6">
           {error && (
-            <div className="rounded-lg bg-rose-50 border border-rose-200 p-3 text-sm text-rose-600">
-              {error}
+            <div className="rounded-2xl bg-gradient-to-r from-rose-50 to-red-50 border-2 border-rose-200 p-4 text-sm text-rose-700 font-medium shadow-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-lg">⚠️</span>
+                <span>{error}</span>
+              </div>
             </div>
           )}
 
           {isLoading ? (
             <div className="py-8 text-center text-slate-500">Đang tải...</div>
           ) : (
-            <form onSubmit={handleSubmit} id="budget-form" className="space-y-4">
+            <form onSubmit={handleSubmit} id="budget-form" className="space-y-5">
               {/* Category Select */}
               <div>
-                <label className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
+                <label className="mb-2.5 block text-sm font-bold text-slate-900 sm:text-base">
                   Hạng mục <span className="text-red-500">*</span>
                 </label>
                 <CustomSelect
@@ -269,7 +281,7 @@ export const AddBudgetPage = () => {
 
               {/* Wallet Select (Optional) */}
               <div>
-                <label className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
+                <label className="mb-2.5 block text-sm font-bold text-slate-900 sm:text-base">
                   Ví (tùy chọn)
                 </label>
                 <CustomSelect
@@ -282,7 +294,7 @@ export const AddBudgetPage = () => {
 
               {/* Amount */}
               <div>
-                <label className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
+                <label className="mb-2.5 block text-sm font-bold text-slate-900 sm:text-base">
                   Số tiền ngân sách <span className="text-red-500">*</span>
                 </label>
                 <input
@@ -294,7 +306,7 @@ export const AddBudgetPage = () => {
                   }}
                   onFocus={() => setIsNumberPadOpen(true)}
                   placeholder="Nhập số tiền"
-                  className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4 cursor-pointer"
+                  className="w-full rounded-2xl border-2 border-slate-200 bg-white p-4 text-base font-semibold text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-5 cursor-pointer"
                   required
                   readOnly
                 />
@@ -302,19 +314,19 @@ export const AddBudgetPage = () => {
 
               {/* Period Type */}
               <div>
-                <label className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
+                <label className="mb-2.5 block text-sm font-bold text-slate-900 sm:text-base">
                   Loại ngân sách <span className="text-red-500">*</span>
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 gap-3">
                   {PERIOD_TYPES.map((type) => (
                     <button
                       key={type.value}
                       type="button"
                       onClick={() => setFormData((prev) => ({ ...prev, period_type: type.value }))}
-                      className={`rounded-xl border-2 p-3 text-sm font-medium transition-all ${
+                      className={`rounded-2xl border-2 p-4 text-sm font-semibold transition-all ${
                         formData.period_type === type.value
-                          ? 'border-sky-500 bg-sky-50 text-sky-700'
-                          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
+                          ? 'border-sky-500 bg-gradient-to-br from-sky-50 to-blue-50 text-sky-700 shadow-sm'
+                          : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:shadow-sm'
                       }`}
                     >
                       {type.label}
@@ -323,11 +335,55 @@ export const AddBudgetPage = () => {
                 </div>
               </div>
 
+              {/* Limit Type */}
+              <div>
+                <label className="mb-2.5 block text-sm font-bold text-slate-900 sm:text-base">
+                  Loại giới hạn <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, limit_type: 'soft' }))}
+                    className={`rounded-2xl border-2 p-4 text-left transition-all ${
+                      formData.limit_type === 'soft'
+                        ? 'border-amber-500 bg-gradient-to-br from-amber-50 to-yellow-50 text-amber-700 shadow-sm'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:shadow-sm'
+                    }`}
+                  >
+                    <div className="font-bold text-sm mb-1.5">Giới hạn mềm</div>
+                    <div className="text-xs text-slate-600 font-medium">Cảnh báo khi vượt quá</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setFormData((prev) => ({ ...prev, limit_type: 'hard' }))}
+                    className={`rounded-2xl border-2 p-4 text-left transition-all ${
+                      formData.limit_type === 'hard'
+                        ? 'border-rose-500 bg-gradient-to-br from-rose-50 to-pink-50 text-rose-700 shadow-sm'
+                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:shadow-sm'
+                    }`}
+                  >
+                    <div className="font-bold text-sm mb-1.5">Giới hạn cứng</div>
+                    <div className="text-xs text-slate-600 font-medium">Từ chối khi vượt quá</div>
+                  </button>
+                </div>
+                <div className={`mt-3 rounded-xl p-3 ${
+                  formData.limit_type === 'soft' 
+                    ? 'bg-amber-50 border border-amber-200' 
+                    : 'bg-rose-50 border border-rose-200'
+                }`}>
+                  <p className="text-xs font-medium text-slate-700">
+                    {formData.limit_type === 'soft' 
+                      ? '⚠️ Hệ thống sẽ cảnh báo nhưng vẫn cho phép giao dịch khi vượt quá ngân sách'
+                      : '🚫 Hệ thống sẽ từ chối giao dịch khi vượt quá ngân sách'}
+                  </p>
+                </div>
+              </div>
+
               {/* Month and Year (for monthly) */}
               {formData.period_type === 'monthly' && (
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
+                    <label className="mb-2.5 block text-sm font-bold text-slate-900 sm:text-base">
                       Tháng
                     </label>
                     <CustomSelect
@@ -338,7 +394,7 @@ export const AddBudgetPage = () => {
                     />
                   </div>
                   <div>
-                    <label className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
+                    <label className="mb-2.5 block text-sm font-bold text-slate-900 sm:text-base">
                       Năm
                     </label>
                     <CustomSelect
@@ -354,7 +410,7 @@ export const AddBudgetPage = () => {
               {/* Year (for yearly) */}
               {formData.period_type === 'yearly' && (
                 <div>
-                  <label className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
+                  <label className="mb-2.5 block text-sm font-bold text-slate-900 sm:text-base">
                     Năm
                   </label>
                   <CustomSelect
@@ -368,7 +424,7 @@ export const AddBudgetPage = () => {
 
               {/* Notes */}
               <div>
-                <label className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
+                <label className="mb-2.5 block text-sm font-bold text-slate-900 sm:text-base">
                   Ghi chú (tùy chọn)
                 </label>
                 <textarea
@@ -376,7 +432,7 @@ export const AddBudgetPage = () => {
                   onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
                   placeholder="Thêm ghi chú cho ngân sách này..."
                   rows={3}
-                  className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 resize-none sm:p-4"
+                  className="w-full rounded-2xl border-2 border-slate-200 bg-white p-4 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 resize-none sm:p-5"
                 />
               </div>
 

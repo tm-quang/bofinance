@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { FaCalendar, FaTimes, FaImage, FaWallet, FaArrowDown, FaArrowUp, FaChevronDown } from 'react-icons/fa'
+import { FaCalendar, FaTimes, FaImage, FaWallet, FaArrowDown, FaArrowUp, FaChevronDown, FaCamera } from 'react-icons/fa'
 
 import { CATEGORY_ICON_MAP } from '../../constants/categoryIcons'
 import { CustomSelect } from '../ui/CustomSelect'
@@ -8,9 +8,11 @@ import { TagSuggestions } from '../ui/TagSuggestions'
 import { NumberPadModal } from '../ui/NumberPadModal'
 import { CategoryPickerModal } from '../categories/CategoryPickerModal'
 import { ModalFooterButtons } from '../ui/ModalFooterButtons'
+import { TransactionModalSkeleton } from '../skeletons'
 import { fetchCategories, type CategoryRecord, type CategoryType } from '../../lib/categoryService'
 import { createTransaction, updateTransaction, type TransactionType, type TransactionRecord } from '../../lib/transactionService'
 import { fetchWallets, getDefaultWallet, type WalletRecord } from '../../lib/walletService'
+import { getBudgetForCategory, type BudgetWithSpending } from '../../lib/budgetService'
 import { uploadMultipleToCloudinary } from '../../lib/cloudinaryService'
 import { useNotification } from '../../contexts/notificationContext.helpers'
 import { formatVNDInput, parseVNDInput } from '../../utils/currencyInput'
@@ -68,7 +70,10 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
   const [isNumberPadOpen, setIsNumberPadOpen] = useState(false)
   const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
   const [isCategoryPickerOpen, setIsCategoryPickerOpen] = useState(false)
-  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [budgetInfo, setBudgetInfo] = useState<BudgetWithSpending | null>(null)
+  const [isLoadingBudget, setIsLoadingBudget] = useState(false)
+  const cameraInputRef = useRef<HTMLInputElement>(null)
+  const galleryInputRef = useRef<HTMLInputElement>(null)
 
   // Load wallets và categories khi modal mở
   useEffect(() => {
@@ -176,6 +181,33 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [formState.type, filteredCategories.length])
 
+  // Load budget info when category, wallet, or date changes (only for expense transactions)
+  useEffect(() => {
+    if (!isOpen || formState.type !== 'Chi' || !formState.category_id || !formState.wallet_id || !formState.transaction_date) {
+      setBudgetInfo(null)
+      return
+    }
+
+    const loadBudgetInfo = async () => {
+      setIsLoadingBudget(true)
+      try {
+        const budget = await getBudgetForCategory(
+          formState.category_id,
+          formState.wallet_id,
+          formState.transaction_date
+        )
+        setBudgetInfo(budget)
+      } catch (error) {
+        console.error('Error loading budget info:', error)
+        setBudgetInfo(null)
+      } finally {
+        setIsLoadingBudget(false)
+      }
+    }
+
+    loadBudgetInfo()
+  }, [isOpen, formState.type, formState.category_id, formState.wallet_id, formState.transaction_date])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -266,7 +298,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
         })
         success(`Đã cập nhật ${formState.type === 'Thu' ? 'thu nhập' : 'chi tiêu'} thành công!`)
       } else {
-        await createTransaction({
+        const result = await createTransaction({
           wallet_id: formState.wallet_id,
           category_id: formState.category_id,
           type: formState.type,
@@ -276,7 +308,13 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
           tags: formState.tags.length > 0 ? formState.tags : undefined,
           image_urls: imageUrls.length > 0 ? imageUrls : undefined,
         })
-        success(`Đã thêm ${formState.type === 'Thu' ? 'thu nhập' : 'chi tiêu'} thành công!`)
+        
+        // Show budget warning if exists (soft limit)
+        if (result.budgetWarning) {
+          showError(result.budgetWarning)
+        } else {
+          success(`Đã thêm ${formState.type === 'Thu' ? 'thu nhập' : 'chi tiêu'} thành công!`)
+        }
       }
 
       // Reset form nhưng giữ lại wallet_id mặc định (để thêm liên tục)
@@ -314,8 +352,12 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
     setUploadedFiles((prev) => [...prev, ...files])
-    if (fileInputRef.current) {
-      fileInputRef.current.value = ''
+    // Reset input value
+    if (e.target === cameraInputRef.current && cameraInputRef.current) {
+      cameraInputRef.current.value = ''
+    }
+    if (e.target === galleryInputRef.current && galleryInputRef.current) {
+      galleryInputRef.current.value = ''
     }
   }
 
@@ -371,6 +413,9 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
           )}
 
           {/* Form */}
+          {isLoading ? (
+            <TransactionModalSkeleton />
+          ) : (
           <form onSubmit={handleSubmit} id="transaction-form" className="space-y-4">
           {/* Type selector */}
           <div>
@@ -463,6 +508,75 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
               </div>
             </div>
           </div>
+
+          {/* Budget Info Display - Only for expense transactions with budget */}
+          {formState.type === 'Chi' && formState.category_id && formState.wallet_id && (
+            <div className="rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4">
+              {isLoadingBudget ? (
+                <div className="flex items-center gap-2 text-sm text-slate-500">
+                  <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+                  <span>Đang kiểm tra ngân sách...</span>
+                </div>
+              ) : budgetInfo ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-semibold text-slate-600">Ngân sách hạng mục</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      budgetInfo.usage_percentage >= 100
+                        ? 'bg-rose-100 text-rose-700'
+                        : budgetInfo.usage_percentage >= 80
+                        ? 'bg-amber-100 text-amber-700'
+                        : 'bg-emerald-100 text-emerald-700'
+                    }`}>
+                      {budgetInfo.usage_percentage.toFixed(1)}%
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-600">Đã chi:</span>
+                    <span className="font-semibold text-slate-900">
+                      {formatCurrency(budgetInfo.spent_amount)} / {formatCurrency(budgetInfo.amount)}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-slate-600">Còn lại:</span>
+                    <span className={`font-bold ${
+                      budgetInfo.remaining_amount >= 0 ? 'text-emerald-600' : 'text-rose-600'
+                    }`}>
+                      {formatCurrency(Math.abs(budgetInfo.remaining_amount))}
+                    </span>
+                  </div>
+                  {/* Progress bar */}
+                  <div className="mt-2 h-2 w-full rounded-full bg-slate-200 overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-300 ${
+                        budgetInfo.usage_percentage >= 100
+                          ? 'bg-gradient-to-r from-rose-500 to-rose-600'
+                          : budgetInfo.usage_percentage >= 80
+                          ? 'bg-gradient-to-r from-amber-500 to-amber-600'
+                          : 'bg-gradient-to-r from-emerald-500 to-emerald-600'
+                      }`}
+                      style={{ width: `${Math.min(budgetInfo.usage_percentage, 100)}%` }}
+                    />
+                  </div>
+                  {budgetInfo.limit_type && (
+                    <div className="mt-1.5 flex items-center gap-1.5 text-xs">
+                      <span className={`px-2 py-0.5 rounded-full font-semibold ${
+                        budgetInfo.limit_type === 'hard'
+                          ? 'bg-rose-100 text-rose-700'
+                          : 'bg-amber-100 text-amber-700'
+                      }`}>
+                        {budgetInfo.limit_type === 'hard' ? '🚫 Giới hạn cứng' : '⚠️ Giới hạn mềm'}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="text-xs text-slate-500 text-center py-1">
+                  Không có ngân sách cho hạng mục này
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Amount and Date - Grid */}
           <div className="grid grid-cols-2 gap-4">
@@ -594,23 +708,44 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
             <label className="mb-1.5 block text-xs font-medium text-slate-600 sm:text-sm">
               Tải lên ảnh/hóa đơn (tùy chọn)
             </label>
+            {/* Hidden file inputs */}
             <input
-              ref={fileInputRef}
+              ref={cameraInputRef}
               type="file"
-              id="receipt"
+              id="camera-input"
+              accept="image/*"
+              capture="environment"
+              onChange={handleFileChange}
+              className="hidden"
+            />
+            <input
+              ref={galleryInputRef}
+              type="file"
+              id="gallery-input"
               accept="image/*,.pdf"
               multiple
               onChange={handleFileChange}
               className="hidden"
             />
-            <button
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-              className="flex w-full items-center justify-center gap-1 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-3 text-sm font-medium text-slate-600 transition-all hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700 sm:p-5"
-            >
-              <FaImage className="h-5 w-5" />
-              <span>Tải lên hóa đơn/ảnh (tùy chọn)</span>
-            </button>
+            {/* Two buttons: Camera and Gallery */}
+            <div className="grid grid-cols-2 gap-3">
+              <button
+                type="button"
+                onClick={() => cameraInputRef.current?.click()}
+                className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-medium text-slate-600 transition-all hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
+              >
+                <FaCamera className="h-6 w-6" />
+                <span>Chụp ảnh</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => galleryInputRef.current?.click()}
+                className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-medium text-slate-600 transition-all hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
+              >
+                <FaImage className="h-6 w-6" />
+                <span>Chọn từ thư viện</span>
+              </button>
+            </div>
             {(uploadedFiles.length > 0 || uploadedImageUrls.length > 0) && (
               <div className="mt-3 space-y-2">
                 {/* Display existing uploaded images */}
@@ -659,6 +794,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
             )}
           </div>
         </form>
+          )}
         </div>
 
         {/* Footer - Fixed */}

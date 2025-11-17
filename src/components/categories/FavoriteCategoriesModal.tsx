@@ -3,6 +3,7 @@ import { FaTimes, FaStar, FaSearch, FaChevronUp } from 'react-icons/fa'
 import { fetchCategoriesHierarchical, type CategoryWithChildren } from '../../lib/categoryService'
 import { getFavoriteCategories, saveFavoriteCategories } from '../../lib/favoriteCategoriesService'
 import { CategoryIcon } from '../ui/CategoryIcon'
+import { CategoryListSkeleton } from '../skeletons'
 import { useNotification } from '../../contexts/notificationContext.helpers'
 import HeaderBar from '../layout/HeaderBar'
 import { ModalFooterButtons } from '../ui/ModalFooterButtons'
@@ -200,14 +201,8 @@ export const FavoriteCategoriesModal: React.FC<FavoriteCategoriesModalProps> = (
           {/* Content */}
           <div className="flex-1">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-16">
-              <div className="mb-4 relative">
-                <div className="absolute inset-0 animate-ping rounded-full bg-sky-400/20" />
-                <div className="relative rounded-full bg-sky-100 p-4">
-                  <FaStar className="h-8 w-8 text-sky-600 animate-pulse" />
-                </div>
-              </div>
-              <span className="text-sm font-medium text-slate-600">Đang tải...</span>
+            <div className="p-4">
+              <CategoryListSkeleton count={8} />
             </div>
           ) : filteredCategories.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16 px-4">

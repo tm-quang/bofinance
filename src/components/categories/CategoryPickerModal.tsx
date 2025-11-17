@@ -3,6 +3,7 @@ import { FaTimes, FaChevronRight, FaFolder, FaSearch, FaStar, FaEdit, FaChevronU
 import { fetchCategoriesHierarchical, type CategoryWithChildren } from '../../lib/categoryService'
 import { getFavoriteCategories } from '../../lib/favoriteCategoriesService'
 import { CategoryIcon } from '../ui/CategoryIcon'
+import { CategoryListSkeleton } from '../skeletons'
 import { FavoriteCategoriesModal } from './FavoriteCategoriesModal'
 import HeaderBar from '../layout/HeaderBar'
 
@@ -206,14 +207,8 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
           {/* Content */}
           <div className="flex-1">
           {isLoading ? (
-            <div className="flex flex-col items-center justify-center py-16">
-              <div className="mb-4 relative">
-                <div className="absolute inset-0 animate-ping rounded-full bg-sky-400/20" />
-                <div className="relative rounded-full bg-sky-100 p-4">
-                  <FaFolder className="h-8 w-8 text-sky-600 animate-pulse" />
-                </div>
-              </div>
-              <span className="text-sm font-medium text-slate-600">Đang tải hạng mục...</span>
+            <div className="p-4">
+              <CategoryListSkeleton count={12} />
             </div>
           ) : (
             <>

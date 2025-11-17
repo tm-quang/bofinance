@@ -8,7 +8,7 @@ import { useNotification } from '../../contexts/notificationContext.helpers'
 import { HorizontalBarChart } from './HorizontalBarChart'
 import { IncomeExpenseSummary } from './IncomeExpenseSummary'
 import { DonutChartWithLegend } from './DonutChartWithLegend'
-import { IncomeExpenseOverviewSkeleton } from '../skeletons/IncomeExpenseOverviewSkeleton'
+import { LoadingRing } from '../ui/LoadingRing'
 
 type IncomeExpenseOverviewProps = {
   walletId?: string
@@ -252,9 +252,11 @@ export const IncomeExpenseOverview = ({ walletId }: IncomeExpenseOverviewProps) 
         </div>
       </div>
 
-      {/* Content - Show skeleton when loading, image if no data, otherwise show charts */}
+      {/* Content - Show loading ring when loading, image if no data, otherwise show charts */}
       {isLoading ? (
-        <IncomeExpenseOverviewSkeleton />
+        <div className="flex items-center justify-center py-16">
+          <LoadingRing size="lg" />
+        </div>
       ) : transactions.length === 0 ? (
         <div className="mb-4 flex flex-col items-center justify-center py-2">
           <img 

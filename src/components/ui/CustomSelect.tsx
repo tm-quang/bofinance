@@ -99,7 +99,7 @@ export const CustomSelect = ({
         }`}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          {selectedOption?.icon && <span className="shrink-0 text-slate-600">{selectedOption.icon}</span>}
+          {selectedOption?.icon && <span className="shrink-0 text-slate-600 text-sm">{selectedOption.icon}</span>}
           <div className="min-w-0 flex-1">
             {selectedOption ? (
               <>
@@ -129,7 +129,7 @@ export const CustomSelect = ({
 
           {/* Dropdown */}
           <div className="absolute z-50 mt-2 w-full rounded-xl border-2 border-slate-200 bg-white shadow-2xl transition-all">
-            <div className="max-h-64 overflow-y-auto overscroll-contain">
+            <div className="max-h-64 overflow-y-auto overscroll-contain py-1">
               {options.map((option) => (
                 <button
                   key={option.value}
@@ -138,19 +138,23 @@ export const CustomSelect = ({
                     onChange(option.value)
                     setIsOpen(false)
                   }}
-                  className={`flex w-full items-center gap-3 px-4 py-3 text-left transition-colors ${
+                  className={`flex w-full items-center gap-2.5 px-3 py-2.5 text-left transition-colors ${
                     value === option.value
                       ? 'bg-sky-50 text-sky-700'
                       : 'text-slate-700 hover:bg-slate-50'
                   }`}
                 >
-                  {option.icon && <span className="shrink-0 text-lg">{option.icon}</span>}
+                  {option.icon && (
+                    <span className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-sm">
+                      {option.icon}
+                    </span>
+                  )}
                   <div className="min-w-0 flex-1">
-                    <div className="font-medium">{option.label}</div>
-                    {option.metadata && <div className="text-xs text-slate-500">{option.metadata}</div>}
+                    <div className="text-sm font-medium">{option.label}</div>
+                    {option.metadata && <div className="text-xs text-slate-500 mt-0.5">{option.metadata}</div>}
                   </div>
                   {value === option.value && (
-                    <FaCheck className="h-5 w-5 shrink-0 text-sky-600" />
+                    <FaCheck className="h-4 w-4 shrink-0 text-sky-600" />
                   )}
                 </button>
               ))}

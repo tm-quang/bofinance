@@ -8,6 +8,7 @@ import {
   type ChartPeriodType 
 } from '../../lib/userPreferencesService'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
+import { LoadingRing } from '../ui/LoadingRing'
 import { DonutChart } from './DonutChart'
 
 type TransactionChartProps = {
@@ -442,7 +443,11 @@ export const TransactionChart = ({ walletId }: TransactionChartProps) => {
       )}
 
       {/* Chart */}
-      {!isLoading && filteredTransactions.length === 0 ? (
+      {isLoading ? (
+        <div className="flex h-64 items-center justify-center rounded-2xl bg-slate-50">
+          <LoadingRing size="lg" />
+        </div>
+      ) : filteredTransactions.length === 0 ? (
         <div className="flex h-64 flex-col items-center justify-center rounded-2xl bg-slate-50">
           <img 
             src="/savings-74.png" 

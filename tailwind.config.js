@@ -14,6 +14,7 @@ export default {
         'gradient-xy': 'gradient-xy 20s ease infinite',
         blob: 'blob 7s infinite',
         shine: 'shine 1.8s linear infinite',
+        shimmer: 'shimmer 2s infinite',
         zoom: 'zoom 0.6s ease-in-out infinite',
         'zoom-text': 'zoom-text 0.6s ease-in-out infinite',
         'zoom-once': 'zoom 0.6s ease-in-out',
@@ -30,6 +31,10 @@ export default {
           '66%': { transform: 'translate(-20px, 20px) scale(0.9)' },
         },
         shine: {
+          '0%': { transform: 'translateX(-100%)' },
+          '100%': { transform: 'translateX(100%)' },
+        },
+        shimmer: {
           '0%': { transform: 'translateX(-100%)' },
           '100%': { transform: 'translateX(100%)' },
         },

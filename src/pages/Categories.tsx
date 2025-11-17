@@ -169,6 +169,35 @@ export const CategoriesPage = () => {
         }
     }, [openCreateForm, searchParams, setSearchParams])
 
+    // Helper function để reload categories
+    const reloadCategories = useCallback(async () => {
+        setIsLoading(true)
+        try {
+            // Invalidate cache trước khi fetch
+            const { invalidateCache } = await import('../lib/cache')
+            await invalidateCache('categories')
+            
+            // Đợi một chút để cache được clear
+            await new Promise(resolve => setTimeout(resolve, 150))
+            
+            const [flatData, hierarchicalData] = await Promise.all([
+                fetchCategories(),
+                fetchCategoriesHierarchical(),
+            ])
+            
+            setCategories(sortCategories(flatData.map(record => mapRecordToCategory(record))))
+            setHierarchicalCategories(hierarchicalData.map(cat => ({
+                ...cat,
+                children: Array.isArray(cat.children) ? cat.children : [],
+            })))
+        } catch (error) {
+            console.error('Error reloading categories:', error)
+            showError('Không thể tải danh sách hạng mục. Vui lòng thử lại.')
+        } finally {
+            setIsLoading(false)
+        }
+    }, [showError])
+
     useEffect(() => {
         const loadCategories = async () => {
             setIsLoading(true)
@@ -321,42 +350,27 @@ export const CategoriesPage = () => {
 
         try {
             if (editingId) {
-                const updated = await updateCategory(editingId, {
+                await updateCategory(editingId, {
                     name: trimmedName,
                     type: formState.type,
                     icon_id: formState.iconId,
                     parent_id: formState.parentId,
                 })
-                setCategories((prev) =>
-                    sortCategories(
-                        prev.map((category) =>
-                            category.id === editingId ? mapRecordToCategory(updated) : category
-                        )
-                    )
-                )
                 success('Đã cập nhật hạng mục thành công!')
             } else {
-                const created = await createCategory({
+                await createCategory({
                     name: trimmedName,
                     type: formState.type,
                     icon_id: formState.iconId,
                     parent_id: formState.parentId,
                 })
-                setCategories((prev) => sortCategories([...prev, mapRecordToCategory(created)]))
                 success('Đã tạo hạng mục mới thành công!')
             }
 
             // Reload categories để cập nhật
-            const [reloaded, reloadedHierarchical] = await Promise.all([
-                fetchCategories(),
-                fetchCategoriesHierarchical(),
-            ])
-            setCategories(sortCategories(reloaded.map(record => mapRecordToCategory(record))))
-            setHierarchicalCategories(reloadedHierarchical.map(cat => ({
-                ...cat,
-                children: Array.isArray(cat.children) ? cat.children : [],
-            })))
             closeForm()
+            // Reload sau khi đóng form để UI mượt hơn
+            await reloadCategories()
         } catch (error) {
             const message =
                 error instanceof Error
@@ -371,9 +385,14 @@ export const CategoriesPage = () => {
 
     return (
         <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
-            <HeaderBar variant="page" title="Hạng mục - Thu - Chi" />
+            <HeaderBar 
+                variant="page" 
+                title="Hạng mục - Thu - Chi"
+                onReload={reloadCategories}
+                isReloading={isLoading}
+            />
             <main className="flex-1 overflow-y-auto overscroll-contain">
-                <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 py-4 sm:py-4">
+                <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 pt-2 pb-4 sm:pt-2 sm:pb-4">
                     {/* Tab Navigation */}
                     <div className="flex gap-2 rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-slate-100/50 sm:gap-2.5 sm:p-2">
                         <button
@@ -673,21 +692,10 @@ export const CategoriesPage = () => {
                                                     setIsDeleting(true)
                                                     await deleteCategoryFromDb(editingId)
                                                     
-                                                    // Force reload categories từ database (bỏ qua cache)
-                                                    setIsLoading(true)
-                                                    const [reloaded, reloadedHierarchical] = await Promise.all([
-                                                        fetchCategories(),
-                                                        fetchCategoriesHierarchical(),
-                                                    ])
-                                                    setCategories(sortCategories(reloaded.map(record => mapRecordToCategory(record))))
-                                                    setHierarchicalCategories(reloadedHierarchical.map(cat => ({
-                                                        ...cat,
-                                                        children: Array.isArray(cat.children) ? cat.children : [],
-                                                    })))
-                                                    setIsLoading(false)
-                                                    
                                                     success('Đã xóa hạng mục thành công!')
                                                     closeForm()
+                                                    // Reload sau khi đóng form
+                                                    await reloadCategories()
                                                 } catch (error) {
                                                     setIsLoading(false)
                                                     const message =
@@ -867,22 +875,22 @@ const IconPreview = ({ iconId, className }: IconPreviewProps) => {
 
     if (isLoading) {
         return (
-            <span className={`flex items-center justify-center rounded-full bg-slate-200 text-slate-500 ${className}`}>
-                <span className="text-xs">...</span>
+            <span className={`flex items-center justify-center ${className}`}>
+                <span className="text-xs text-slate-400">...</span>
             </span>
         )
     }
 
     if (!iconNode) {
         return (
-            <span className={`flex items-center justify-center rounded-full bg-slate-200 text-slate-500 ${className}`}>
-                <span className="text-sm">?</span>
+            <span className={`flex items-center justify-center ${className}`}>
+                <span className="text-sm text-slate-400">?</span>
             </span>
         )
     }
 
     return (
-        <span className={`flex items-center justify-center rounded-xl bg-gradient-to-br from-sky-100 to-blue-100 text-sky-600 shadow-sm ${className}`}>
+        <span className={`flex items-center justify-center ${className}`}>
             {iconNode}
         </span>
     )
