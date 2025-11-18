@@ -9,6 +9,8 @@ import { isInstalledPWA } from './utils/nativeAppBehavior'
 import { useSystemSetting } from './hooks/useSystemSettings'
 import ErrorBoundary from './components/ErrorBoundary'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { cacheManager } from './lib/cache'
+import { getCachedUser } from './lib/userCache'
 
 const DashboardPage = lazy(() => import('./pages/Dashboard'))
 const CategoriesPage = lazy(() => import('./pages/Categories'))
@@ -74,6 +76,21 @@ function AppContent() {
   const [initialPath] = useState(() => location.pathname)
   const splashEligible = ['/login', '/register', '/'].includes(initialPath)
   const [showSplash, setShowSplash] = useState(splashEligible)
+  
+  // Initialize cache when app starts and user is available
+  useEffect(() => {
+    const initCache = async () => {
+      try {
+        const user = await getCachedUser()
+        if (user) {
+          await cacheManager.initialize()
+        }
+      } catch (error) {
+        console.warn('Error initializing cache:', error)
+      }
+    }
+    initCache()
+  }, [])
   
   // Enable swipe back gesture (swipe from left edge to go back)
   useSwipeBack({ enabled: true, threshold: 100, edgeWidth: 50 })

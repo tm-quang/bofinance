@@ -62,6 +62,10 @@ export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
         localStorage.removeItem(REMEMBER_EMAIL_KEY)
       }
 
+      // Set flag để đánh dấu đây là login mới (không phải refresh)
+      // useAuthState sẽ xử lý clear cache khi nhận được SIGNED_IN event
+      sessionStorage.setItem('bofin_just_logged_in', 'true')
+
       // Set flag to show welcome modal after navigation
       sessionStorage.setItem('showWelcomeModal', 'true')
 

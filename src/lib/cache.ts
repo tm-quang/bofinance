@@ -4,9 +4,10 @@ type CacheEntry<T> = {
   ttl: number // Time to live in milliseconds
 }
 
-type CacheKey = string
-
 import { getCachedUserId } from './userCache'
+import { cacheSyncService } from './cacheSync'
+
+export type CacheKey = string
 
 const STORAGE_PREFIX = 'bofin_cache_'
 const STORAGE_KEY_MAP = 'bofin_cache_keys'
@@ -33,6 +34,8 @@ class CacheManager {
   private cache: Map<CacheKey, CacheEntry<unknown>> = new Map()
   private defaultTTL: number = 5 * 60 * 1000 // 5 minutes default
   private storageEnabled: boolean = false
+  private syncUnsubscribe: (() => void) | null = null
+  private isInitialized: boolean = false
 
   constructor() {
     // Check if localStorage is available
@@ -47,6 +50,102 @@ class CacheManager {
     } catch (error) {
       console.warn('localStorage not available, using in-memory cache only', error)
       this.storageEnabled = false
+    }
+
+    // Subscribe to cache sync events from other tabs
+    this.syncUnsubscribe = cacheSyncService.subscribe((event) => {
+      this.handleSyncEvent(event)
+    })
+  }
+
+  /**
+   * Initialize cache - load from storage and set up sync
+   * Should be called when app starts and user is available
+   */
+  async initialize(): Promise<void> {
+    if (this.isInitialized) return
+    
+    try {
+      // Load cache from localStorage for current user
+      await this.loadFromStorage()
+      this.isInitialized = true
+      console.log('[Cache] Initialized and loaded from storage')
+    } catch (error) {
+      console.warn('[Cache] Error initializing cache:', error)
+    }
+  }
+
+  /**
+   * Handle cache sync events from other tabs
+   */
+  private async handleSyncEvent(event: { type: string; pattern?: string; key?: string }): Promise<void> {
+    try {
+      switch (event.type) {
+        case 'CACHE_INVALIDATE':
+          if (event.pattern) {
+            // Invalidate matching cache entries
+            const keysToRemove: string[] = []
+            const userPrefix = await getUserCachePrefix()
+            const patternWithPrefix = userPrefix ? `${userPrefix}${event.pattern}` : event.pattern
+            
+            for (const key of this.cache.keys()) {
+              if (key === event.pattern || key.startsWith(event.pattern + ':') || 
+                  key === patternWithPrefix || key.startsWith(patternWithPrefix + ':')) {
+                keysToRemove.push(key)
+              }
+            }
+            
+            // Remove from memory and storage
+            for (const key of keysToRemove) {
+              this.cache.delete(key)
+              await this.removeFromStorage(key)
+            }
+            
+            console.log(`[Cache Sync] Invalidated ${keysToRemove.length} entries matching pattern: ${event.pattern}`)
+          }
+          break
+          
+        case 'CACHE_CLEAR':
+          // Clear all cache (only for current user)
+          this.cache.clear()
+          if (this.storageEnabled) {
+            const userPrefix = await getUserCachePrefix()
+            const keysJson = localStorage.getItem(STORAGE_KEY_MAP)
+            if (keysJson) {
+              const allKeys: string[] = JSON.parse(keysJson)
+              for (const storageKey of allKeys) {
+                if (userPrefix && storageKey.includes(userPrefix)) {
+                  localStorage.removeItem(storageKey)
+                }
+              }
+            }
+          }
+          console.log('[Cache Sync] Cleared all cache')
+          break
+          
+        case 'CACHE_SET':
+        case 'CACHE_REFRESH':
+          // Optionally refresh specific cache entry
+          // For now, we just log it - the next fetch will get fresh data
+          if (event.key) {
+            // Remove from memory so next fetch will get fresh data
+            this.cache.delete(event.key)
+            console.log(`[Cache Sync] Marked for refresh: ${event.key}`)
+          }
+          break
+      }
+    } catch (error) {
+      console.warn('[Cache Sync] Error handling sync event:', error)
+    }
+  }
+
+  /**
+   * Cleanup - unsubscribe from sync events
+   */
+  destroy(): void {
+    if (this.syncUnsubscribe) {
+      this.syncUnsubscribe()
+      this.syncUnsubscribe = null
     }
   }
 
@@ -280,6 +379,9 @@ class CacheManager {
 
     // Save to localStorage (async)
     await this.saveToStorage(key, entry)
+
+    // Broadcast set to other tabs (for cache sync)
+    cacheSyncService.broadcastSet(key)
   }
 
   /**
@@ -323,6 +425,9 @@ class CacheManager {
           console.warn('Error reading cache keys for invalidation:', e)
         }
       }
+
+      // Broadcast invalidation to other tabs
+      cacheSyncService.broadcastInvalidate(pattern)
     } else {
       // Regex match
       const userPrefix = await getUserCachePrefix()
@@ -392,6 +497,9 @@ class CacheManager {
         console.warn('Error clearing localStorage cache:', e)
       }
     }
+
+    // Broadcast clear to other tabs
+    cacheSyncService.broadcastClear()
   }
 
   /**

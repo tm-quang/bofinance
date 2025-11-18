@@ -25,7 +25,6 @@ import { getDefaultWallet, setDefaultWallet } from '../lib/walletService'
 import { getCurrentProfile, type ProfileRecord } from '../lib/profileService'
 import { fetchReminders, type ReminderRecord } from '../lib/reminderService'
 import { useNotification } from '../contexts/notificationContext.helpers'
-import { useSystemSettings } from '../hooks/useSystemSettings'
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('vi-VN', {
@@ -53,7 +52,7 @@ const QuickActionButton = ({
       className="group relative flex flex-col items-center gap-2.5 rounded-2xl bg-white p-3 text-center transition-all hover:scale-105 hover:shadow-lg active:scale-95 sm:p-4"
     >
       <span
-        className={`flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br ${action.color} text-white shadow-md transition-all group-hover:scale-110 group-hover:shadow-xl sm:h-16 sm:w-16 overflow-hidden`}
+        className={`flex h-22 w-22 items-center justify-center rounded-2xl bg-transparent transition-all group-hover:scale-110 sm:h-16 sm:w-16 overflow-hidden`}
       >
         {action.image && !imageError ? (
           <img
@@ -79,7 +78,7 @@ const ALL_QUICK_ACTIONS = [
     id: 'send-money',
     label: 'Chi tiền', 
     icon: FaPaperPlane,
-    image: '/images/quick-actions/bofin-giftmoney.png', // Thêm link ảnh ở đây (tùy chọn)
+    image: '/images/heoBO/heo2.png', // Thêm link ảnh ở đây (tùy chọn)
     color: 'from-blue-500 to-cyan-500',
     bgColor: 'bg-blue-50',
     textColor: 'text-blue-700',
@@ -88,7 +87,7 @@ const ALL_QUICK_ACTIONS = [
     id: 'add-transaction',
     label: 'Thêm thu/chi', 
     icon: FaPlus,
-    image: '/images/quick-actions/add-transaction.png', // Thêm link ảnh ở đây (tùy chọn)
+    image: '/images/heoBO/heo1.png', // Thêm link ảnh ở đây (tùy chọn)
     color: 'from-emerald-500 to-teal-500',
     bgColor: 'bg-emerald-50',
     textColor: 'text-emerald-700',
@@ -97,7 +96,7 @@ const ALL_QUICK_ACTIONS = [
     id: 'categories',
     label: 'Hạng mục', 
     icon: FaFolder,
-    image: '/images/quick-actions/categories.png', // Thêm link ảnh ở đây (tùy chọn)
+    image: '/images/heoBO/heo4.png', // Thêm link ảnh ở đây (tùy chọn)
     color: 'from-indigo-500 to-purple-500',
     bgColor: 'bg-indigo-50',
     textColor: 'text-indigo-700',
@@ -106,7 +105,7 @@ const ALL_QUICK_ACTIONS = [
     id: 'split-bill',
     label: 'Chia khoản', 
     icon: FaExchangeAlt,
-    image: '/images/quick-actions/split-bill.png', // Thêm link ảnh ở đây (tùy chọn)
+    image: '/images/heoBO/heo5.png', // Thêm link ảnh ở đây (tùy chọn)
     color: 'from-purple-500 to-pink-500',
     bgColor: 'bg-purple-50',
     textColor: 'text-purple-700',
@@ -115,7 +114,7 @@ const ALL_QUICK_ACTIONS = [
     id: 'reminder',
     label: 'Nhắc thu/chi', 
     icon: FaHandHoldingHeart,
-    image: '/images/quick-actions/reminder.png', // Thêm link ảnh ở đây (tùy chọn)
+    image: '/images/heoBO/heo6.png', // Thêm link ảnh ở đây (tùy chọn)
     color: 'from-amber-500 to-orange-500',
     bgColor: 'bg-amber-50',
     textColor: 'text-amber-700',
@@ -209,39 +208,8 @@ export const DashboardPage = () => {
 
   const [quickActionsSettings, setQuickActionsSettings] = useState(getStoredActions)
 
-  // Load quick action images from settings
-  const quickActionImageKeys = [
-    'quick_action_send_money',
-    'quick_action_add_transaction',
-    'quick_action_categories',
-    'quick_action_split_bill',
-    'quick_action_reminder',
-    'quick_action_settings',
-  ]
-  const { settings: quickActionImages } = useSystemSettings(quickActionImageKeys)
-
-  // Map quick action IDs to setting keys
-  const quickActionImageMap: Record<string, string> = {
-    'send-money': 'quick_action_send_money',
-    'add-transaction': 'quick_action_add_transaction',
-    'categories': 'quick_action_categories',
-    'split-bill': 'quick_action_split_bill',
-    'reminder': 'quick_action_reminder',
-    'settings': 'quick_action_settings',
-  }
-
-  // Merge ALL_QUICK_ACTIONS with settings images
-  const quickActionsWithSettings = ALL_QUICK_ACTIONS.map((action) => {
-    const imageKey = quickActionImageMap[action.id]
-    const imageFromSettings = imageKey ? quickActionImages[imageKey] : null
-    return {
-      ...action,
-      image: imageFromSettings || action.image, // Use setting image if available, otherwise use default
-    }
-  })
-
-  // Get enabled quick actions (exclude settings)
-  const enabledQuickActions = quickActionsWithSettings.filter((action) => {
+  // Get enabled quick actions (exclude settings) - chỉ sử dụng ảnh từ ALL_QUICK_ACTIONS
+  const enabledQuickActions = ALL_QUICK_ACTIONS.filter((action) => {
     if (action.id === 'settings') return false // Loại bỏ tiện ích cài đặt
     const setting = quickActionsSettings.find((s) => s.id === action.id)
     return setting?.enabled ?? false

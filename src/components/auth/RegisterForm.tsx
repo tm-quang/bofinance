@@ -49,6 +49,9 @@ export const RegisterForm = ({ onSuccess, onError }: RegisterFormProps) => {
     try {
       const supabase = getSupabaseClient()
 
+      // Get the current origin for redirect URL
+      const redirectUrl = `${window.location.origin}/auth/callback`
+
       const { error: authError } = await supabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -56,6 +59,7 @@ export const RegisterForm = ({ onSuccess, onError }: RegisterFormProps) => {
           data: {
             full_name: formData.name,
           },
+          emailRedirectTo: redirectUrl, // URL để redirect sau khi xác thực email
         },
       })
 

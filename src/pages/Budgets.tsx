@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FaPlus, FaChartPie, FaWallet, FaExclamationTriangle } from 'react-icons/fa'
 import HeaderBar from '../components/layout/HeaderBar'
+import FooterNav from '../components/layout/FooterNav'
 import { BudgetCard } from '../components/budgets/BudgetCard'
 import { BudgetListSkeleton } from '../components/budgets/BudgetSkeleton'
 import {
@@ -266,6 +267,8 @@ export const BudgetsPage = () => {
           )}
         </div>
       </main>
+
+      <FooterNav onAddClick={handleCreate} />
     </div>
   )
 }

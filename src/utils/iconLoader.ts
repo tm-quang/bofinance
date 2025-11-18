@@ -95,6 +95,7 @@ export const getIconNodeFromCategory = async (
 ): Promise<React.ReactNode> => {
   // Nếu có icon_url trực tiếp, sử dụng nó
   if (iconUrl) {
+    console.log('getIconNodeFromCategory: Using iconUrl:', iconUrl)
     // Sử dụng className được truyền vào hoặc default (fill vừa vặn container)
     const imgClassName = className || 'h-full w-full object-cover rounded-full'
     return React.createElement('img', {
@@ -105,10 +106,14 @@ export const getIconNodeFromCategory = async (
         console.warn(`Failed to load category icon_url: ${iconUrl} for iconId: ${iconId}`)
         e.currentTarget.style.display = 'none'
       },
+      onLoad: () => {
+        console.log('Successfully loaded icon from iconUrl:', iconUrl)
+      },
     })
   }
 
   // Nếu không có icon_url, fallback về getIconNode
+  console.log('getIconNodeFromCategory: No iconUrl, falling back to getIconNode for iconId:', iconId)
   return getIconNode(iconId, className)
 }
 

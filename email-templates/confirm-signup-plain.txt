@@ -1,0 +1,16 @@
+XÁC NHẬN ĐĂNG KÝ TÀI KHOẢN BOFIN
+
+Xin chào,
+
+Cảm ơn bạn đã đăng ký tài khoản BoFin - Ứng dụng quản lý tài chính cá nhân thông minh.
+
+Để hoàn tất đăng ký và kích hoạt tài khoản, vui lòng truy cập link sau để xác nhận địa chỉ email của bạn:
+
+{{ .ConfirmationURL }}
+
+Lưu ý: Link xác nhận sẽ hết hạn sau 24 giờ. Nếu bạn không thực hiện yêu cầu này, vui lòng đăng ký lại.
+
+Nếu bạn không thực hiện yêu cầu này, vui lòng bỏ qua email này.
+
+© 2024 BoFin. Tất cả quyền được bảo lưu.
+

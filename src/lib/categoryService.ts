@@ -639,6 +639,120 @@ export const initializeDefaultCategories = async (): Promise<void> => {
   return syncCategoriesFromDefault()
 }
 
+/**
+ * Cập nhật icon_url cho các categories hiện có từ defaultCategories.ts
+ * Chỉ update những categories chưa có icon_url hoặc icon_url là null
+ */
+export const updateCategoriesIconUrlFromDefault = async (): Promise<void> => {
+  const supabase = getSupabaseClient()
+  const user = await getCachedUser()
+
+  if (!user) {
+    throw new Error('Bạn cần đăng nhập để cập nhật icon_url.')
+  }
+
+  // Lấy tất cả categories của user
+  const { data: userCategories, error: fetchError } = await supabase
+    .from(TABLE_NAME)
+    .select('id, name, type, parent_id, icon_url')
+    .eq('user_id', user.id)
+
+  if (fetchError) {
+    console.error('Error fetching categories:', fetchError)
+    return
+  }
+
+  if (!userCategories || userCategories.length === 0) {
+    return
+  }
+
+  // Tạo map từ defaultCategories.ts
+  // Key: `${name}_${type}_${parentName || 'null'}`, Value: icon_url
+  const defaultIconUrlMap = new Map<string, string | null>()
+
+  // Process expense categories
+  DEFAULT_EXPENSE_CATEGORIES.forEach((parentCat) => {
+    // Parent category
+    const parentKey = `${parentCat.name}_${parentCat.type}_null`
+    if (parentCat.icon_url) {
+      defaultIconUrlMap.set(parentKey, parentCat.icon_url)
+    }
+
+    // Children categories
+    if (parentCat.children) {
+      parentCat.children.forEach((child) => {
+        const childKey = `${child.name}_${child.type}_${parentCat.name}`
+        if (child.icon_url) {
+          defaultIconUrlMap.set(childKey, child.icon_url)
+        }
+      })
+    }
+  })
+
+  // Process income categories
+  DEFAULT_INCOME_CATEGORIES.forEach((cat) => {
+    const key = `${cat.name}_${cat.type}_null`
+    if (cat.icon_url) {
+      defaultIconUrlMap.set(key, cat.icon_url)
+    }
+  })
+
+  // Tạo map parent_id -> parent name để match children
+  const parentIdToNameMap = new Map<string, string>()
+  userCategories.forEach((cat) => {
+    if (!cat.parent_id) {
+      parentIdToNameMap.set(cat.id, cat.name)
+    }
+  })
+
+  // Update categories không có icon_url hoặc icon_url là null
+  const updates: Array<{ id: string; icon_url: string | null }> = []
+
+  for (const category of userCategories) {
+    // Chỉ update nếu chưa có icon_url hoặc icon_url là null
+    if (!category.icon_url) {
+      let key: string
+      
+      if (category.parent_id) {
+        // Children category: match theo parent name
+        const parentName = parentIdToNameMap.get(category.parent_id) || 'null'
+        key = `${category.name}_${category.type}_${parentName}`
+      } else {
+        // Parent category
+        key = `${category.name}_${category.type}_null`
+      }
+
+      const defaultIconUrl = defaultIconUrlMap.get(key)
+
+      if (defaultIconUrl) {
+        updates.push({
+          id: category.id,
+          icon_url: defaultIconUrl,
+        })
+      }
+    }
+  }
+
+  // Batch update
+  if (updates.length > 0) {
+    // Update từng category để tránh lỗi
+    for (const update of updates) {
+      const { error: updateError } = await supabase
+        .from(TABLE_NAME)
+        .update({ icon_url: update.icon_url })
+        .eq('id', update.id)
+        .eq('user_id', user.id)
+
+      if (updateError) {
+        console.warn(`Failed to update icon_url for category ${update.id}:`, updateError)
+      }
+    }
+
+    // Invalidate cache sau khi update
+    await invalidateCategoriesCache()
+  }
+}
+
 export const deleteCategory = async (id: string): Promise<void> => {
   const supabase = getSupabaseClient()
   const user = await getCachedUser()

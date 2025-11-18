@@ -27,6 +27,7 @@ import {
     fetchCategoriesHierarchical,
     updateCategory,
     initializeDefaultCategories,
+    updateCategoriesIconUrlFromDefault,
     type CategoryRecord,
     type CategoryType,
     type CategoryWithChildren,
@@ -37,6 +38,7 @@ type Category = {
     name: string
     type: CategoryType
     iconId: string
+    iconUrl?: string | null
     parentId?: string | null
     isDefault?: boolean
     children?: Category[]
@@ -54,6 +56,7 @@ const mapRecordToCategory = (record: CategoryRecord, children?: CategoryRecord[]
     name: record.name,
     type: record.type,
     iconId: record.icon_id,
+    iconUrl: record.icon_url,
     parentId: record.parent_id,
     isDefault: record.is_default,
     children: Array.isArray(children) ? children.map(c => mapRecordToCategory(c)) : undefined,
@@ -230,12 +233,32 @@ export const CategoriesPage = () => {
                         children: Array.isArray(cat.children) ? cat.children : [],
                     })))
                 } else {
-                    // User đã có categories, không sync lại
-                setCategories(sortCategories(flatData.map(record => mapRecordToCategory(record))))
-                setHierarchicalCategories(hierarchicalData.map(cat => ({
-                    ...cat,
-                    children: Array.isArray(cat.children) ? cat.children : [],
-                })))
+                    // User đã có categories, update icon_url nếu chưa có
+                    // Chạy async, không block UI, sau đó reload categories
+                    updateCategoriesIconUrlFromDefault()
+                        .then(async () => {
+                            // Sau khi update xong, reload categories để lấy icon_url mới
+                            const [reloadedFlat, reloadedHierarchical] = await Promise.all([
+                                fetchCategories(),
+                                fetchCategoriesHierarchical(),
+                            ])
+                            
+                            setCategories(sortCategories(reloadedFlat.map(record => mapRecordToCategory(record))))
+                            setHierarchicalCategories(reloadedHierarchical.map(cat => ({
+                                ...cat,
+                                children: Array.isArray(cat.children) ? cat.children : [],
+                            })))
+                        })
+                        .catch((error) => {
+                            console.log('Update icon_url check:', error)
+                        })
+
+                    // Hiển thị categories hiện tại ngay lập tức (không đợi update)
+                    setCategories(sortCategories(flatData.map(record => mapRecordToCategory(record))))
+                    setHierarchicalCategories(hierarchicalData.map(cat => ({
+                        ...cat,
+                        children: Array.isArray(cat.children) ? cat.children : [],
+                    })))
                 }
                 
                 // Mặc định tất cả categories đều thu gọn
@@ -473,6 +496,7 @@ export const CategoriesPage = () => {
                                                     name: parentCategory.name,
                                                     type: parentCategory.type,
                                                     iconId: parentCategory.icon_id,
+                                                    iconUrl: parentCategory.icon_url,
                                                     parentId: parentCategory.parent_id,
                                                     isDefault: parentCategory.is_default,
                                                 }}
@@ -484,6 +508,7 @@ export const CategoriesPage = () => {
                                                     name: parentCategory.name,
                                                     type: parentCategory.type,
                                                     iconId: parentCategory.icon_id,
+                                                    iconUrl: parentCategory.icon_url,
                                                     parentId: parentCategory.parent_id,
                                                     isDefault: parentCategory.is_default,
                                                 })}
@@ -500,6 +525,7 @@ export const CategoriesPage = () => {
                                                                 name: child.name,
                                                                 type: child.type,
                                                                 iconId: child.icon_id,
+                                                                iconUrl: child.icon_url,
                                                                 parentId: child.parent_id,
                                                                 isDefault: child.is_default,
                                                             }}
@@ -511,6 +537,7 @@ export const CategoriesPage = () => {
                                                                 name: child.name,
                                                                 type: child.type,
                                                                 iconId: child.icon_id,
+                                                                iconUrl: child.icon_url,
                                                                 parentId: child.parent_id,
                                                                 isDefault: child.is_default,
                                                             })}
@@ -811,7 +838,8 @@ const CategoryListItem = ({
                 onClick={handleItemClick}
             >
                 <CategoryIcon 
-                    iconId={category.iconId} 
+                    iconId={category.iconId}
+                    iconUrl={category.iconUrl}
                     className="h-10 w-10"
                     fallback={<span className="text-lg font-semibold text-slate-600">{category.name[0]?.toUpperCase() || '?'}</span>}
                 />

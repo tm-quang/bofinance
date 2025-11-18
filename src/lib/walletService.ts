@@ -435,6 +435,8 @@ export const getTotalBalanceWalletIds = async (): Promise<string[]> => {
   }
 
   // Fetch từ database
+  console.log('📖 Loading total balance wallet IDs from database for user:', user.id)
+  
   const { data, error } = await supabase
     .from('user_preferences')
     .select('value')
@@ -447,7 +449,13 @@ export const getTotalBalanceWalletIds = async (): Promise<string[]> => {
   if (error) {
     // Nếu lỗi không phải là "not found", log và fallback
     if (error.code !== 'PGRST116') {
-      console.warn('Error fetching total_balance_wallet_ids:', error.message)
+      console.warn('⚠️ Error fetching total_balance_wallet_ids:', {
+        error: error.message,
+        code: error.code,
+        details: error.details,
+      })
+    } else {
+      console.log('ℹ️ No data found in database (PGRST116) - will use default')
     }
   }
 
@@ -472,13 +480,19 @@ export const getTotalBalanceWalletIds = async (): Promise<string[]> => {
   } else {
     try {
       result = JSON.parse(data.value as string)
-    } catch {
+      console.log('✅ Loaded from database:', {
+        walletIds: result,
+        count: result.length,
+      })
+    } catch (parseError) {
+      console.error('❌ Error parsing value from database:', parseError)
       result = []
     }
   }
 
-  // Cache kết quả với TTL 24 giờ
-  await cacheManager.set(cacheKey, result, 24 * 60 * 60 * 1000)
+  // Cache kết quả với TTL 5 phút (để đảm bảo dữ liệu được cập nhật thường xuyên hơn)
+  await cacheManager.set(cacheKey, result, 5 * 60 * 1000)
+  console.log('💾 Cached result with TTL 5 minutes')
   
   return result
 }
@@ -503,7 +517,13 @@ export const setTotalBalanceWalletIds = async (walletIds: string[]): Promise<voi
   }
 
   // Lưu vào database
-  const { error } = await supabase
+  console.log('💾 Saving total balance wallet IDs to database:', {
+    userId: user.id,
+    walletIds: validWalletIds,
+    count: validWalletIds.length,
+  })
+  
+  const { data, error } = await supabase
     .from('user_preferences')
     .upsert(
       {
@@ -515,16 +535,28 @@ export const setTotalBalanceWalletIds = async (walletIds: string[]): Promise<voi
         onConflict: 'user_id,key',
       }
     )
+    .select()
 
   if (error) {
+    // Log chi tiết lỗi để debug
+    console.error('❌ Error saving to database:', {
+      error: error.message,
+      code: error.code,
+      details: error.details,
+      hint: error.hint,
+    })
+    
     // Fallback về localStorage
-    console.warn('Không thể lưu danh sách ví vào database:', error)
+    console.warn('⚠️ Falling back to localStorage')
     try {
       localStorage.setItem('bofin_total_balance_wallet_ids', JSON.stringify(validWalletIds))
+      console.log('✅ Saved to localStorage as fallback')
     } catch (e) {
-      console.error('Không thể lưu vào localStorage:', e)
+      console.error('❌ Cannot save to localStorage:', e)
+      throw new Error('Không thể lưu cài đặt. Vui lòng thử lại.')
     }
   } else {
+    console.log('✅ Successfully saved to database:', data)
     // Invalidate cache
     await invalidateCache('fetchWallets')
   }

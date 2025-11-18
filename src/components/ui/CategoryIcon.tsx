@@ -44,7 +44,9 @@ export const CategoryIcon = ({ iconId, iconUrl, className, fallback = null, size
     let isMounted = true
 
     const loadIcon = async () => {
-      if (!iconId) {
+      // Chỉ return early nếu cả iconId và iconUrl đều không có
+      // Nếu có iconUrl, vẫn load ảnh ngay cả khi iconId là empty string
+      if (!iconId && !iconUrl) {
         if (isMounted) {
           setIconNode(fallback)
           setIsLoading(false)
@@ -53,26 +55,32 @@ export const CategoryIcon = ({ iconId, iconUrl, className, fallback = null, size
       }
 
       try {
+        // Debug: log iconUrl để kiểm tra
+        if (iconUrl) {
+          console.log('CategoryIcon: Loading icon from iconUrl:', iconUrl, 'for iconId:', iconId || '(empty)')
+        }
+        
         // Ưu tiên sử dụng icon_url từ category nếu có, sau đó mới load từ database
         // Truyền className vào để ảnh fill vừa vặn container
-        const node = await getIconNodeFromCategory(iconId, iconUrl, 'h-full w-full object-cover rounded-full')
+        const node = await getIconNodeFromCategory(iconId || '', iconUrl, 'h-full w-full object-cover rounded-full')
         
         if (isMounted) {
           if (node) {
             // Wrap trong container với className để control kích thước
             setIconNode(
-              <span className={`${finalClassName} flex items-center justify-center overflow-hidden`}>
+              <span className={`${finalClassName} flex items-center justify-center overflow-hidden rounded-full`}>
                 {node}
               </span>
             )
           } else {
             // Không tìm thấy icon, sử dụng fallback
+            console.warn('CategoryIcon: No icon node found for iconId:', iconId || '(empty)', 'iconUrl:', iconUrl)
             setIconNode(fallback)
           }
           setIsLoading(false)
         }
       } catch (error) {
-        console.error('Error loading category icon:', iconId, error)
+        console.error('Error loading category icon:', iconId || '(empty)', 'iconUrl:', iconUrl, error)
         if (isMounted) {
           // Lỗi khi load icon, sử dụng fallback
           setIconNode(fallback)

@@ -101,6 +101,39 @@ export const useAuthState = () => {
           loading: false,
           initialized: true,
         })
+        
+        // Initialize cache when user signs in
+        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+          try {
+            const { cacheManager } = await import('../lib/cache')
+            await cacheManager.initialize()
+          } catch (e) {
+            console.warn('Error initializing cache on sign in:', e)
+          }
+        }
+        
+        // Clear cache khi SIGNED_IN (chỉ khi có flag đánh dấu login mới)
+        // Điều này đảm bảo chỉ clear cache khi login, không phải khi refresh token
+        if (event === 'SIGNED_IN') {
+          const justLoggedIn = sessionStorage.getItem('bofin_just_logged_in')
+          if (justLoggedIn === 'true') {
+            // Clear flag trước để tránh clear cache nhiều lần
+            sessionStorage.removeItem('bofin_just_logged_in')
+            
+            // Clear toàn bộ cache và reload dữ liệu mới khi đăng nhập
+            try {
+              const { clearAllCacheAndState } = await import('../utils/reloadData')
+              await clearAllCacheAndState()
+              // Re-initialize cache after clear
+              const { cacheManager } = await import('../lib/cache')
+              await cacheManager.initialize()
+              console.log('✅ Cache cleared after login - reloading fresh data')
+            } catch (e) {
+              console.warn('Error clearing cache on login:', e)
+              // Không block auth flow nếu clear cache thất bại
+            }
+          }
+        }
       } else if (event === 'SIGNED_OUT') {
         setAuthState({
           user: null,

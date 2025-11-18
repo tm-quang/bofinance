@@ -9,6 +9,7 @@ import { NumberPadModal } from '../components/ui/NumberPadModal'
 import { WalletListSkeleton } from '../components/skeletons'
 import { ModalFooterButtons } from '../components/ui/ModalFooterButtons'
 import { LoadingRing } from '../components/ui/LoadingRing'
+import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import {
   fetchWallets,
   createWallet,
@@ -22,6 +23,7 @@ import {
 import { useNotification } from '../contexts/notificationContext.helpers'
 import { useDialog } from '../contexts/dialogContext.helpers'
 import { formatVNDInput, parseVNDInput } from '../utils/currencyInput'
+import { invalidateCache } from '../lib/cache'
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('vi-VN', {
@@ -114,6 +116,15 @@ export const WalletsPage = () => {
   const [showHiddenWallets, setShowHiddenWallets] = useState(false)
   const [isNumberPadOpen, setIsNumberPadOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [confirmToggleBalance, setConfirmToggleBalance] = useState<{
+    isOpen: boolean
+    wallet: WalletRecord | null
+    isEnabling: boolean
+  }>({
+    isOpen: false,
+    wallet: null,
+    isEnabling: false,
+  })
   const [formData, setFormData] = useState({
     name: '',
     type: 'Tiền mặt' as WalletType,
@@ -125,7 +136,10 @@ export const WalletsPage = () => {
   useEffect(() => {
     // Chỉ load một lần khi mount, cache sẽ được sử dụng
     // Nếu đã preload, dữ liệu sẽ lấy từ cache ngay lập tức
-    loadWallets()
+    loadWallets().catch((error) => {
+      console.error('Error loading wallets on mount:', error)
+      // Error already handled in loadWallets
+    })
   }, []) // Chỉ load một lần, cache sẽ được sử dụng cho các lần sau
 
   const loadWallets = async () => {
@@ -135,7 +149,7 @@ export const WalletsPage = () => {
       // Load active wallets trước để hiển thị nhanh, sau đó load inactive
       const [activeWallets, totalBalanceIds] = await Promise.all([
         fetchWallets(false), // Load active wallets trước (nhanh hơn)
-        getTotalBalanceWalletIds().catch(() => []), // Load total balance wallet ids
+        getTotalBalanceWalletIds().catch(() => []), // Load total balance wallet ids từ database (có cache)
       ])
       
       // Hiển thị active wallets ngay lập tức (progressive loading)
@@ -173,7 +187,7 @@ export const WalletsPage = () => {
       setFormData({
         name: wallet.name,
         type: wallet.type,
-        balance: wallet.balance.toString(),
+        balance: formatVNDInput(wallet.balance.toString()), // Format với phần nghìn
         currency: wallet.currency,
         description: wallet.description || '',
       })
@@ -364,31 +378,67 @@ export const WalletsPage = () => {
     }
   }
 
-  const handleToggleTotalBalance = async (wallet: WalletRecord) => {
+  const handleToggleTotalBalance = (wallet: WalletRecord) => {
+    const isSelected = totalBalanceWalletIds.includes(wallet.id)
+    // Mở modal xác nhận
+    setConfirmToggleBalance({
+      isOpen: true,
+      wallet,
+      isEnabling: !isSelected, // true nếu đang bật, false nếu đang tắt
+    })
+  }
+
+  const handleConfirmToggleBalance = async () => {
+    if (!confirmToggleBalance.wallet) return
+
     try {
+      const wallet = confirmToggleBalance.wallet
       const isSelected = totalBalanceWalletIds.includes(wallet.id)
       let newSelectedIds: string[]
       
       if (isSelected) {
-        // Bỏ chọn
+        // Tắt - Bỏ chọn khỏi tổng số dư
         newSelectedIds = totalBalanceWalletIds.filter((id) => id !== wallet.id)
       } else {
-        // Thêm vào danh sách
+        // Bật - Thêm vào danh sách tính tổng số dư
         newSelectedIds = [...totalBalanceWalletIds, wallet.id]
       }
       
+      // Lưu vào SQL database
       await setTotalBalanceWalletIds(newSelectedIds)
-      setTotalBalanceWalletIdsState(newSelectedIds)
       
+      // Invalidate cache để đảm bảo reload dữ liệu mới
+      await invalidateCache('getTotalBalanceWalletIds')
+      
+      // Reload lại từ database để đảm bảo dữ liệu mới nhất
+      const freshTotalBalanceIds = await getTotalBalanceWalletIds()
+      
+      // Cập nhật state với dữ liệu mới nhất từ database
+      setTotalBalanceWalletIdsState(freshTotalBalanceIds)
+      
+      // Đóng modal
+      setConfirmToggleBalance({
+        isOpen: false,
+        wallet: null,
+        isEnabling: false,
+      })
+      
+      // Hiển thị thông báo thành công
       if (isSelected) {
-        success(`Đã bỏ "${wallet.name}" khỏi tổng số dư`)
+        success(`Đã tắt tính tổng số dư cho "${wallet.name}"`)
       } else {
-        success(`Đã thêm "${wallet.name}" vào tổng số dư`)
+        success(`Đã bật tính tổng số dư cho "${wallet.name}"`)
       }
     } catch (error) {
       console.error('Error toggling total balance wallet:', error)
       const message = error instanceof Error ? error.message : 'Không thể cập nhật cài đặt'
       showError(message)
+      // Đóng modal nếu có lỗi
+      setConfirmToggleBalance({
+        isOpen: false,
+        wallet: null,
+        isEnabling: false,
+      })
     }
   }
 
@@ -801,11 +851,44 @@ export const WalletsPage = () => {
                   </div>
                 )}
 
-                {/* Số dư ban đầu */}
+                {/* Số dư */}
                 <div>
-                  <label className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
-                    Số dư ban đầu <span className="text-rose-500">*</span>
-                  </label>
+                  <div className="mb-2 flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-slate-700 sm:text-sm">
+                      {editingWallet ? 'Số dư hiện tại' : 'Số dư ban đầu'} <span className="text-rose-500">*</span>
+                    </label>
+                    {editingWallet && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (!editingWallet) return
+                          // Wrap in async IIFE to properly handle promise
+                          ;(async () => {
+                            try {
+                              const { syncWalletBalanceFromTransactions } = await import('../lib/walletBalanceService')
+                              const updatedWallet = await syncWalletBalanceFromTransactions(editingWallet.id)
+                              setFormData((prev) => ({
+                                ...prev,
+                                balance: formatVNDInput(updatedWallet.balance.toString()), // Format với phần nghìn
+                              }))
+                              success('Đã đồng bộ số dư từ giao dịch!')
+                              await loadWallets()
+                            } catch (error) {
+                              console.error('Error syncing balance:', error)
+                              showError('Không thể đồng bộ số dư. Vui lòng thử lại.')
+                            }
+                          })().catch((error) => {
+                            // Catch any unhandled promise rejection
+                            console.error('Unhandled error in sync balance:', error)
+                            showError('Không thể đồng bộ số dư. Vui lòng thử lại.')
+                          })
+                        }}
+                        className="text-xs font-medium text-sky-600 hover:text-sky-700 hover:underline transition"
+                      >
+                        Đồng bộ từ giao dịch
+                      </button>
+                    )}
+                  </div>
                   <div className="relative">
                     <input
                       type="text"
@@ -816,7 +899,7 @@ export const WalletsPage = () => {
                       }}
                       onFocus={() => setIsNumberPadOpen(true)}
                       className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 pr-12 text-sm text-slate-900 placeholder:text-slate-400 transition-all focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 cursor-pointer sm:p-4 sm:text-base"
-                      placeholder="Nhập số dư ban đầu (ví dụ: 1.000.000)"
+                      placeholder={editingWallet ? "Nhập số dư hiện tại (ví dụ: 1.000.000)" : "Nhập số dư ban đầu (ví dụ: 1.000.000)"}
                       required
                       readOnly
                     />
@@ -825,7 +908,9 @@ export const WalletsPage = () => {
                     </span>
                   </div>
                   <p className="mt-1.5 text-xs text-slate-500">
-                    Nhấn vào ô để mở bàn phím số
+                    {editingWallet 
+                      ? 'Số dư được cập nhật tự động theo các giao dịch thu/chi. Bạn có thể chỉnh sửa số dư tại đây hoặc nhấn "Đồng bộ từ giao dịch" để tính lại từ các giao dịch.'
+                      : 'Nhấn vào ô để mở bàn phím số. Số dư sẽ được cập nhật tự động theo các giao dịch thu/chi.'}
                   </p>
                 </div>
 
@@ -871,6 +956,28 @@ export const WalletsPage = () => {
         value={formData.balance}
         onChange={(value) => setFormData({ ...formData, balance: value })}
         onConfirm={() => setIsNumberPadOpen(false)}
+      />
+
+      {/* Confirm Toggle Total Balance Dialog */}
+      <ConfirmDialog
+        isOpen={confirmToggleBalance.isOpen}
+        onClose={() => setConfirmToggleBalance({
+          isOpen: false,
+          wallet: null,
+          isEnabling: false,
+        })}
+        onConfirm={handleConfirmToggleBalance}
+        type={confirmToggleBalance.isEnabling ? 'confirm' : 'warning'}
+        title={confirmToggleBalance.isEnabling ? 'Bật tính tổng số dư' : 'Tắt tính tổng số dư'}
+        message={
+          confirmToggleBalance.wallet
+            ? confirmToggleBalance.isEnabling
+              ? `Bạn có chắc chắn muốn bật tính tổng số dư cho ví "${confirmToggleBalance.wallet.name}"? Ví này sẽ được tính vào tổng số dư của bạn.`
+              : `Bạn có chắc chắn muốn tắt tính tổng số dư cho ví "${confirmToggleBalance.wallet.name}"? Ví này sẽ không được tính vào tổng số dư nữa.`
+            : ''
+        }
+        confirmText={confirmToggleBalance.isEnabling ? 'Bật' : 'Tắt'}
+        cancelText="Hủy"
       />
     </div>
   )
