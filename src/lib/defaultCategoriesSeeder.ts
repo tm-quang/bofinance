@@ -55,6 +55,7 @@ export const seedDefaultCategoriesToDatabase = async (force: boolean = false): P
         name: parent.name,
         type: parent.type,
         icon_id: parent.icon_id,
+        icon_url: parent.icon_url || null,
         parent_id: null,
         display_order: parent.display_order,
       })
@@ -91,6 +92,7 @@ export const seedDefaultCategoriesToDatabase = async (force: boolean = false): P
             name: child.name,
             type: child.type,
             icon_id: child.icon_id,
+            icon_url: child.icon_url || null,
             parent_id: parentId,
             display_order: child.display_order,
           })
@@ -110,6 +112,7 @@ export const seedDefaultCategoriesToDatabase = async (force: boolean = false): P
         name: category.name,
         type: category.type,
         icon_id: category.icon_id,
+        icon_url: category.icon_url || null,
         parent_id: null,
         display_order: category.display_order,
       })

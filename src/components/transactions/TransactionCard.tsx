@@ -48,10 +48,10 @@ export const TransactionCard = ({
       onMouseDown={() => onLongPressStart(transaction)}
       onMouseUp={onLongPressEnd}
       onMouseLeave={onLongPressCancel}
-      className={`group relative flex items-center gap-3 rounded-3xl p-3 shadow-lg ring-1 transition-all select-none cursor-pointer hover:shadow-md active:scale-[0.98] ${
+      className={`group relative flex items-center gap-3 rounded-3xl p-3 shadow-lg border transition-all select-none cursor-pointer hover:shadow-md active:scale-[0.98] ${
         isIncome
-          ? 'bg-emerald-50/30 ring-emerald-100/50 hover:ring-emerald-200/50'
-          : 'bg-rose-50/40 ring-1 ring-rose-200/90 hover:ring-rose-500/50'
+          ? 'bg-emerald-50/30 border-emerald-200/60 hover:border-emerald-300/80'
+          : 'bg-rose-50/40 border-rose-200/60 hover:border-rose-300/80'
       }`}
     >
       {/* Icon Container */}
