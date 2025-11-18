@@ -193,38 +193,61 @@ export const getReminderById = async (id: string): Promise<ReminderRecord | null
  * Create a new reminder
  */
 export const createReminder = async (reminder: ReminderInsert): Promise<ReminderRecord> => {
-  const user = await getCachedUser()
-  if (!user) {
-    throw new Error('User not authenticated')
-  }
+  try {
+    const user = await getCachedUser()
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
 
-  const supabase = getSupabaseClient()
-  const { data, error } = await supabase
-    .from('reminders')
-    .insert({
-      ...reminder,
-      user_id: user.id,
-      repeat_type: reminder.repeat_type || 'none',
-      // Note: is_active and status columns don't exist in DB
-      // Status is computed from completed_at, is_active from completed_at
-      enable_notification: reminder.enable_notification !== undefined ? reminder.enable_notification : true,
-    })
-    .select()
-    .single()
+    const supabase = getSupabaseClient()
+    const { data, error } = await supabase
+      .from('reminders')
+      .insert({
+        ...reminder,
+        user_id: user.id,
+        repeat_type: reminder.repeat_type || 'none',
+        // Note: is_active and status columns don't exist in DB
+        // Status is computed from completed_at, is_active from completed_at
+        enable_notification: reminder.enable_notification !== undefined ? reminder.enable_notification : true,
+      })
+      .select()
+      .single()
 
-  if (error) {
-    throw error
-  }
+    if (error) {
+      // Provide more user-friendly error messages
+      if (error.code === 'PGRST116' || error.message.includes('not found')) {
+        throw new Error('Không thể tạo nhắc nhở. Vui lòng thử lại.')
+      } else if (error.message.includes('network') || error.message.includes('fetch')) {
+        throw new Error('Lỗi kết nối. Vui lòng kiểm tra kết nối mạng và thử lại')
+      }
+      throw new Error(error.message || 'Không thể tạo nhắc nhở')
+    }
 
-  // Invalidate cache
-  await cacheManager.invalidate(new RegExp(`^${CACHE_KEY}:${user.id}:`))
+    if (!data) {
+      throw new Error('Không thể tạo nhắc nhở. Không nhận được dữ liệu từ server.')
+    }
 
-  // Compute status (column doesn't exist in DB)
-  const reminderRecord = data as ReminderRecord
-  return {
-    ...reminderRecord,
-    status: computeReminderStatus(reminderRecord),
-    is_active: !reminderRecord.completed_at,
+    // Invalidate cache (don't let cache errors block the operation)
+    try {
+      await cacheManager.invalidate(new RegExp(`^${CACHE_KEY}:${user.id}:`))
+    } catch (cacheError) {
+      console.warn('Error invalidating cache:', cacheError)
+      // Continue even if cache invalidation fails
+    }
+
+    // Compute status (column doesn't exist in DB)
+    const reminderRecord = data as ReminderRecord
+    return {
+      ...reminderRecord,
+      status: computeReminderStatus(reminderRecord),
+      is_active: !reminderRecord.completed_at,
+    }
+  } catch (err) {
+    // Re-throw with better error message if it's not already an Error
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Đã xảy ra lỗi không mong muốn khi tạo nhắc nhở')
   }
 }
 

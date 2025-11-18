@@ -70,25 +70,46 @@ const RemindersPage = () => {
   const loadData = async () => {
     setIsLoading(true)
     try {
-      const [remindersData, categoriesData, walletsData] = await Promise.all([
-        fetchReminders({ is_active: true }),
-        fetchCategories(),
-        fetchWallets(false),
-      ])
+      // Load data with individual error handling to prevent one failure from blocking others
+      let remindersData: ReminderRecord[] = []
+      let categoriesData: CategoryRecord[] = []
+      let walletsData: WalletRecord[] = []
 
-      // Load icons for all categories
+      try {
+        remindersData = await fetchReminders({ is_active: true })
+      } catch (err) {
+        console.error('Error loading reminders:', err)
+        showError('Không thể tải danh sách nhắc nhở.')
+      }
+
+      try {
+        categoriesData = await fetchCategories()
+      } catch (err) {
+        console.error('Error loading categories:', err)
+        // Continue with empty categories
+      }
+
+      try {
+        walletsData = await fetchWallets(false)
+      } catch (err) {
+        console.error('Error loading wallets:', err)
+        // Continue with empty wallets
+      }
+
+      // Load icons for all categories with better error handling
       const iconsMap: Record<string, React.ReactNode> = {}
-      await Promise.all(
-        categoriesData.map(async (category) => {
+      if (categoriesData.length > 0) {
+        // Use Promise.allSettled to handle individual icon loading failures
+        const iconPromises = categoriesData.map(async (category) => {
           try {
             const iconNode = await getIconNode(category.icon_id)
             if (iconNode) {
-              iconsMap[category.id] = <span className="h-14 w-14 flex items-center justify-center rounded-full overflow-hidden">{iconNode}</span>
+              return { categoryId: category.id, iconNode: <span className="h-14 w-14 flex items-center justify-center rounded-full overflow-hidden">{iconNode}</span> }
             } else {
               const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
               if (hardcodedIcon?.icon) {
                 const IconComponent = hardcodedIcon.icon
-                iconsMap[category.id] = <IconComponent className="h-14 w-14" />
+                return { categoryId: category.id, iconNode: <IconComponent className="h-14 w-14" /> }
               }
             }
           } catch (error) {
@@ -96,11 +117,29 @@ const RemindersPage = () => {
             const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
             if (hardcodedIcon?.icon) {
               const IconComponent = hardcodedIcon.icon
-              iconsMap[category.id] = <IconComponent className="h-14 w-14" />
+              return { categoryId: category.id, iconNode: <IconComponent className="h-14 w-14" /> }
+            }
+          }
+          return null
+        })
+
+        const results = await Promise.allSettled(iconPromises)
+        results.forEach((result, index) => {
+          if (result.status === 'fulfilled' && result.value) {
+            iconsMap[result.value.categoryId] = result.value.iconNode
+          } else if (result.status === 'rejected') {
+            // Try hardcoded fallback
+            const category = categoriesData[index]
+            if (category) {
+              const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
+              if (hardcodedIcon?.icon) {
+                const IconComponent = hardcodedIcon.icon
+                iconsMap[category.id] = <IconComponent className="h-14 w-14" />
+              }
             }
           }
         })
-      )
+      }
       setCategoryIcons(iconsMap)
 
       // Sort reminders by date
@@ -114,6 +153,7 @@ const RemindersPage = () => {
       setCategories(categoriesData)
       setWallets(walletsData)
     } catch (error) {
+      console.error('Unexpected error in loadData:', error)
       showError('Không thể tải danh sách nhắc nhở.')
     } finally {
       setIsLoading(false)

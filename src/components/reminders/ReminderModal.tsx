@@ -77,51 +77,100 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
       setIsLoading(true)
       setError(null)
       try {
-        const [walletsData, categoriesData, defaultId] = await Promise.all([
-          fetchWallets(false),
-          fetchCategories(),
-          getDefaultWallet(),
-        ])
+        // Load wallets, categories, and default wallet with individual error handling
+        let walletsData: WalletRecord[] = []
+        let categoriesData: CategoryRecord[] = []
+        let defaultId: string | null = null
+
+        try {
+          walletsData = await fetchWallets(false)
+        } catch (err) {
+          console.error('Error loading wallets:', err)
+          // Continue with empty wallets array
+        }
+
+        try {
+          categoriesData = await fetchCategories()
+        } catch (err) {
+          console.error('Error loading categories:', err)
+          // Continue with empty categories array
+        }
+
+        try {
+          defaultId = await getDefaultWallet()
+        } catch (err) {
+          console.error('Error loading default wallet:', err)
+          // Continue without default wallet
+        }
 
         setWallets(walletsData)
         setCategories(categoriesData)
         setDefaultWalletId(defaultId || null)
 
-        // Load icons for all categories
+        // Load icons for all categories with better error handling
         const iconsMap: Record<string, React.ReactNode> = {}
-        await Promise.all(
-          categoriesData.map(async (category) => {
+        if (categoriesData.length > 0) {
+          // Use Promise.allSettled instead of Promise.all to handle individual failures
+          const iconPromises = categoriesData.map(async (category) => {
             try {
               const iconNode = await getIconNode(category.icon_id)
               if (iconNode) {
-                iconsMap[category.id] = iconNode
+                return { categoryId: category.id, iconNode }
               } else {
+                // Fallback to hardcoded icon
+                const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
+                if (hardcodedIcon?.icon) {
+                  const IconComponent = hardcodedIcon.icon
+                  return { categoryId: category.id, iconNode: <IconComponent className="h-4 w-4" /> }
+                }
+              }
+            } catch (error) {
+              console.error('Error loading icon for category:', category.id, error)
+              // Fallback to hardcoded icon
+              const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
+              if (hardcodedIcon?.icon) {
+                const IconComponent = hardcodedIcon.icon
+                return { categoryId: category.id, iconNode: <IconComponent className="h-4 w-4" /> }
+              }
+            }
+            return null
+          })
+
+          const results = await Promise.allSettled(iconPromises)
+          results.forEach((result, index) => {
+            if (result.status === 'fulfilled' && result.value) {
+              iconsMap[result.value.categoryId] = result.value.iconNode
+            } else if (result.status === 'rejected') {
+              // Try hardcoded fallback
+              const category = categoriesData[index]
+              if (category) {
                 const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
                 if (hardcodedIcon?.icon) {
                   const IconComponent = hardcodedIcon.icon
                   iconsMap[category.id] = <IconComponent className="h-4 w-4" />
                 }
               }
-            } catch (error) {
-              console.error('Error loading icon for category:', category.id, error)
-              const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
-              if (hardcodedIcon?.icon) {
-                const IconComponent = hardcodedIcon.icon
-                iconsMap[category.id] = <IconComponent className="h-4 w-4" />
-              }
             }
           })
-        )
+        }
         setCategoryIcons(iconsMap)
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Không thể tải dữ liệu')
+        console.error('Unexpected error in loadData:', err)
+        const errorMessage = err instanceof Error ? err.message : 'Không thể tải dữ liệu'
+        setError(errorMessage)
+        showError(errorMessage)
       } finally {
         setIsLoading(false)
       }
     }
 
-    loadData()
-  }, [isOpen])
+    loadData().catch((err) => {
+      console.error('Unhandled error in loadData:', err)
+      setError('Đã xảy ra lỗi khi tải dữ liệu. Vui lòng thử lại.')
+      showError('Đã xảy ra lỗi khi tải dữ liệu. Vui lòng thử lại.')
+      setIsLoading(false)
+    })
+  }, [isOpen, showError])
 
   // Populate form when editing
   useEffect(() => {
@@ -203,9 +252,14 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
       }
 
       if (formState.amount) {
-        const amount = parseVNDInput(formState.amount)
-        if (amount > 0) {
-          reminderData.amount = amount
+        try {
+          const amount = parseVNDInput(formState.amount)
+          if (amount > 0) {
+            reminderData.amount = amount
+          }
+        } catch (err) {
+          console.error('Error parsing amount:', err)
+          // Continue without amount if parsing fails
         }
       }
 
@@ -254,7 +308,20 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
       onSuccess?.()
       onClose()
     } catch (err) {
-      const message = err instanceof Error ? err.message : (isEditMode ? 'Không thể cập nhật nhắc nhở' : 'Không thể tạo nhắc nhở')
+      console.error('Error submitting reminder:', err)
+      let message = isEditMode ? 'Không thể cập nhật nhắc nhở' : 'Không thể tạo nhắc nhở'
+      
+      if (err instanceof Error) {
+        // Provide more user-friendly error messages
+        if (err.message.includes('not authenticated') || err.message.includes('User not authenticated')) {
+          message = 'Bạn cần đăng nhập để tạo nhắc nhở'
+        } else if (err.message.includes('network') || err.message.includes('fetch')) {
+          message = 'Lỗi kết nối. Vui lòng kiểm tra kết nối mạng và thử lại'
+        } else if (err.message) {
+          message = err.message
+        }
+      }
+      
       setError(message)
       showError(message)
     } finally {
