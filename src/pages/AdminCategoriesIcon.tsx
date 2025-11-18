@@ -412,7 +412,8 @@ export default function AdminCategoriesIcon() {
         if (imageFile) {
           setIsUploading(true)
           const uploadResult = await uploadToCloudinary(imageFile, {
-            folder: 'category-icons',
+            useDefaultIconFolder: true, // Sử dụng VITE_CLOUDINARY_ICON_FOLDER nếu có, nếu không thì dùng 'category-icons'
+            folder: 'category-icons', // Fallback nếu không có VITE_CLOUDINARY_ICON_FOLDER
           })
           const uploadedUrl = uploadResult.secure_url
           

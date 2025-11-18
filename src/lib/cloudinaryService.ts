@@ -6,12 +6,24 @@
  * - VITE_CLOUDINARY_CLOUD_NAME
  * - VITE_CLOUDINARY_UPLOAD_PRESET
  * - VITE_CLOUDINARY_BASE_FOLDER (optional, default: 'bofin')
+ * - VITE_CLOUDINARY_ICON_FOLDER (optional, default icon folder for icon uploads)
  * - VITE_CLOUDINARY_API_KEY (optional, for signed uploads)
  */
 
 // Get base folder from environment or use default
 const getBaseFolder = (): string => {
   return import.meta.env.VITE_CLOUDINARY_BASE_FOLDER || 'bofin'
+}
+
+// Get default icon folder from environment
+// If set, all icon uploads will use this folder (relative to base folder or absolute)
+const getDefaultIconFolder = (): string | null => {
+  const iconFolder = import.meta.env.VITE_CLOUDINARY_ICON_FOLDER || null
+  // Debug logging in development
+  if (import.meta.env.DEV) {
+    console.log('[Cloudinary] Default icon folder:', iconFolder || 'not set')
+  }
+  return iconFolder
 }
 
 /**
@@ -66,6 +78,7 @@ export type CloudinaryUploadResponse = {
 
 export type CloudinaryUploadOptions = {
   folder?: string
+  useDefaultIconFolder?: boolean // If true, use VITE_CLOUDINARY_ICON_FOLDER as default folder for icons
   transformation?: {
     width?: number
     height?: number
@@ -110,12 +123,36 @@ export const uploadToCloudinary = async (
   formData.append('file', file)
   formData.append('upload_preset', uploadPreset)
   
+  // Determine folder to use
+  let folderToUse: string | undefined
+  
+  // If useDefaultIconFolder is true, prioritize default icon folder
+  if (options.useDefaultIconFolder) {
+    const defaultIconFolder = getDefaultIconFolder()
+    if (defaultIconFolder) {
+      folderToUse = defaultIconFolder
+      // Debug logging in development
+      if (import.meta.env.DEV) {
+        console.log('[Cloudinary] Using default icon folder:', defaultIconFolder)
+      }
+    } else {
+      // Fallback to provided folder if default icon folder is not set
+      folderToUse = options.folder
+      if (import.meta.env.DEV) {
+        console.log('[Cloudinary] Default icon folder not set, using provided folder:', options.folder)
+      }
+    }
+  } else {
+    // Use provided folder if useDefaultIconFolder is false
+    folderToUse = options.folder
+  }
+  
   // Add folder if provided
   // If folder starts with '/', use it as-is, otherwise prepend base folder
-  if (options.folder) {
-    const folderPath = options.folder.startsWith('/') 
-      ? options.folder.slice(1) // Remove leading slash
-      : `${getBaseFolder()}/${options.folder}`
+  if (folderToUse) {
+    const folderPath = folderToUse.startsWith('/') 
+      ? folderToUse.slice(1) // Remove leading slash
+      : `${getBaseFolder()}/${folderToUse}`
     formData.append('folder', folderPath)
   } else {
     // Use base folder as default
@@ -132,7 +169,8 @@ export const uploadToCloudinary = async (
     console.log('Cloudinary upload request:', {
       cloudName,
       uploadPreset,
-      folder: options.folder,
+      folder: folderToUse || 'base folder',
+      useDefaultIconFolder: options.useDefaultIconFolder,
       fileName: file.name,
       fileSize: file.size,
       fileType: file.type,

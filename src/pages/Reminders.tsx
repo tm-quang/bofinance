@@ -7,7 +7,6 @@ import { ReminderModal } from '../components/reminders/ReminderModal'
 import { ReminderCalendar } from '../components/reminders/ReminderCalendar'
 import { NoteModal } from '../components/reminders/NoteModal'
 import { CalendarActionSheet } from '../components/reminders/CalendarActionSheet'
-import { NotificationSettings } from '../components/reminders/NotificationSettings'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import {
   fetchReminders,
@@ -369,9 +368,6 @@ const RemindersPage = () => {
 
       <main className="flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 pt-2 pb-4 sm:pt-2 sm:pb-4">
-          {/* Notification Settings */}
-          <NotificationSettings />
-
           {/* Calendar */}
           <ReminderCalendar
             reminders={reminders}

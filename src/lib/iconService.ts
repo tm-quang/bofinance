@@ -276,7 +276,8 @@ export const createIcon = async (payload: IconInsert, imageFile?: File): Promise
     }
 
     const uploadResult = await uploadToCloudinary(fileToUpload, {
-      folder: 'icons',
+      useDefaultIconFolder: true, // Sử dụng VITE_CLOUDINARY_ICON_FOLDER nếu có, nếu không thì dùng 'icons'
+      folder: 'icons', // Fallback nếu không có VITE_CLOUDINARY_ICON_FOLDER
     })
     imageUrl = uploadResult.secure_url
     
@@ -369,7 +370,8 @@ export const updateIcon = async (
     }
 
     const uploadResult = await uploadToCloudinary(fileToUpload, {
-      folder: 'icons',
+      useDefaultIconFolder: true, // Sử dụng VITE_CLOUDINARY_ICON_FOLDER nếu có, nếu không thì dùng 'icons'
+      folder: 'icons', // Fallback nếu không có VITE_CLOUDINARY_ICON_FOLDER
     })
     updates.image_url = uploadResult.secure_url
   }
