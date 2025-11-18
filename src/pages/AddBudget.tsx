@@ -18,6 +18,7 @@ import { useNotification } from '../contexts/notificationContext.helpers'
 import { formatVNDInput, parseVNDInput } from '../utils/currencyInput'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
 import { getIconNode } from '../utils/iconLoader'
+import { LoadingRing } from '../components/ui/LoadingRing'
 
 const PERIOD_TYPES: { value: PeriodType; label: string }[] = [
   { value: 'monthly', label: 'Hàng tháng' },
@@ -55,6 +56,7 @@ export const AddBudgetPage = () => {
     period_type: 'monthly' as PeriodType,
     month: new Date().getMonth() + 1,
     year: new Date().getFullYear(),
+    weekStartDate: new Date().toISOString().split('T')[0], // For weekly: date to calculate week from
     limit_type: 'soft' as 'hard' | 'soft',
     notes: '',
   })
@@ -132,6 +134,7 @@ export const AddBudgetPage = () => {
               period_type: budget.period_type,
               month: periodStart.getMonth() + 1,
               year: periodStart.getFullYear(),
+              weekStartDate: budget.period_type === 'weekly' ? budget.period_start : new Date().toISOString().split('T')[0],
               limit_type: budget.limit_type || 'soft',
               notes: budget.notes || '',
             })
@@ -146,6 +149,7 @@ export const AddBudgetPage = () => {
             period_type: 'monthly',
             month: now.getMonth() + 1,
             year: now.getFullYear(),
+            weekStartDate: now.toISOString().split('T')[0],
             limit_type: 'soft',
             notes: '',
           })
@@ -184,20 +188,25 @@ export const AddBudgetPage = () => {
     setIsSubmitting(true)
 
     try {
-      // Calculate period dates
+      // Calculate period dates - ensure not in the past
+      const weekStartDate = formData.period_type === 'weekly' ? new Date(formData.weekStartDate) : undefined
       const period = calculatePeriod(
         formData.period_type,
         formData.year,
-        formData.period_type === 'monthly' ? formData.month : undefined
+        formData.period_type === 'monthly' ? formData.month : undefined,
+        weekStartDate
       )
+      
+      // Format dates in UTC+7 timezone
+      const { formatDateUTC7 } = await import('../utils/dateUtils')
       
       const payload: BudgetInsert = {
         category_id: formData.category_id,
         wallet_id: formData.wallet_id || null,
         amount: parseVNDInput(formData.amount),
         period_type: formData.period_type,
-        period_start: period.start.toISOString().split('T')[0],
-        period_end: period.end.toISOString().split('T')[0],
+        period_start: formatDateUTC7(period.start),
+        period_end: formatDateUTC7(period.end),
         limit_type: formData.limit_type,
         notes: formData.notes || undefined,
       }
@@ -238,10 +247,67 @@ export const AddBudgetPage = () => {
     })),
   ]
 
-  const yearOptions = Array.from({ length: 5 }, (_, i) => {
-    const year = new Date().getFullYear() - 2 + i
+  // Get current date for filtering
+  const now = new Date()
+  const currentYear = now.getFullYear()
+  const currentMonth = now.getMonth() + 1
+
+  // Year options: only current year and future years
+  const yearOptions = Array.from({ length: 3 }, (_, i) => {
+    const year = currentYear + i
     return { value: year, label: `Năm ${year}` }
   })
+
+  // Month options: only current month and future months (if same year) or all months (if future year)
+  const getAvailableMonths = () => {
+    if (formData.year === currentYear) {
+      // Only show current month and future months
+      return MONTHS.filter(m => m.value >= currentMonth)
+    } else if (formData.year > currentYear) {
+      // Show all months for future years
+      return MONTHS
+    } else {
+      // Past year - should not happen, but show current month onwards
+      return MONTHS.filter(m => m.value >= currentMonth)
+    }
+  }
+
+  // Get Monday of a given date (week starts on Monday)
+  const getMonday = (date: Date): Date => {
+    const d = new Date(date)
+    const day = d.getDay()
+    const diff = d.getDate() - day + (day === 0 ? -6 : 1) // Adjust when day is Sunday
+    return new Date(d.setDate(diff))
+  }
+
+  // Get Sunday of a given week (week ends on Sunday)
+  const getSunday = (monday: Date): Date => {
+    const sunday = new Date(monday)
+    sunday.setDate(sunday.getDate() + 6)
+    sunday.setHours(23, 59, 59, 999)
+    return sunday
+  }
+
+  // Format week range for display
+  const formatWeekRange = (dateStr: string): string => {
+    const date = new Date(dateStr)
+    const monday = getMonday(date)
+    const sunday = getSunday(monday)
+    
+    const formatDate = (d: Date) => {
+      const day = String(d.getDate()).padStart(2, '0')
+      const month = String(d.getMonth() + 1).padStart(2, '0')
+      return `${day}/${month}/${d.getFullYear()}`
+    }
+    
+    return `${formatDate(monday)} - ${formatDate(sunday)}`
+  }
+
+  // Get minimum date for week picker (current week start)
+  const getMinWeekDate = (): string => {
+    const currentWeekStart = getMonday(now)
+    return currentWeekStart.toISOString().split('T')[0]
+  }
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
@@ -262,7 +328,9 @@ export const AddBudgetPage = () => {
           )}
 
           {isLoading ? (
-            <div className="py-8 text-center text-slate-500">Đang tải...</div>
+            <div className="py-8 flex items-center justify-center">
+              <LoadingRing size="md" />
+            </div>
           ) : (
             <form onSubmit={handleSubmit} id="budget-form" className="space-y-5">
               {/* Category Select */}
@@ -322,7 +390,17 @@ export const AddBudgetPage = () => {
                     <button
                       key={type.value}
                       type="button"
-                      onClick={() => setFormData((prev) => ({ ...prev, period_type: type.value }))}
+                      onClick={() => {
+                        const now = new Date()
+                        setFormData((prev) => ({
+                          ...prev,
+                          period_type: type.value,
+                          // Reset to current period when changing type
+                          month: now.getMonth() + 1,
+                          year: now.getFullYear(),
+                          weekStartDate: now.toISOString().split('T')[0],
+                        }))
+                      }}
                       className={`rounded-2xl border-2 p-4 text-sm font-semibold transition-all ${
                         formData.period_type === type.value
                           ? 'border-sky-500 bg-gradient-to-br from-sky-50 to-blue-50 text-sky-700 shadow-sm'
@@ -387,11 +465,23 @@ export const AddBudgetPage = () => {
                       Tháng
                     </label>
                     <CustomSelect
-                      options={MONTHS.map(m => ({ value: m.value.toString(), label: m.label }))}
+                      options={getAvailableMonths().map(m => ({ value: m.value.toString(), label: m.label }))}
                       value={formData.month.toString()}
-                      onChange={(value) => setFormData((prev) => ({ ...prev, month: parseInt(value) }))}
+                      onChange={(value) => {
+                        const month = parseInt(value)
+                        setFormData((prev) => {
+                          // If selected month is in the past, use current month
+                          if (prev.year === currentYear && month < currentMonth) {
+                            return { ...prev, month: currentMonth }
+                          }
+                          return { ...prev, month }
+                        })
+                      }}
                       placeholder="Chọn tháng"
                     />
+                    {formData.year === currentYear && formData.month < currentMonth && (
+                      <p className="mt-1 text-xs text-amber-600">Đã tự động chọn tháng hiện tại</p>
+                    )}
                   </div>
                   <div>
                     <label className="mb-2.5 block text-sm font-bold text-slate-900 sm:text-base">
@@ -400,10 +490,54 @@ export const AddBudgetPage = () => {
                     <CustomSelect
                       options={yearOptions.map(y => ({ value: y.value.toString(), label: y.label }))}
                       value={formData.year.toString()}
-                      onChange={(value) => setFormData((prev) => ({ ...prev, year: parseInt(value) }))}
+                      onChange={(value) => {
+                        const year = parseInt(value)
+                        setFormData((prev) => {
+                          // If selected year is current year and month is in the past, use current month
+                          if (year === currentYear && prev.month < currentMonth) {
+                            return { ...prev, year, month: currentMonth }
+                          }
+                          return { ...prev, year }
+                        })
+                      }}
                       placeholder="Chọn năm"
                     />
                   </div>
+                </div>
+              )}
+
+              {/* Week selection (for weekly) */}
+              {formData.period_type === 'weekly' && (
+                <div>
+                  <label className="mb-2.5 block text-sm font-bold text-slate-900 sm:text-base">
+                    Tuần bắt đầu
+                  </label>
+                  <input
+                    type="date"
+                    value={formData.weekStartDate}
+                    min={getMinWeekDate()}
+                    onChange={(e) => {
+                      const selectedDate = e.target.value
+                      const date = new Date(selectedDate)
+                      const weekStart = getMonday(date)
+                      const weekEnd = getSunday(weekStart)
+                      
+                      // If selected week is in the past, use current week
+                      if (weekEnd < now) {
+                        const currentWeekStart = getMonday(now)
+                        setFormData((prev) => ({ ...prev, weekStartDate: currentWeekStart.toISOString().split('T')[0] }))
+                      } else {
+                        setFormData((prev) => ({ ...prev, weekStartDate: weekStart.toISOString().split('T')[0] }))
+                      }
+                    }}
+                    className="w-full rounded-2xl border-2 border-slate-200 bg-white p-4 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-5"
+                  />
+                  <p className="mt-2 text-xs text-slate-600">
+                    Tuần: {formatWeekRange(formData.weekStartDate)}
+                  </p>
+                  {new Date(formData.weekStartDate) < getMonday(now) && (
+                    <p className="mt-1 text-xs text-amber-600">Đã tự động chọn tuần hiện tại</p>
+                  )}
                 </div>
               )}
 

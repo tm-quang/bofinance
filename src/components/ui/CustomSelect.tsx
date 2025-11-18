@@ -99,7 +99,11 @@ export const CustomSelect = ({
         }`}
       >
         <div className="flex min-w-0 flex-1 items-center gap-2">
-          {selectedOption?.icon && <span className="shrink-0 text-slate-600 text-sm">{selectedOption.icon}</span>}
+          {selectedOption?.icon && (
+            <span className="flex h-5 w-5 shrink-0 items-center justify-center text-slate-600">
+              {selectedOption.icon}
+            </span>
+          )}
           <div className="min-w-0 flex-1">
             {selectedOption ? (
               <>
@@ -145,7 +149,7 @@ export const CustomSelect = ({
                   }`}
                 >
                   {option.icon && (
-                    <span className="shrink-0 flex items-center justify-center w-8 h-8 rounded-lg bg-slate-100 text-sm">
+                    <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full">
                       {option.icon}
                     </span>
                   )}

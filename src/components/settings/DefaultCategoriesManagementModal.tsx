@@ -15,6 +15,7 @@ import { CATEGORY_ICON_MAP } from '../../constants/categoryIcons'
 import { CategoryIcon } from '../ui/CategoryIcon'
 import { seedDefaultCategoriesToDatabase, hasDefaultCategories } from '../../lib/defaultCategoriesSeeder'
 import { ModalFooterButtons } from '../ui/ModalFooterButtons'
+import { LoadingRing } from '../ui/LoadingRing'
 
 type DefaultCategoriesManagementModalProps = {
   isOpen: boolean
@@ -233,7 +234,9 @@ export const DefaultCategoriesManagementModal = ({ isOpen, onClose }: DefaultCat
           {/* Category List */}
           <div className="flex-1 overflow-y-auto p-6">
             {isLoading ? (
-              <div className="text-center py-12 text-slate-500">Đang tải...</div>
+              <div className="text-center py-12 flex items-center justify-center">
+                <LoadingRing size="md" />
+              </div>
             ) : filteredCategories.length === 0 ? (
               <div className="flex flex-col items-center justify-center py-12 text-slate-500">
                 <div className="mb-3 rounded-full bg-slate-100 p-3">

@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FaPlus, FaChartPie, FaWallet, FaExclamationTriangle } from 'react-icons/fa'
-import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
 import { BudgetCard } from '../components/budgets/BudgetCard'
 import { BudgetListSkeleton } from '../components/budgets/BudgetSkeleton'
@@ -129,7 +128,7 @@ export const BudgetsPage = () => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
-      <HeaderBar variant="page" title="Ngân sách" />
+      <HeaderBar variant="page" title="Ngân sách & Hạn mức" />
 
       <main className="flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 pt-2 pb-4 sm:pt-2 sm:pb-5">
@@ -160,15 +159,15 @@ export const BudgetsPage = () => {
             const overBudgetCount = budgets.filter(b => b.usage_percentage > 100).length
 
             return (
-              <div className="grid grid-cols-3 gap-3">
-                <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-white p-4 border border-blue-100 shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="h-8 w-8 rounded-lg bg-blue-100 flex items-center justify-center">
-                      <FaWallet className="h-4 w-4 text-blue-600" />
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
+                <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-white p-3 sm:p-4 border border-blue-100 shadow-sm overflow-hidden">
+                  <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
+                    <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
+                      <FaWallet className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600" />
                     </div>
-                    <span className="text-xs font-semibold text-blue-600">Tổng ngân sách</span>
+                    <span className="text-[10px] sm:text-xs font-semibold text-blue-600 truncate">Tổng ngân sách</span>
                   </div>
-                  <p className="text-lg font-bold text-slate-900">
+                  <p className="text-sm sm:text-lg font-bold text-slate-900 break-words leading-tight">
                     {new Intl.NumberFormat('vi-VN', {
                       style: 'currency',
                       currency: 'VND',
@@ -176,32 +175,32 @@ export const BudgetsPage = () => {
                     }).format(totalBudget)}
                   </p>
                 </div>
-                <div className="rounded-2xl bg-gradient-to-br from-rose-50 to-white p-4 border border-rose-100 shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="h-8 w-8 rounded-lg bg-rose-100 flex items-center justify-center">
-                      <FaChartPie className="h-4 w-4 text-rose-600" />
+                <div className="rounded-2xl bg-gradient-to-br from-rose-50 to-white p-3 sm:p-4 border border-rose-100 shadow-sm overflow-hidden">
+                  <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
+                    <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-rose-100 flex items-center justify-center shrink-0">
+                      <FaChartPie className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-rose-600" />
                     </div>
-                    <span className="text-xs font-semibold text-rose-600">Đã chi</span>
+                    <span className="text-[10px] sm:text-xs font-semibold text-rose-600 truncate">Đã chi</span>
                   </div>
-                  <p className="text-lg font-bold text-slate-900">
+                  <p className="text-sm sm:text-lg font-bold text-slate-900 break-words leading-tight">
                     {new Intl.NumberFormat('vi-VN', {
                       style: 'currency',
                       currency: 'VND',
                       maximumFractionDigits: 0,
                     }).format(totalSpent)}
                   </p>
-                  <p className="text-xs text-rose-600 font-medium mt-0.5">
+                  <p className="text-[10px] sm:text-xs text-rose-600 font-medium mt-0.5 truncate">
                     {overallPercentage.toFixed(1)}% tổng
                   </p>
                 </div>
-                <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-white p-4 border border-emerald-100 shadow-sm">
-                  <div className="flex items-center gap-2 mb-2">
-                    <div className="h-8 w-8 rounded-lg bg-emerald-100 flex items-center justify-center">
-                      <FaExclamationTriangle className="h-4 w-4 text-emerald-600" />
+                <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-white p-3 sm:p-4 border border-emerald-100 shadow-sm overflow-hidden">
+                  <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
+                    <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
+                      <FaExclamationTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600" />
                     </div>
-                    <span className="text-xs font-semibold text-emerald-600">Còn lại</span>
+                    <span className="text-[10px] sm:text-xs font-semibold text-emerald-600 truncate">Còn lại</span>
                   </div>
-                  <p className={`text-lg font-bold ${totalRemaining >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
+                  <p className={`text-sm sm:text-lg font-bold break-words leading-tight ${totalRemaining >= 0 ? 'text-emerald-600' : 'text-rose-600'}`}>
                     {new Intl.NumberFormat('vi-VN', {
                       style: 'currency',
                       currency: 'VND',
@@ -209,7 +208,7 @@ export const BudgetsPage = () => {
                     }).format(Math.abs(totalRemaining))}
                   </p>
                   {overBudgetCount > 0 && (
-                    <p className="text-xs text-rose-600 font-medium mt-0.5">
+                    <p className="text-[10px] sm:text-xs text-rose-600 font-medium mt-0.5 truncate">
                       {overBudgetCount} vượt mức
                     </p>
                   )}
@@ -267,8 +266,6 @@ export const BudgetsPage = () => {
           )}
         </div>
       </main>
-
-      <FooterNav onAddClick={() => navigate('/add-transaction')} />
     </div>
   )
 }

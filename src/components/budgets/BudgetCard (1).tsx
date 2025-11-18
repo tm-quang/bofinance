@@ -84,47 +84,47 @@ export const BudgetCard = ({
   const enhancedColors = enhancedColorClasses[color] || enhancedColorClasses.emerald
 
   return (
-    <div className={`group relative rounded-3xl ${enhancedColors.cardBg} p-4 sm:p-5 shadow-sm border ${enhancedColors.border} hover:shadow-lg hover:scale-[1.01] transition-all duration-300 overflow-hidden`}>
+    <div className={`group relative rounded-3xl ${enhancedColors.cardBg} p-5 shadow-sm border ${enhancedColors.border} hover:shadow-lg hover:scale-[1.01] transition-all duration-300`}>
       {/* Header */}
-      <div className="flex items-start justify-between mb-4 gap-2">
-        <div className="flex items-start gap-2 sm:gap-3 min-w-0 flex-1">
+      <div className="flex items-start justify-between mb-4">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
           <div className="relative shrink-0">
-            <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-full flex items-center justify-center overflow-hidden">
+            <div className="h-14 w-14 rounded-2xl bg-white shadow-sm border border-slate-100 flex items-center justify-center overflow-hidden">
               {categoryIcon}
             </div>
             {budget.limit_type && (
-              <div className={`absolute -top-1 -right-1 h-4 w-4 sm:h-5 sm:w-5 rounded-full flex items-center justify-center ${
+              <div className={`absolute -top-1 -right-1 h-5 w-5 rounded-full flex items-center justify-center ${
                 budget.limit_type === 'hard' 
                   ? 'bg-rose-500 text-white' 
                   : 'bg-amber-500 text-white'
               } shadow-lg`}>
                 {budget.limit_type === 'hard' ? (
-                  <FaBan className="h-2 w-2 sm:h-2.5 sm:w-2.5" />
+                  <FaBan className="h-2.5 w-2.5" />
                 ) : (
-                  <FaExclamationTriangle className="h-2 w-2 sm:h-2.5 sm:w-2.5" />
+                  <FaExclamationTriangle className="h-2.5 w-2.5" />
                 )}
               </div>
             )}
           </div>
           <div className="min-w-0 flex-1 pt-1">
             <div className="flex items-center gap-2 mb-1">
-              <h3 className="font-bold text-sm sm:text-base text-slate-900 truncate">{categoryName}</h3>
+              <h3 className="font-bold text-base text-slate-900 truncate">{categoryName}</h3>
             </div>
-            <div className="flex items-center gap-1.5 sm:gap-2 flex-wrap">
-              <p className="text-[10px] sm:text-xs text-slate-500 font-medium truncate">
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="text-xs text-slate-500 font-medium">
                 {formatDate(budget.period_start)} - {formatDate(budget.period_end)}
               </p>
               {walletName && (
                 <>
-                  <span className="text-slate-300 shrink-0">•</span>
-                  <p className="text-[10px] sm:text-xs text-slate-500 truncate font-medium">{walletName}</p>
+                  <span className="text-slate-300">•</span>
+                  <p className="text-xs text-slate-500 truncate font-medium">{walletName}</p>
                 </>
               )}
             </div>
           </div>
         </div>
         <div className="flex items-center gap-2 shrink-0 pt-1">
-          <span className={`px-2.5 sm:px-3 py-1 sm:py-1.5 rounded-full text-[10px] sm:text-xs font-bold border ${enhancedColors.badge} shadow-sm whitespace-nowrap`}>
+          <span className={`px-3 py-1.5 rounded-full text-xs font-bold border ${enhancedColors.badge} shadow-sm`}>
             {budget.usage_percentage.toFixed(1)}%
           </span>
         </div>
@@ -132,16 +132,16 @@ export const BudgetCard = ({
 
       {/* Enhanced Progress Bar */}
       <div className="mb-4">
-        <div className="flex justify-between items-baseline mb-2 gap-2">
-          <div className="flex flex-col min-w-0 flex-1">
-            <span className="text-[10px] sm:text-xs text-slate-500 font-medium mb-0.5">Đã chi</span>
-            <span className="text-sm sm:text-base font-bold text-slate-900 break-words leading-tight">
+        <div className="flex justify-between items-baseline mb-2">
+          <div className="flex flex-col">
+            <span className="text-xs text-slate-500 font-medium mb-0.5">Đã chi</span>
+            <span className="text-base font-bold text-slate-900">
               {formatCurrency(budget.spent_amount)}
             </span>
           </div>
-          <div className="flex flex-col items-end min-w-0 flex-1">
-            <span className="text-[10px] sm:text-xs text-slate-500 font-medium mb-0.5">Ngân sách</span>
-            <span className="text-sm sm:text-base font-bold text-slate-700 break-words leading-tight text-right">
+          <div className="flex flex-col items-end">
+            <span className="text-xs text-slate-500 font-medium mb-0.5">Ngân sách</span>
+            <span className="text-base font-bold text-slate-700">
               {formatCurrency(budget.amount)}
             </span>
           </div>
@@ -179,10 +179,10 @@ export const BudgetCard = ({
       </div>
 
       {/* Enhanced Footer */}
-      <div className="flex justify-between items-center pt-3 border-t border-slate-200/60 gap-2">
-        <div className="flex flex-col min-w-0 flex-1">
-          <span className="text-[10px] sm:text-xs text-slate-500 font-medium mb-0.5">Số tiền còn lại</span>
-          <span className={`text-sm sm:text-lg font-bold break-words leading-tight ${budget.remaining_amount >= 0 ? 'text-slate-900' : enhancedColors.text}`}>
+      <div className="flex justify-between items-center pt-3 border-t border-slate-200/60">
+        <div className="flex flex-col">
+          <span className="text-xs text-slate-500 font-medium mb-0.5">Số tiền còn lại</span>
+          <span className={`text-lg font-bold ${budget.remaining_amount >= 0 ? 'text-slate-900' : enhancedColors.text}`}>
             {budget.remaining_amount >= 0 ? (
               <span className="text-emerald-600">{formatCurrency(budget.remaining_amount)}</span>
             ) : (
@@ -190,23 +190,23 @@ export const BudgetCard = ({
             )}
           </span>
         </div>
-        <div className="flex gap-1 sm:gap-1.5 shrink-0">
+        <div className="flex gap-1.5">
           {onEdit && (
             <button
               onClick={onEdit}
-              className="p-2 sm:p-2.5 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-xl transition-all hover:scale-110 active:scale-95"
+              className="p-2.5 text-slate-400 hover:text-sky-600 hover:bg-sky-50 rounded-xl transition-all hover:scale-110 active:scale-95"
               aria-label="Sửa ngân sách"
             >
-              <FaEdit className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <FaEdit className="h-4 w-4" />
             </button>
           )}
           {onDelete && (
             <button
               onClick={onDelete}
-              className="p-2 sm:p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all hover:scale-110 active:scale-95"
+              className="p-2.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-xl transition-all hover:scale-110 active:scale-95"
               aria-label="Xóa ngân sách"
             >
-              <FaTrash className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
+              <FaTrash className="h-4 w-4" />
             </button>
           )}
         </div>

@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { FaCalendar, FaTimes, FaArrowDown, FaArrowUp, FaClock, FaChevronDown, FaArrowLeft } from 'react-icons/fa'
+import { FaCalendar, FaTimes, FaArrowDown, FaArrowUp } from 'react-icons/fa'
 import { CustomSelect } from '../ui/CustomSelect'
 import { NumberPadModal } from '../ui/NumberPadModal'
-import { DateTimePickerModal } from '../ui/DateTimePickerModal'
+import { ModalFooterButtons } from '../ui/ModalFooterButtons'
 import { createReminder, updateReminder, type ReminderRecord, type ReminderInsert, type ReminderType, type RepeatType } from '../../lib/reminderService'
 import { fetchCategories, type CategoryRecord, type CategoryType } from '../../lib/categoryService'
 import { fetchWallets, getDefaultWallet, type WalletRecord } from '../../lib/walletService'
@@ -11,7 +11,6 @@ import { formatVNDInput, parseVNDInput } from '../../utils/currencyInput'
 import { CATEGORY_ICON_MAP } from '../../constants/categoryIcons'
 import { getIconNode } from '../../utils/iconLoader'
 import { ColorPicker } from './ColorPicker'
-import { IconPicker } from '../categories/IconPicker'
 
 type ReminderModalProps = {
   isOpen: boolean
@@ -27,7 +26,6 @@ type ReminderFormState = {
   amount: string
   category_id: string
   wallet_id: string
-  icon_id: string
   reminder_date: string
   reminder_time: string
   repeat_type: RepeatType
@@ -54,7 +52,6 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
     amount: '',
     category_id: '',
     wallet_id: '',
-    icon_id: '',
     reminder_date: new Date().toISOString().split('T')[0],
     reminder_time: '',
     repeat_type: 'none',
@@ -71,9 +68,6 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isNumberPadOpen, setIsNumberPadOpen] = useState(false)
-  const [isIconPickerOpen, setIsIconPickerOpen] = useState(false)
-  const [isDateTimePickerOpen, setIsDateTimePickerOpen] = useState(false)
-  const [selectedIcon, setSelectedIcon] = useState<React.ReactNode | null>(null)
 
   // Load wallets và categories khi modal mở
   useEffect(() => {
@@ -83,108 +77,51 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
       setIsLoading(true)
       setError(null)
       try {
-        // Load wallets, categories, and default wallet with individual error handling
-        let walletsData: WalletRecord[] = []
-        let categoriesData: CategoryRecord[] = []
-        let defaultId: string | null = null
-
-        try {
-          walletsData = await fetchWallets(false)
-        } catch (err) {
-          console.error('Error loading wallets:', err)
-          // Continue with empty wallets array
-        }
-
-        try {
-          categoriesData = await fetchCategories()
-        } catch (err) {
-          console.error('Error loading categories:', err)
-          // Continue with empty categories array
-        }
-
-        try {
-          defaultId = await getDefaultWallet()
-        } catch (err) {
-          console.error('Error loading default wallet:', err)
-          // Continue without default wallet
-        }
+        const [walletsData, categoriesData, defaultId] = await Promise.all([
+          fetchWallets(false),
+          fetchCategories(),
+          getDefaultWallet(),
+        ])
 
         setWallets(walletsData)
         setCategories(categoriesData)
         setDefaultWalletId(defaultId || null)
 
-        // Load icons for all categories with better error handling
+        // Load icons for all categories
         const iconsMap: Record<string, React.ReactNode> = {}
-        if (categoriesData.length > 0) {
-          // Use Promise.allSettled instead of Promise.all to handle individual failures
-          const iconPromises = categoriesData.map(async (category) => {
+        await Promise.all(
+          categoriesData.map(async (category) => {
             try {
               const iconNode = await getIconNode(category.icon_id)
               if (iconNode) {
-                // Wrap icon với kích thước cố định để hiển thị đúng trong CustomSelect
-                return { 
-                  categoryId: category.id, 
-                  iconNode: (
-                    <span className="flex h-5 w-5 shrink-0 items-center justify-center overflow-hidden rounded-full">
-                      {iconNode}
-                    </span>
-                  )
-                }
+                iconsMap[category.id] = iconNode
               } else {
-                // Fallback to hardcoded icon
                 const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
                 if (hardcodedIcon?.icon) {
                   const IconComponent = hardcodedIcon.icon
-                  return { categoryId: category.id, iconNode: <IconComponent className="h-5 w-5" /> }
+                  iconsMap[category.id] = <IconComponent className="h-4 w-4" />
                 }
               }
             } catch (error) {
               console.error('Error loading icon for category:', category.id, error)
-              // Fallback to hardcoded icon
               const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
               if (hardcodedIcon?.icon) {
                 const IconComponent = hardcodedIcon.icon
-                return { categoryId: category.id, iconNode: <IconComponent className="h-5 w-5" /> }
-              }
-            }
-            return null
-          })
-
-          const results = await Promise.allSettled(iconPromises)
-          results.forEach((result, index) => {
-            if (result.status === 'fulfilled' && result.value) {
-              iconsMap[result.value.categoryId] = result.value.iconNode
-            } else if (result.status === 'rejected') {
-              // Try hardcoded fallback
-              const category = categoriesData[index]
-              if (category) {
-                const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
-                if (hardcodedIcon?.icon) {
-                  const IconComponent = hardcodedIcon.icon
-                  iconsMap[category.id] = <IconComponent className="h-5 w-5" />
-                }
+                iconsMap[category.id] = <IconComponent className="h-4 w-4" />
               }
             }
           })
-        }
+        )
         setCategoryIcons(iconsMap)
       } catch (err) {
-        console.error('Unexpected error in loadData:', err)
-        const errorMessage = err instanceof Error ? err.message : 'Không thể tải dữ liệu'
-        setError(errorMessage)
-        showError(errorMessage)
+        setError(err instanceof Error ? err.message : 'Không thể tải dữ liệu')
       } finally {
         setIsLoading(false)
       }
     }
 
-    loadData().catch((err) => {
-      console.error('Unhandled error in loadData:', err)
-      setError('Đã xảy ra lỗi khi tải dữ liệu. Vui lòng thử lại.')
-      showError('Đã xảy ra lỗi khi tải dữ liệu. Vui lòng thử lại.')
-      setIsLoading(false)
-    })
-  }, [isOpen, showError])
+    loadData()
+  }, [isOpen])
 
   // Populate form when editing
   useEffect(() => {
@@ -195,7 +132,6 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
         amount: reminder.amount ? formatVNDInput(reminder.amount.toString()) : '',
         category_id: reminder.category_id || '',
         wallet_id: reminder.wallet_id || '',
-        icon_id: reminder.icon_id || '',
         reminder_date: reminder.reminder_date,
         reminder_time: reminder.reminder_time || '',
         repeat_type: reminder.repeat_type || 'none',
@@ -211,7 +147,6 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
         amount: '',
         category_id: '',
         wallet_id: defaultWalletId || '',
-        icon_id: '',
         reminder_date: defaultDate || new Date().toISOString().split('T')[0],
         reminder_time: '',
         repeat_type: 'none',
@@ -219,73 +154,8 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
         color: 'rose',
         enable_notification: true,
       })
-      setSelectedIcon(null)
     }
   }, [isOpen, reminder, defaultWalletId, defaultDate])
-
-  // Load icon when icon_id changes
-  useEffect(() => {
-    const loadIcon = async () => {
-      if (!formState.icon_id || !isOpen) {
-        setSelectedIcon(null)
-        return
-      }
-
-      try {
-        // Fetch icon từ database bằng ID
-        const { getIconById } = await import('../../lib/iconService')
-        const icon = await getIconById(formState.icon_id)
-        
-        if (!icon) {
-          setSelectedIcon(null)
-          return
-        }
-
-        // Nếu có image_url, hiển thị ảnh trực tiếp
-        if (icon.image_url) {
-          setSelectedIcon(
-            <img
-              src={icon.image_url}
-              alt={icon.label || 'Icon'}
-              className="h-full w-full object-contain"
-              onError={(e) => {
-                console.warn('Failed to load icon image:', icon.image_url)
-                e.currentTarget.style.display = 'none'
-                setSelectedIcon(null)
-              }}
-            />
-          )
-        } else if (icon.icon_type === 'react-icon' && icon.react_icon_name && icon.react_icon_library) {
-          // Nếu là react-icon, load icon component
-          try {
-            const { getCachedIconLibrary } = await import('../../utils/iconLoader')
-            const library = await getCachedIconLibrary(icon.react_icon_library)
-            if (library && library[icon.react_icon_name]) {
-              const IconComponent = library[icon.react_icon_name]
-              setSelectedIcon(<IconComponent className="h-full w-full" />)
-            } else {
-              console.warn('Icon component not found:', icon.react_icon_name, 'in library:', icon.react_icon_library)
-              setSelectedIcon(null)
-            }
-          } catch (error) {
-            console.error('Error loading react icon:', error)
-            setSelectedIcon(null)
-          }
-        } else {
-          // Các loại icon khác (svg, svg-url) - không hỗ trợ hiển thị trong reminder
-          setSelectedIcon(null)
-        }
-      } catch (error) {
-        // Không log error nếu là lỗi "not found" (đó là trường hợp bình thường)
-        if (error instanceof Error && !error.message.includes('not found') && !error.message.includes('PGRST116')) {
-          console.error('Error loading icon:', error)
-        }
-        setSelectedIcon(null)
-      }
-    }
-
-    loadIcon()
-  }, [formState.icon_id, isOpen])
 
   // Filter categories theo type
   const filteredCategories = categories.filter((cat) => {
@@ -333,14 +203,9 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
       }
 
       if (formState.amount) {
-        try {
-          const amount = parseVNDInput(formState.amount)
-          if (amount > 0) {
-            reminderData.amount = amount
-          }
-        } catch (err) {
-          console.error('Error parsing amount:', err)
-          // Continue without amount if parsing fails
+        const amount = parseVNDInput(formState.amount)
+        if (amount > 0) {
+          reminderData.amount = amount
         }
       }
 
@@ -350,10 +215,6 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
 
       if (formState.wallet_id) {
         reminderData.wallet_id = formState.wallet_id
-      }
-
-      if (formState.icon_id) {
-        reminderData.icon_id = formState.icon_id
       }
 
       if (formState.reminder_time) {
@@ -382,7 +243,6 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
         amount: '',
         category_id: '',
         wallet_id: '',
-        icon_id: '',
         reminder_date: new Date().toISOString().split('T')[0],
         reminder_time: '',
         repeat_type: 'none',
@@ -390,25 +250,11 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
         color: 'rose',
         enable_notification: true,
       })
-      setSelectedIcon(null)
 
       onSuccess?.()
       onClose()
     } catch (err) {
-      console.error('Error submitting reminder:', err)
-      let message = isEditMode ? 'Không thể cập nhật nhắc nhở' : 'Không thể tạo nhắc nhở'
-      
-      if (err instanceof Error) {
-        // Provide more user-friendly error messages
-        if (err.message.includes('not authenticated') || err.message.includes('User not authenticated')) {
-          message = 'Bạn cần đăng nhập để tạo nhắc nhở'
-        } else if (err.message.includes('network') || err.message.includes('fetch')) {
-          message = 'Lỗi kết nối. Vui lòng kiểm tra kết nối mạng và thử lại'
-        } else if (err.message) {
-          message = err.message
-        }
-      }
-      
+      const message = err instanceof Error ? err.message : (isEditMode ? 'Không thể cập nhật nhắc nhở' : 'Không thể tạo nhắc nhở')
       setError(message)
       showError(message)
     } finally {
@@ -429,39 +275,29 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-[#F7F9FC]">
-      {/* Header - Giống HeaderBar */}
-      <header className="pointer-events-none relative z-10 flex-shrink-0 bg-[#F7F9FC]">
-        <div className="relative px-1 py-1">
-          <div className="pointer-events-auto mx-auto flex w-full max-w-md items-center justify-between px-4 py-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100"
-              aria-label="Đóng"
-            >
-              <FaArrowLeft className="h-5 w-5" />
-            </button>
-            <p className="flex-1 px-4 text-center text-base font-semibold uppercase tracking-[0.2em] text-slate-800">
-              {isEditMode ? 'Sửa' : 'Thêm'} kế hoạch
+    <div className="fixed inset-0 z-50 flex items-end backdrop-blur-sm bg-slate-950/50 animate-in fade-in duration-200">
+      <div className="flex w-full max-w-md mx-auto max-h-[90vh] flex-col rounded-t-3xl bg-white shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 sm:slide-in-from-bottom-0">
+        {/* Header */}
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50 px-4 py-4 sm:px-6 sm:py-5 rounded-t-3xl">
+          <div>
+            <h2 className="text-lg font-bold text-slate-900 sm:text-xl">
+              {isEditMode ? 'Sửa' : 'Thêm'} nhắc nhở
+            </h2>
+            <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+              {isEditMode ? 'Chỉnh sửa thông tin nhắc nhở' : 'Tạo nhắc nhở mới'}
             </p>
-            <div className="flex h-11 w-11 items-center justify-center">
-              <button
-                type="submit"
-                form="reminder-form"
-                disabled={isSubmitting}
-                className="text-sm font-semibold text-sky-600 disabled:text-slate-400"
-              >
-                {isSubmitting ? 'Đang lưu...' : isEditMode ? 'Cập nhật' : 'Tạo'}
-              </button>
-            </div>
           </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-all hover:bg-slate-200 hover:scale-110 active:scale-95 sm:h-10 sm:w-10"
+          >
+            <FaTimes className="h-4 w-4 sm:h-5 sm:w-5" />
+          </button>
         </div>
-      </header>
 
-      {/* Scrollable Content */}
-      <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 min-h-0">
-        <div className="mx-auto max-w-md">
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
           {/* Error message */}
           {error && (
             <div className="mb-3 rounded-lg bg-rose-50 p-3 text-xs text-rose-600 sm:text-sm">
@@ -592,55 +428,39 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
               />
             </div>
 
-            {/* Date and Time */}
-            <div>
-              <label className="mb-2 block text-xs font-medium text-slate-600 sm:text-sm">
-                Ngày và giờ nhắc nhở <span className="text-rose-500">*</span>
-              </label>
-              <button
-                type="button"
-                onClick={() => setIsDateTimePickerOpen(true)}
-                className="relative flex w-full items-center justify-between rounded-2xl border-2 border-slate-200 bg-white p-4 pl-12 text-left transition-all hover:border-slate-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-500/20"
-              >
-                <FaCalendar className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-                <div className="flex-1 flex items-center gap-3">
-                  <div className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
-                    {(() => {
-                      try {
-                        const date = new Date(formState.reminder_date)
-                        if (isNaN(date.getTime())) {
-                          return 'Chưa chọn ngày'
-                        }
-                        const day = String(date.getDate()).padStart(2, '0')
-                        const month = String(date.getMonth() + 1).padStart(2, '0')
-                        const year = date.getFullYear()
-                        const dateStr = `${day}/${month}/${year}`
-                        
-                        // Check if today
-                        const today = new Date()
-                        today.setHours(0, 0, 0, 0)
-                        const selectedDate = new Date(date)
-                        selectedDate.setHours(0, 0, 0, 0)
-                        
-                        if (selectedDate.getTime() === today.getTime()) {
-                          return `Hôm nay - ${dateStr}`
-                        }
-                        return dateStr
-                      } catch (error) {
-                        console.error('Error formatting date:', error)
-                        return 'Chưa chọn ngày'
-                      }
-                    })()}
-                  </div>
-                  {formState.reminder_time && (
-                    <>
-                      <FaClock className="h-4 w-4 text-slate-400" />
-                      <span className="text-sm font-medium text-slate-900">{formState.reminder_time}</span>
-                    </>
-                  )}
+            {/* Date and Time - Grid */}
+            <div className="grid grid-cols-2 gap-4 items-stretch">
+              {/* Date - Required */}
+              <div>
+                <label htmlFor="reminder_date" className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
+                  Ngày nhắc nhở <span className="text-rose-500">*</span>
+                </label>
+                <div className="relative">
+                  <FaCalendar className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="date"
+                    id="reminder_date"
+                    value={formState.reminder_date}
+                    onChange={(e) => setFormState((prev) => ({ ...prev, reminder_date: e.target.value }))}
+                    className="h-full w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 pl-11 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
+                    required
+                  />
                 </div>
-                <FaChevronDown className="h-4 w-4 text-slate-400" />
-              </button>
+              </div>
+
+              {/* Time - Optional */}
+              <div>
+                <label htmlFor="reminder_time" className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
+                  Giờ (tùy chọn)
+                </label>
+                <input
+                  type="time"
+                  id="reminder_time"
+                  value={formState.reminder_time}
+                  onChange={(e) => setFormState((prev) => ({ ...prev, reminder_time: e.target.value }))}
+                  className="h-full w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
+                />
+              </div>
             </div>
 
             {/* Repeat Type */}
@@ -673,56 +493,6 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
                 rows={3}
                 className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4 resize-none"
               />
-            </div>
-
-            {/* Icon Picker */}
-            <div>
-              <label className="mb-2 block text-xs font-medium text-slate-600 sm:text-sm">
-                Biểu tượng (tùy chọn)
-              </label>
-              <button
-                type="button"
-                onClick={() => setIsIconPickerOpen(true)}
-                className="flex w-full items-center gap-3 rounded-xl border-2 border-slate-200 bg-white p-3.5 text-left transition-all hover:border-slate-300 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
-              >
-                {selectedIcon ? (
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-50">
-                    {selectedIcon}
-                  </div>
-                ) : (
-                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
-                    <span className="text-sm">?</span>
-                  </div>
-                )}
-                <div className="flex-1">
-                  <span className="text-sm font-medium text-slate-900">
-                    {formState.icon_id ? 'Đã chọn biểu tượng' : 'Chọn biểu tượng'}
-                  </span>
-                </div>
-                {formState.icon_id && (
-                  <div
-                    onClick={(e) => {
-                      e.stopPropagation()
-                      e.preventDefault()
-                      setFormState((prev) => ({ ...prev, icon_id: '' }))
-                      setSelectedIcon(null)
-                    }}
-                    className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        e.stopPropagation()
-                        setFormState((prev) => ({ ...prev, icon_id: '' }))
-                        setSelectedIcon(null)
-                      }
-                    }}
-                  >
-                    <FaTimes className="h-4 w-4" />
-                  </div>
-                )}
-              </button>
             </div>
 
             {/* Color Picker */}
@@ -760,34 +530,18 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
             </div>
           </form>
         </div>
+
+        {/* Footer */}
+        <ModalFooterButtons
+          onCancel={onClose}
+          onConfirm={() => {}}
+          confirmText={isSubmitting ? 'Đang lưu...' : `${isEditMode ? 'Cập nhật' : 'Tạo'} nhắc nhở`}
+          isSubmitting={isSubmitting}
+              disabled={isSubmitting || isLoading}
+          confirmButtonType="submit"
+          formId="reminder-form"
+        />
       </div>
-
-      {/* Icon Picker Modal */}
-      <IconPicker
-        isOpen={isIconPickerOpen}
-        onClose={() => setIsIconPickerOpen(false)}
-        onSelect={(iconId) => {
-          setFormState((prev) => ({ ...prev, icon_id: iconId }))
-          setIsIconPickerOpen(false)
-        }}
-        selectedIconId={formState.icon_id}
-      />
-
-      {/* DateTime Picker Modal */}
-      <DateTimePickerModal
-        isOpen={isDateTimePickerOpen}
-        onClose={() => setIsDateTimePickerOpen(false)}
-        onConfirm={(date, time) => {
-          setFormState((prev) => ({
-            ...prev,
-            reminder_date: date,
-            reminder_time: time || '',
-          }))
-        }}
-        initialDate={formState.reminder_date}
-        initialTime={formState.reminder_time}
-        showTime={true}
-      />
 
       {/* Number Pad Modal */}
       <NumberPadModal
@@ -800,5 +554,4 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
     </div>
   )
 }
-
 

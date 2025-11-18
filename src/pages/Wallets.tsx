@@ -8,6 +8,7 @@ import HeaderBar from '../components/layout/HeaderBar'
 import { NumberPadModal } from '../components/ui/NumberPadModal'
 import { WalletListSkeleton } from '../components/skeletons'
 import { ModalFooterButtons } from '../components/ui/ModalFooterButtons'
+import { LoadingRing } from '../components/ui/LoadingRing'
 import {
   fetchWallets,
   createWallet,
@@ -596,7 +597,9 @@ export const WalletsPage = () => {
                       <h3 className="text-sm font-semibold text-slate-600">
                         Ví đã ẩn ({hiddenWallets.length})
                         {isLoadingInactive && (
-                          <span className="ml-2 text-xs text-slate-400">(Đang tải...)</span>
+                          <span className="ml-2 inline-flex items-center">
+                            <LoadingRing size="sm" className="mr-1" />
+                          </span>
                         )}
                       </h3>
                       <button

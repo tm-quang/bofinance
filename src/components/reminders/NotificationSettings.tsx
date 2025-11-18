@@ -3,7 +3,6 @@ import { FaBell, FaBellSlash, FaInfoCircle, FaMusic, FaUpload, FaTrash } from 'r
 import {
   requestNotificationPermission,
   hasNotificationPermission,
-  sendReminderNotification,
 } from '../../lib/notificationService'
 import {
   getSoundPreference,
@@ -67,15 +66,6 @@ export const NotificationSettings = ({ className = '' }: NotificationSettingsPro
     }
   }
 
-  const handleTestNotification = async () => {
-    try {
-      await sendReminderNotification('Thông báo test', 100000, 'Chi')
-      success('Đã gửi thông báo test! Kiểm tra thông báo và âm thanh.')
-    } catch (error) {
-      showError('Không thể gửi thông báo test')
-    }
-  }
-
   const handleTestSound = () => {
     playNotificationSound()
   }
@@ -122,9 +112,10 @@ export const NotificationSettings = ({ className = '' }: NotificationSettingsPro
   }
 
   const handleRemoveCustomSound = () => {
-    const newPreference: SoundPreference = { type: 'default' }
+    const newPreference: SoundPreference = { type: 'custom', customSoundUrl: '/ring.mp3' }
     setSoundPreference(newPreference)
     saveSoundPreference(newPreference)
+    playNotificationSound()
     success('Đã xóa âm thanh tùy chỉnh, quay về mặc định')
   }
 
@@ -136,23 +127,14 @@ export const NotificationSettings = ({ className = '' }: NotificationSettingsPro
             <FaBell className="h-4 w-4 text-emerald-600" />
             <span className="text-xs font-medium text-emerald-700">Thông báo đã bật</span>
           </div>
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setShowSoundSettings(!showSoundSettings)}
-              className="rounded-lg bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-200 active:scale-95"
-              title="Cài đặt âm thanh"
-            >
-              <FaMusic className="h-3 w-3" />
-            </button>
-            <button
-              type="button"
-              onClick={handleTestNotification}
-              className="rounded-lg bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-200 active:scale-95"
-            >
-              Test
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setShowSoundSettings(!showSoundSettings)}
+            className="rounded-lg bg-emerald-100 px-3 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-200 active:scale-95"
+            title="Cài đặt âm thanh"
+          >
+            <FaMusic className="h-3 w-3" />
+          </button>
         </div>
 
         {/* Sound Settings */}

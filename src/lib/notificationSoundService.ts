@@ -30,7 +30,8 @@ export const getSoundPreference = (): SoundPreference => {
   } catch (error) {
     console.warn('Error reading sound preference:', error)
   }
-  return { type: 'default' }
+  // Default to ring.mp3 from public folder
+  return { type: 'custom', customSoundUrl: '/ring.mp3' }
 }
 
 /**
@@ -165,15 +166,16 @@ export const playNotificationSound = (): void => {
       if (preference.soundId) {
         playSyntheticSound(preference.soundId)
       } else {
-        playSyntheticSound('default')
+        // Fallback to ring.mp3 if no synthetic sound selected
+        playCustomSound('/ring.mp3')
       }
       break
     case 'custom':
       playCustomSound(preference.customSoundUrl, preference.customSoundData)
       break
     default:
-      // Default sound
-      playSyntheticSound('default')
+      // Default sound - use ring.mp3 from public folder
+      playCustomSound('/ring.mp3')
   }
 }
 

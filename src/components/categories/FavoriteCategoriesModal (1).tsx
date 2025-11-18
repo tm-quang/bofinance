@@ -266,12 +266,20 @@ export const FavoriteCategoriesModal: React.FC<FavoriteCategoriesModalProps> = (
                       )}
 
                       {/* Icon */}
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full transition-all">
+                      <div
+                        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition-all shadow-sm ${
+                          favoriteIds.has(parentId)
+                            ? 'bg-gradient-to-br from-sky-500 to-blue-600 text-white'
+                            : 'bg-gradient-to-br from-slate-100 to-slate-200 text-slate-700'
+                        }`}
+                      >
                         <CategoryIcon
                           iconId={parentIconId}
-                          className="h-6 w-6"
+                          className={`h-6 w-6 ${favoriteIds.has(parentId) ? 'text-white' : ''}`}
                           fallback={
-                            <span className="text-lg font-semibold text-slate-400">
+                            <span className={`text-lg font-semibold ${
+                              favoriteIds.has(parentId) ? 'text-white' : 'text-slate-600'
+                            }`}>
                               {parentName[0]?.toUpperCase() || '?'}
                             </span>
                           }

@@ -681,7 +681,7 @@ const ReportPage = () => {
                               </div>
                             </div>
                           ) : (
-                            <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-100">
+                            <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full">
                               <span className="text-slate-400 text-lg">?</span>
                             </div>
                           )}
@@ -723,7 +723,7 @@ const ReportPage = () => {
                               </div>
                             </div>
                           ) : (
-                            <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-slate-100">
+                            <div className="relative flex h-14 w-14 shrink-0 items-center justify-center rounded-full">
                               <span className="text-slate-400 text-lg">?</span>
                             </div>
                           )}

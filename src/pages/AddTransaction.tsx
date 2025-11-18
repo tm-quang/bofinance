@@ -279,6 +279,61 @@ export const AddTransactionPage = () => {
     }
   }, [formState.type, defaultWalletId, formState.wallet_id])
 
+  // Reload favorite categories when type changes
+  useEffect(() => {
+    const reloadFavorites = async () => {
+      try {
+        const categoryTypeForReload = formState.type === 'Chi' ? 'Chi tiêu' : 'Thu nhập'
+        
+        // Invalidate cache to ensure fresh data
+        try {
+          const { getCachedUser } = await import('../lib/userCache')
+          const user = await getCachedUser()
+          if (user) {
+            const { invalidateCache } = await import('../lib/cache')
+            const { cacheManager } = await import('../lib/cache')
+            const cacheKey = await cacheManager.generateKey('favoriteCategories', { categoryType: categoryTypeForReload, userId: user.id })
+            await invalidateCache(cacheKey)
+          }
+        } catch (cacheError) {
+          console.warn('Error invalidating cache:', cacheError)
+        }
+
+        const [hierarchicalData, favoriteIdsArray] = await Promise.all([
+          fetchCategoriesHierarchical(categoryTypeForReload),
+          getFavoriteCategories(categoryTypeForReload),
+        ])
+
+        const favorites: CategoryWithChildren[] = []
+        const favoriteIdsSet = new Set(favoriteIdsArray.slice(0, 7))
+
+        const findCategoryById = (cats: CategoryWithChildren[], id: string): CategoryWithChildren | null => {
+          for (const cat of cats) {
+            if (cat.id === id) return cat
+            if (cat.children) {
+              const found = findCategoryById(cat.children, id)
+              if (found) return found
+            }
+          }
+          return null
+        }
+
+        favoriteIdsSet.forEach((id) => {
+          const category = findCategoryById(hierarchicalData, id)
+          if (category) {
+            favorites.push(category)
+          }
+        })
+
+        setFavoriteCategories(favorites)
+      } catch (error) {
+        console.error('Error reloading favorites:', error)
+      }
+    }
+
+    reloadFavorites()
+  }, [formState.type])
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
@@ -515,8 +570,8 @@ export const AddTransactionPage = () => {
                 onClick={() => setFormState((prev) => ({ ...prev, type: 'Thu' }))}
                 className={`group flex items-center justify-center gap-2 rounded-2xl border-2 py-3 px-4 text-center text-sm font-bold transition-all ${
                   formState.type === 'Thu'
-                    ? 'border-emerald-500 bg-emerald-500 text-white shadow-lg shadow-emerald-500/30'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-300 hover:bg-emerald-50'
+                    ? 'border-emerald-600 bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 ring-2 ring-emerald-400/50'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-400 hover:bg-emerald-50'
                 }`}
               >
                 <FaArrowUp className="h-5 w-5" />
@@ -604,7 +659,7 @@ export const AddTransactionPage = () => {
                     className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-gradient-to-br from-sky-50 to-blue-50 ring-2 ring-sky-400/30 hover:ring-sky-400/50 transition-all active:scale-95 flex-1 mr-3"
                   >
                     {/* Category Icon */}
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-sky-400 to-blue-500 text-white shrink-0">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-full shrink-0">
                       {categoryIcons[formState.category_id] ? (
                         <span className="text-xl">
                           {categoryIcons[formState.category_id]}
@@ -612,9 +667,9 @@ export const AddTransactionPage = () => {
                       ) : (
                         <CategoryIcon
                           iconId={categories.find(c => c.id === formState.category_id)?.icon_id || ''}
-                          className="h-5 w-5 text-white"
+                          className="h-5 w-5"
                           fallback={
-                            <span className="text-lg font-bold text-white">
+                            <span className="text-lg font-bold text-slate-400">
                               {categories.find(c => c.id === formState.category_id)?.name[0]?.toUpperCase() || '?'}
                             </span>
                           }
@@ -654,10 +709,10 @@ export const AddTransactionPage = () => {
               {/* Favorite Categories Section */}
               {favoriteCategories.length > 0 && (
                 <div>
-                  {/* "Mục hay dùng" Title with Collapse Icon */}
+                  {/* "Mục thường dùng" Title with Collapse Icon */}
                   <div className="flex items-center gap-2 mb-2">
                     <h4 className="text-base font-semibold text-slate-900">
-                      Mục hay dùng
+                      Mục thường dùng
                     </h4>
                     <FaChevronUp className="h-3.5 w-3.5 text-slate-400" />
                   </div>
@@ -681,23 +736,17 @@ export const AddTransactionPage = () => {
                           <FaStar className="absolute top-2 right-2 h-3 w-3 text-amber-500 fill-current drop-shadow-md z-10" />
                           
                           {/* Category Icon */}
-                          <div
-                            className={`flex h-14 w-14 items-center justify-center rounded-2xl transition-all ${
-                              isSelected
-                                ? 'bg-gradient-to-br from-sky-400 to-blue-500 text-white scale-105 shadow-lg'
-                                : 'bg-gradient-to-br from-blue-50 to-sky-50 text-slate-700'
-                            }`}
-                          >
+                          <div className="flex h-14 w-14 items-center justify-center rounded-full transition-all">
                             {categoryIcons[category.id] ? (
-                              <span className={`text-2xl ${isSelected ? 'text-white' : ''}`}>
+                              <span className="text-2xl">
                                 {categoryIcons[category.id]}
                               </span>
                             ) : (
                               <CategoryIcon
                                 iconId={category.icon_id}
-                                className={`h-7 w-7 ${isSelected ? 'text-white' : 'text-slate-600'}`}
+                                className="h-7 w-7"
                                 fallback={
-                                  <span className={`text-xl font-bold ${isSelected ? 'text-white' : 'text-slate-600'}`}>
+                                  <span className="text-xl font-bold text-slate-400">
                                     {category.name[0]?.toUpperCase() || '?'}
                                   </span>
                                 }

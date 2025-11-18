@@ -15,6 +15,7 @@ export type ReminderRecord = {
   amount: number | null
   category_id: string | null
   wallet_id: string | null
+  icon_id: string | null // Icon được chọn từ thư viện
   reminder_date: string
   reminder_time: string | null
   repeat_type: RepeatType
@@ -35,6 +36,7 @@ export type ReminderInsert = {
   amount?: number
   category_id?: string
   wallet_id?: string
+  icon_id?: string // Icon được chọn từ thư viện
   reminder_date: string
   reminder_time?: string
   repeat_type?: RepeatType
@@ -200,25 +202,82 @@ export const createReminder = async (reminder: ReminderInsert): Promise<Reminder
     }
 
     const supabase = getSupabaseClient()
+    
+    // Build insert object, only including fields that have values
+    // This prevents sending undefined/null values that might cause schema errors
+    // Ensure type is valid enum value ('Thu' or 'Chi')
+    const reminderType = reminder.type === 'Thu' || reminder.type === 'Chi' ? reminder.type : 'Chi'
+    const insertData: Record<string, unknown> = {
+      user_id: user.id,
+      title: reminder.title.trim(),
+      type: reminderType,
+      reminder_date: reminder.reminder_date,
+      repeat_type: reminder.repeat_type || 'none',
+    }
+
+    // Only add amount if it's provided and > 0
+    if (reminder.amount !== undefined && reminder.amount !== null && reminder.amount > 0) {
+      insertData.amount = reminder.amount
+    }
+
+    // Only add optional fields if they have values
+    if (reminder.category_id) {
+      insertData.category_id = reminder.category_id
+    }
+
+    if (reminder.wallet_id) {
+      insertData.wallet_id = reminder.wallet_id
+    }
+
+    if (reminder.reminder_time) {
+      insertData.reminder_time = reminder.reminder_time
+    }
+
+    if (reminder.repeat_until) {
+      insertData.repeat_until = reminder.repeat_until
+    }
+
+    if (reminder.notes) {
+      insertData.notes = reminder.notes.trim()
+    }
+
+    if (reminder.color) {
+      insertData.color = reminder.color
+    }
+
+    if (reminder.icon_id) {
+      insertData.icon_id = reminder.icon_id
+    }
+
+    // enable_notification defaults to true if not provided
+    insertData.enable_notification = reminder.enable_notification !== undefined ? reminder.enable_notification : true
+
     const { data, error } = await supabase
       .from('reminders')
-      .insert({
-        ...reminder,
-        user_id: user.id,
-        repeat_type: reminder.repeat_type || 'none',
-        // Note: is_active and status columns don't exist in DB
-        // Status is computed from completed_at, is_active from completed_at
-        enable_notification: reminder.enable_notification !== undefined ? reminder.enable_notification : true,
-      })
+      .insert(insertData)
       .select()
       .single()
 
     if (error) {
+      console.error('Supabase error creating reminder:', error)
+      
       // Provide more user-friendly error messages
       if (error.code === 'PGRST116' || error.message.includes('not found')) {
         throw new Error('Không thể tạo nhắc nhở. Vui lòng thử lại.')
+      } else if (error.message.includes('column') && error.message.includes('not found')) {
+        // Schema error - column doesn't exist
+        throw new Error('Lỗi cấu hình database. Vui lòng liên hệ quản trị viên để cập nhật schema.')
       } else if (error.message.includes('network') || error.message.includes('fetch')) {
         throw new Error('Lỗi kết nối. Vui lòng kiểm tra kết nối mạng và thử lại')
+      } else if (error.code === '23505') {
+        // Unique constraint violation
+        throw new Error('Nhắc nhở này đã tồn tại. Vui lòng kiểm tra lại.')
+      } else if (error.code === '23503') {
+        // Foreign key constraint violation
+        throw new Error('Dữ liệu không hợp lệ. Vui lòng kiểm tra lại hạng mục hoặc ví đã chọn.')
+      } else if (error.message.includes('enum_reminder_type') || error.message.includes('invalid input value')) {
+        // Enum type error - database enum doesn't match expected values
+        throw new Error('Lỗi cấu hình database. Vui lòng chạy script SQL để cập nhật enum_reminder_type.')
       }
       throw new Error(error.message || 'Không thể tạo nhắc nhở')
     }
@@ -258,38 +317,134 @@ export const updateReminder = async (
   id: string,
   updates: ReminderUpdate
 ): Promise<ReminderRecord> => {
-  const user = await getCachedUser()
-  if (!user) {
-    throw new Error('User not authenticated')
-  }
+  try {
+    const user = await getCachedUser()
+    if (!user) {
+      throw new Error('User not authenticated')
+    }
 
-  const supabase = getSupabaseClient()
-  // Remove status from updates (column doesn't exist in DB)
-  const { status, ...updateFields } = updates as any
-  const { data, error } = await supabase
-    .from('reminders')
-    .update({
-      ...updateFields,
+    const supabase = getSupabaseClient()
+    
+    // Build update object, only including fields that are explicitly provided
+    // Remove status from updates (column doesn't exist in DB)
+    const { status, ...updateFields } = updates as any
+    const updateData: Record<string, unknown> = {
       updated_at: new Date().toISOString(),
-    })
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .select()
-    .single()
+    }
 
-  if (error) {
-    throw error
-  }
+    // Only include fields that are explicitly provided in updates
+    if (updateFields.title !== undefined) {
+      updateData.title = typeof updateFields.title === 'string' ? updateFields.title.trim() : updateFields.title
+    }
 
-  // Invalidate cache
-  await cacheManager.invalidate(new RegExp(`^${CACHE_KEY}:${user.id}:`))
+    if (updateFields.type !== undefined) {
+      // Ensure type is valid enum value ('Thu' or 'Chi')
+      updateData.type = updateFields.type === 'Thu' || updateFields.type === 'Chi' ? updateFields.type : 'Chi'
+    }
 
-  // Compute status (column doesn't exist in DB)
-  const reminder = data as ReminderRecord
-  return {
-    ...reminder,
-    status: computeReminderStatus(reminder),
-    is_active: !reminder.completed_at,
+    // Only add amount if it's explicitly provided (including 0 or null)
+    if ('amount' in updateFields) {
+      if (updateFields.amount !== undefined && updateFields.amount !== null && updateFields.amount > 0) {
+        updateData.amount = updateFields.amount
+      } else if (updateFields.amount === null) {
+        updateData.amount = null
+      }
+    }
+
+    if (updateFields.category_id !== undefined) {
+      updateData.category_id = updateFields.category_id || null
+    }
+
+    if (updateFields.wallet_id !== undefined) {
+      updateData.wallet_id = updateFields.wallet_id || null
+    }
+
+    if (updateFields.reminder_date !== undefined) {
+      updateData.reminder_date = updateFields.reminder_date
+    }
+
+    if (updateFields.reminder_time !== undefined) {
+      updateData.reminder_time = updateFields.reminder_time || null
+    }
+
+    if (updateFields.repeat_type !== undefined) {
+      updateData.repeat_type = updateFields.repeat_type
+    }
+
+    if (updateFields.repeat_until !== undefined) {
+      updateData.repeat_until = updateFields.repeat_until || null
+    }
+
+    if (updateFields.completed_at !== undefined) {
+      updateData.completed_at = updateFields.completed_at
+    }
+
+    if (updateFields.notes !== undefined) {
+      updateData.notes = updateFields.notes ? updateFields.notes.trim() : null
+    }
+
+    if (updateFields.color !== undefined) {
+      updateData.color = updateFields.color || null
+    }
+
+    if (updateFields.enable_notification !== undefined) {
+      updateData.enable_notification = updateFields.enable_notification
+    }
+
+    const { data, error } = await supabase
+      .from('reminders')
+      .update(updateData)
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Supabase error updating reminder:', error)
+      
+      // Provide more user-friendly error messages
+      if (error.code === 'PGRST116' || error.message.includes('not found')) {
+        throw new Error('Không thể cập nhật nhắc nhở. Vui lòng thử lại.')
+      } else if (error.message.includes('column') && error.message.includes('not found')) {
+        // Schema error - column doesn't exist
+        throw new Error('Lỗi cấu hình database. Vui lòng liên hệ quản trị viên để cập nhật schema.')
+      } else if (error.message.includes('network') || error.message.includes('fetch')) {
+        throw new Error('Lỗi kết nối. Vui lòng kiểm tra kết nối mạng và thử lại')
+      } else if (error.code === '23505') {
+        // Unique constraint violation
+        throw new Error('Nhắc nhở này đã tồn tại. Vui lòng kiểm tra lại.')
+      } else if (error.code === '23503') {
+        // Foreign key constraint violation
+        throw new Error('Dữ liệu không hợp lệ. Vui lòng kiểm tra lại hạng mục hoặc ví đã chọn.')
+      }
+      throw error
+    }
+
+    if (!data) {
+      throw new Error('Không thể cập nhật nhắc nhở. Không nhận được dữ liệu từ server.')
+    }
+
+    // Invalidate cache (don't let cache errors block the operation)
+    try {
+      await cacheManager.invalidate(new RegExp(`^${CACHE_KEY}:${user.id}:`))
+    } catch (cacheError) {
+      console.warn('Error invalidating cache:', cacheError)
+      // Continue even if cache invalidation fails
+    }
+
+    // Compute status (column doesn't exist in DB)
+    const reminder = data as ReminderRecord
+    return {
+      ...reminder,
+      status: computeReminderStatus(reminder),
+      is_active: !reminder.completed_at,
+    }
+  } catch (err) {
+    // Re-throw with better error message if it's not already an Error
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Đã xảy ra lỗi không mong muốn khi cập nhật nhắc nhở')
   }
 }
 

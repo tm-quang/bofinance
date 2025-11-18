@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useDataPreloader } from '../hooks/useDataPreloader'
-import { FaPlus, FaCalendar, FaExchangeAlt, FaHandHoldingHeart, FaPaperPlane, FaCog, FaFolder, FaChevronLeft, FaChevronRight, FaReceipt, FaArrowRight, FaClock, FaDollarSign } from 'react-icons/fa'
+import { FaPlus, FaCalendar, FaExchangeAlt, FaHandHoldingHeart, FaPaperPlane, FaCog, FaFolder, FaChevronLeft, FaChevronRight, FaReceipt, FaArrowRight, FaClock } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
@@ -11,6 +11,7 @@ import { TransactionActionModal } from '../components/transactions/TransactionAc
 import { TransactionCard } from '../components/transactions/TransactionCard'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { WelcomeModal } from '../components/ui/WelcomeModal'
+import { LoadingRing } from '../components/ui/LoadingRing'
 // import { WalletCarousel } from '../components/wallets/WalletCarousel'
 import { TransactionListSkeleton } from '../components/skeletons'
 import { NetAssetsCard } from '../components/dashboard/NetAssetsCard'
@@ -25,7 +26,6 @@ import { getCurrentProfile, type ProfileRecord } from '../lib/profileService'
 import { fetchReminders, type ReminderRecord } from '../lib/reminderService'
 import { useNotification } from '../contexts/notificationContext.helpers'
 import { useSystemSettings } from '../hooks/useSystemSettings'
-import ExchangeRatesModal from '../components/exchangeRates/ExchangeRatesModal'
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('vi-VN', {
@@ -157,7 +157,6 @@ export const DashboardPage = () => {
   const { success, error: showError } = useNotification()
   useDataPreloader() // Preload data khi vào dashboard
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
-  const [isExchangeRatesModalOpen, setIsExchangeRatesModalOpen] = useState(false)
   // const [selectedWallet, setSelectedWallet] = useState<WalletRecord | null>(null) // Reserved for future use
   const [defaultWalletId, setDefaultWalletId] = useState<string | null>(null)
   const [transactions, setTransactions] = useState<TransactionRecord[]>([])
@@ -959,7 +958,9 @@ export const DashboardPage = () => {
 
           {/* Reminders List */}
           {isLoadingDateData ? (
-            <div className="py-  text-center text-sm text-slate-500">Đang tải...</div>
+            <div className="py-8 flex items-center justify-center">
+              <LoadingRing size="md" />
+            </div>
           ) : selectedDateReminders.length === 0 ? (
             <div className="py-0 text-center">
               <img 
@@ -1006,13 +1007,11 @@ export const DashboardPage = () => {
                     className={`rounded-2xl p-3 cursor-pointer transition hover:shadow-md ${colorClass.bg} bg-opacity-10`}
                   >
                     <div className="flex items-center gap-3">
-                      <div
-                        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${colorClass.icon} text-white`}
-                      >
+                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
                         {categoryInfo.icon ? (
-                          <span className="text-white">{categoryInfo.icon}</span>
+                          <span>{categoryInfo.icon}</span>
                         ) : (
-                          <FaCalendar className="h-5 w-5 text-white" />
+                          <FaCalendar className="h-5 w-5 text-slate-400" />
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -1104,16 +1103,6 @@ export const DashboardPage = () => {
               )
             })}
           </div>
-          
-          {/* Exchange Rates Button */}
-          <button
-            type="button"
-            onClick={() => setIsExchangeRatesModalOpen(true)}
-            className="mt-4 w-full rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition-all hover:from-sky-600 hover:to-blue-700 hover:shadow-lg active:scale-95 flex items-center justify-center gap-2"
-          >
-            <FaDollarSign className="h-4 w-4" />
-            <span>Tỷ giá & Giá vàng</span>
-          </button>
         </section>
 
         <section className="space-y-4">
@@ -1257,11 +1246,6 @@ export const DashboardPage = () => {
         onClose={() => setShowWelcomeModal(false)}
       />
 
-      {/* Exchange Rates Modal */}
-      <ExchangeRatesModal
-        isOpen={isExchangeRatesModalOpen}
-        onClose={() => setIsExchangeRatesModalOpen(false)}
-      />
     </div>
   )
 }

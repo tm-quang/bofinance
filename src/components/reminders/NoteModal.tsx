@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { FaTimes, FaCalendar } from 'react-icons/fa'
+import { FaTimes, FaCalendar, FaClock, FaChevronDown, FaArrowLeft } from 'react-icons/fa'
 import { createReminder, updateReminder, type ReminderRecord, type ReminderInsert } from '../../lib/reminderService'
 import { useNotification } from '../../contexts/notificationContext.helpers'
 import { ColorPicker } from './ColorPicker'
-import { ModalFooterButtons } from '../ui/ModalFooterButtons'
+import { DateTimePickerModal } from '../ui/DateTimePickerModal'
+import { IconPicker } from '../categories/IconPicker'
 
 type NoteModalProps = {
   isOpen: boolean
@@ -20,6 +21,7 @@ type NoteFormState = {
   notes: string
   color: string
   enable_notification: boolean
+  icon_id: string
 }
 
 export const NoteModal = ({ isOpen, onClose, onSuccess, note, defaultDate }: NoteModalProps) => {
@@ -33,10 +35,14 @@ export const NoteModal = ({ isOpen, onClose, onSuccess, note, defaultDate }: Not
     notes: '',
     color: 'amber',
     enable_notification: true,
+    icon_id: '',
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isDateTimePickerOpen, setIsDateTimePickerOpen] = useState(false)
+  const [isIconPickerOpen, setIsIconPickerOpen] = useState(false)
+  const [selectedIcon, setSelectedIcon] = useState<React.ReactNode | null>(null)
 
   // Populate form when editing
   useEffect(() => {
@@ -48,6 +54,7 @@ export const NoteModal = ({ isOpen, onClose, onSuccess, note, defaultDate }: Not
         notes: note.notes || '',
         color: note.color || 'amber',
         enable_notification: note.enable_notification !== undefined ? note.enable_notification : true,
+        icon_id: note.icon_id || '',
       })
     } else if (isOpen && !note) {
       // Reset form when creating new note
@@ -58,9 +65,75 @@ export const NoteModal = ({ isOpen, onClose, onSuccess, note, defaultDate }: Not
         notes: '',
         color: 'amber',
         enable_notification: true,
+        icon_id: '',
       })
+      setSelectedIcon(null)
     }
   }, [isOpen, note, defaultDate])
+
+  // Load icon when icon_id changes
+  useEffect(() => {
+    const loadIcon = async () => {
+      if (!formState.icon_id || !isOpen) {
+        setSelectedIcon(null)
+        return
+      }
+
+      try {
+        // Fetch icon từ database bằng ID
+        const { getIconById } = await import('../../lib/iconService')
+        const icon = await getIconById(formState.icon_id)
+        
+        if (!icon) {
+          setSelectedIcon(null)
+          return
+        }
+
+        // Nếu có image_url, hiển thị ảnh trực tiếp
+        if (icon.image_url) {
+          setSelectedIcon(
+            <img
+              src={icon.image_url}
+              alt={icon.label || 'Icon'}
+              className="h-full w-full object-contain"
+              onError={(e) => {
+                console.warn('Failed to load icon image:', icon.image_url)
+                e.currentTarget.style.display = 'none'
+                setSelectedIcon(null)
+              }}
+            />
+          )
+        } else if (icon.icon_type === 'react-icon' && icon.react_icon_name && icon.react_icon_library) {
+          // Nếu là react-icon, load icon component
+          try {
+            const { getCachedIconLibrary } = await import('../../utils/iconLoader')
+            const library = await getCachedIconLibrary(icon.react_icon_library)
+            if (library && library[icon.react_icon_name]) {
+              const IconComponent = library[icon.react_icon_name]
+              setSelectedIcon(<IconComponent className="h-full w-full" />)
+            } else {
+              console.warn('Icon component not found:', icon.react_icon_name, 'in library:', icon.react_icon_library)
+              setSelectedIcon(null)
+            }
+          } catch (error) {
+            console.error('Error loading react icon:', error)
+            setSelectedIcon(null)
+          }
+        } else {
+          // Các loại icon khác (svg, svg-url) - không hỗ trợ hiển thị trong note
+          setSelectedIcon(null)
+        }
+      } catch (error) {
+        // Không log error nếu là lỗi "not found" (đó là trường hợp bình thường)
+        if (error instanceof Error && !error.message.includes('not found') && !error.message.includes('PGRST116')) {
+          console.error('Error loading icon:', error)
+        }
+        setSelectedIcon(null)
+      }
+    }
+
+    loadIcon()
+  }, [formState.icon_id, isOpen])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -99,6 +172,10 @@ export const NoteModal = ({ isOpen, onClose, onSuccess, note, defaultDate }: Not
         noteData.notes = formState.notes.trim()
       }
 
+      if (formState.icon_id) {
+        noteData.icon_id = formState.icon_id
+      }
+
       if (isEditMode && note) {
         await updateReminder(note.id, noteData)
         success('Đã cập nhật ghi chú thành công!')
@@ -115,7 +192,9 @@ export const NoteModal = ({ isOpen, onClose, onSuccess, note, defaultDate }: Not
         notes: '',
         color: 'amber',
         enable_notification: true,
+        icon_id: '',
       })
+      setSelectedIcon(null)
 
       onSuccess?.()
       onClose()
@@ -141,29 +220,39 @@ export const NoteModal = ({ isOpen, onClose, onSuccess, note, defaultDate }: Not
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end backdrop-blur-sm bg-slate-950/50 animate-in fade-in duration-200">
-      <div className="flex w-full max-w-md mx-auto max-h-[90vh] flex-col rounded-t-3xl bg-white shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300 sm:slide-in-from-bottom-0">
-        {/* Header */}
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50 px-4 py-4 sm:px-6 sm:py-5 rounded-t-3xl">
-          <div>
-            <h2 className="text-lg font-bold text-slate-900 sm:text-xl">
+    <div className="fixed inset-0 z-[60] flex flex-col bg-[#F7F9FC]">
+      {/* Header - Giống HeaderBar */}
+      <header className="pointer-events-none relative z-10 flex-shrink-0 bg-[#F7F9FC]">
+        <div className="relative px-1 py-1">
+          <div className="pointer-events-auto mx-auto flex w-full max-w-md items-center justify-between px-4 py-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100"
+              aria-label="Đóng"
+            >
+              <FaArrowLeft className="h-5 w-5" />
+            </button>
+            <p className="flex-1 px-4 text-center text-base font-semibold uppercase tracking-[0.2em] text-slate-800">
               {isEditMode ? 'Sửa' : 'Tạo'} ghi chú
-            </h2>
-            <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-              {isEditMode ? 'Chỉnh sửa thông tin ghi chú' : 'Thêm ghi chú công việc mới'}
             </p>
+            <div className="flex h-11 w-11 items-center justify-center">
+              <button
+                type="submit"
+                form="note-form"
+                disabled={isSubmitting}
+                className="text-sm font-semibold text-sky-600 disabled:text-slate-400"
+              >
+                {isSubmitting ? 'Đang lưu...' : isEditMode ? 'Cập nhật' : 'Tạo'}
+              </button>
+            </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-all hover:bg-slate-200 hover:scale-110 active:scale-95 sm:h-10 sm:w-10"
-          >
-            <FaTimes className="h-4 w-4 sm:h-5 sm:w-5" />
-          </button>
         </div>
+      </header>
 
-        {/* Scrollable Content */}
-        <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
+      {/* Scrollable Content */}
+      <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 min-h-0">
+        <div className="mx-auto max-w-md">
           {/* Error message */}
           {error && (
             <div className="mb-3 rounded-lg bg-rose-50 p-3 text-xs text-rose-600 sm:text-sm">
@@ -189,39 +278,105 @@ export const NoteModal = ({ isOpen, onClose, onSuccess, note, defaultDate }: Not
               />
             </div>
 
-            {/* Date and Time - Grid */}
-            <div className="grid grid-cols-2 gap-4 items-stretch">
-              {/* Date - Required */}
-              <div>
-                <label htmlFor="reminder_date" className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
-                  Ngày <span className="text-rose-500">*</span>
-                </label>
-                <div className="relative">
-                  <FaCalendar className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    type="date"
-                    id="reminder_date"
-                    value={formState.reminder_date}
-                    onChange={(e) => setFormState((prev) => ({ ...prev, reminder_date: e.target.value }))}
-                    className="h-full w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 pl-11 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
-                    required
-                  />
+            {/* Icon Picker */}
+            <div>
+              <label className="mb-2 block text-xs font-medium text-slate-600 sm:text-sm">
+                Biểu tượng (tùy chọn)
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsIconPickerOpen(true)}
+                className="flex w-full items-center gap-3 rounded-xl border-2 border-slate-200 bg-white p-3.5 text-left transition-all hover:border-slate-300 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
+              >
+                {selectedIcon ? (
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-50">
+                    {selectedIcon}
+                  </div>
+                ) : (
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400">
+                    <span className="text-sm">?</span>
+                  </div>
+                )}
+                <div className="flex-1">
+                  <span className="text-sm font-medium text-slate-900">
+                    {formState.icon_id ? 'Đã chọn biểu tượng' : 'Chọn biểu tượng'}
+                  </span>
                 </div>
-              </div>
+                {formState.icon_id && (
+                  <div
+                    onClick={(e) => {
+                      e.stopPropagation()
+                      e.preventDefault()
+                      setFormState((prev) => ({ ...prev, icon_id: '' }))
+                      setSelectedIcon(null)
+                    }}
+                    className="rounded-full p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600 cursor-pointer"
+                    role="button"
+                    tabIndex={0}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault()
+                        e.stopPropagation()
+                        setFormState((prev) => ({ ...prev, icon_id: '' }))
+                        setSelectedIcon(null)
+                      }
+                    }}
+                  >
+                    <FaTimes className="h-4 w-4" />
+                  </div>
+                )}
+              </button>
+            </div>
 
-              {/* Time - Optional */}
-              <div>
-                <label htmlFor="reminder_time" className="mb-0 block text-xs font-medium text-slate-600 sm:text-sm">
-                  Giờ (tùy chọn)
-                </label>
-                <input
-                  type="time"
-                  id="reminder_time"
-                  value={formState.reminder_time}
-                  onChange={(e) => setFormState((prev) => ({ ...prev, reminder_time: e.target.value }))}
-                  className="h-full w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
-                />
-              </div>
+            {/* Date and Time */}
+            <div>
+              <label className="mb-2 block text-xs font-medium text-slate-600 sm:text-sm">
+                Ngày và giờ <span className="text-rose-500">*</span>
+              </label>
+              <button
+                type="button"
+                onClick={() => setIsDateTimePickerOpen(true)}
+                className="relative flex w-full items-center justify-between rounded-2xl border-2 border-slate-200 bg-white p-4 pl-12 text-left transition-all hover:border-slate-300 focus:border-sky-500 focus:outline-none focus:ring-4 focus:ring-sky-500/20"
+              >
+                <FaCalendar className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
+                <div className="flex-1 flex items-center gap-3">
+                  <div className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
+                    {(() => {
+                      try {
+                        const date = new Date(formState.reminder_date)
+                        if (isNaN(date.getTime())) {
+                          return 'Chưa chọn ngày'
+                        }
+                        const day = String(date.getDate()).padStart(2, '0')
+                        const month = String(date.getMonth() + 1).padStart(2, '0')
+                        const year = date.getFullYear()
+                        const dateStr = `${day}/${month}/${year}`
+                        
+                        // Check if today
+                        const today = new Date()
+                        today.setHours(0, 0, 0, 0)
+                        const selectedDate = new Date(date)
+                        selectedDate.setHours(0, 0, 0, 0)
+                        
+                        if (selectedDate.getTime() === today.getTime()) {
+                          return `Hôm nay - ${dateStr}`
+                        }
+                        return dateStr
+                      } catch (error) {
+                        console.error('Error formatting date:', error)
+                        return 'Chưa chọn ngày'
+                      }
+                    })()}
+                  </div>
+                  {formState.reminder_time && (
+                    <>
+                      <FaClock className="h-4 w-4 text-slate-400" />
+                      <span className="text-sm font-medium text-slate-900">{formState.reminder_time}</span>
+                    </>
+                  )}
+                </div>
+                <FaChevronDown className="h-4 w-4 text-slate-400" />
+              </button>
             </div>
 
             {/* Notes - Optional */}
@@ -274,18 +429,34 @@ export const NoteModal = ({ isOpen, onClose, onSuccess, note, defaultDate }: Not
             </div>
           </form>
         </div>
-
-        {/* Footer */}
-        <ModalFooterButtons
-          onCancel={onClose}
-          onConfirm={() => {}}
-          confirmText={isSubmitting ? 'Đang lưu...' : `${isEditMode ? 'Cập nhật' : 'Tạo'} ghi chú`}
-          isSubmitting={isSubmitting}
-              disabled={isSubmitting}
-          confirmButtonType="submit"
-          formId="note-form"
-        />
       </div>
+
+      {/* Icon Picker Modal */}
+      <IconPicker
+        isOpen={isIconPickerOpen}
+        onClose={() => setIsIconPickerOpen(false)}
+        onSelect={(iconId) => {
+          setFormState((prev) => ({ ...prev, icon_id: iconId }))
+          setIsIconPickerOpen(false)
+        }}
+        selectedIconId={formState.icon_id}
+      />
+
+      {/* DateTime Picker Modal */}
+      <DateTimePickerModal
+        isOpen={isDateTimePickerOpen}
+        onClose={() => setIsDateTimePickerOpen(false)}
+        onConfirm={(date, time) => {
+          setFormState((prev) => ({
+            ...prev,
+            reminder_date: date,
+            reminder_time: time || '',
+          }))
+        }}
+        initialDate={formState.reminder_date}
+        initialTime={formState.reminder_time}
+        showTime={true}
+      />
     </div>
   )
 }

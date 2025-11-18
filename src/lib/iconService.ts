@@ -187,22 +187,37 @@ export const invalidateIconCache = async (): Promise<void> => {
 
 // Get icon by ID
 export const getIconById = async (id: string): Promise<IconRecord | null> => {
-  const supabase = getSupabaseClient()
-  const user = await getCachedUser()
+  try {
+    const supabase = getSupabaseClient()
+    const user = await getCachedUser()
 
-  if (!user) {
-    throw new Error('Bạn cần đăng nhập để xem icon.')
+    if (!user) {
+      return null
+    }
+
+    const { data, error } = await supabase
+      .from(TABLE_NAME)
+      .select('*')
+      .eq('id', id)
+      .maybeSingle()
+
+    // Nếu không tìm thấy hoặc có lỗi, return null thay vì throw
+    if (error) {
+      // Không log error nếu là "not found" (PGRST116) - đó là trường hợp bình thường
+      if (error.code !== 'PGRST116' && !error.message?.includes('not found')) {
+        console.warn('Error fetching icon by ID:', error)
+      }
+      return null
+    }
+
+    return data || null
+  } catch (error) {
+    // Không log error nếu là lỗi thông thường
+    if (error instanceof Error && !error.message.includes('not found') && !error.message.includes('PGRST116')) {
+      console.warn('Error in getIconById:', error)
+    }
+    return null
   }
-
-  const { data, error } = await supabase
-    .from(TABLE_NAME)
-    .select('*')
-    .eq('id', id)
-    .single()
-
-  throwIfError(error, 'Không thể tải icon.')
-
-  return data
 }
 
 // Create icon

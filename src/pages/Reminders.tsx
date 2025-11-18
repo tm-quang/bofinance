@@ -35,6 +35,7 @@ const RemindersPage = () => {
   const [categories, setCategories] = useState<CategoryRecord[]>([])
   const [wallets, setWallets] = useState<WalletRecord[]>([])
   const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
+  const [reminderIcons, setReminderIcons] = useState<Record<string, React.ReactNode>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingReminder, setEditingReminder] = useState<ReminderRecord | null>(null)
@@ -142,6 +143,34 @@ const RemindersPage = () => {
       }
       setCategoryIcons(iconsMap)
 
+      // Load icons for reminders that have icon_id
+      const reminderIconsMap: Record<string, React.ReactNode> = {}
+      const remindersWithIcons = remindersData.filter(r => r.icon_id)
+      if (remindersWithIcons.length > 0) {
+        const reminderIconPromises = remindersWithIcons.map(async (reminder) => {
+          try {
+            const iconNode = await getIconNode(reminder.icon_id!)
+            if (iconNode) {
+              return { reminderId: reminder.id, iconNode: <span className="h-full w-full flex items-center justify-center rounded-full overflow-hidden">{iconNode}</span> }
+            }
+          } catch (error) {
+            // Không log error nếu là lỗi "not found" (đó là trường hợp bình thường)
+            if (error instanceof Error && !error.message.includes('not found') && !error.message.includes('PGRST116')) {
+              console.error('Error loading icon for reminder:', reminder.id, error)
+            }
+          }
+          return null
+        })
+
+        const reminderIconResults = await Promise.allSettled(reminderIconPromises)
+        reminderIconResults.forEach((result) => {
+          if (result.status === 'fulfilled' && result.value) {
+            reminderIconsMap[result.value.reminderId] = result.value.iconNode
+          }
+        })
+      }
+      setReminderIcons(reminderIconsMap)
+
       // Sort reminders by date
       const sortedReminders = [...remindersData].sort((a, b) => {
         const dateA = new Date(`${a.reminder_date} ${a.reminder_time || '00:00'}`).getTime()
@@ -162,8 +191,8 @@ const RemindersPage = () => {
 
   const handleAddClick = () => {
     setEditingReminder(null)
-    setSelectedCalendarDate(undefined)
-    setIsModalOpen(true)
+    setSelectedCalendarDate(new Date().toISOString().split('T')[0])
+    setIsActionSheetOpen(true)
   }
 
   const handleCalendarDateClick = (date: string) => {
@@ -336,7 +365,7 @@ const RemindersPage = () => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
-      <HeaderBar variant="page" title="Kế hoạch nhắc nhở" />
+      <HeaderBar variant="page" title="Ghi chú & kế hoạch" />
 
       <main className="flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 pt-2 pb-4 sm:pt-2 sm:pb-4">
@@ -394,13 +423,13 @@ const RemindersPage = () => {
                       className={`rounded-2xl p-4 shadow-lg ring-1 ${colorClasses.bg} ${colorClasses.border}`}
                     >
                       <div className="flex items-start gap-3">
-                        <div
-                          className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${colorClasses.icon} text-white`}
-                        >
-                          {categoryInfo.icon ? (
-                            <span className="text-white">{categoryInfo.icon}</span>
+                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full">
+                          {reminderIcons[reminder.id] ? (
+                            <span className="h-12 w-12">{reminderIcons[reminder.id]}</span>
+                          ) : categoryInfo.icon ? (
+                            <span>{categoryInfo.icon}</span>
                           ) : (
-                            <FaCalendar className="h-6 w-6 text-white" />
+                            <FaCalendar className="h-6 w-6 text-slate-400" />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -496,13 +525,13 @@ const RemindersPage = () => {
                       className={`rounded-2xl p-4 shadow-sm ring-1 ${colorClasses.bg} ${colorClasses.border}`}
                     >
                       <div className="flex items-start gap-3">
-                        <div
-                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${colorClasses.icon} text-white`}
-                        >
-                          {categoryInfo.icon ? (
-                            <span className="text-white">{categoryInfo.icon}</span>
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
+                          {reminderIcons[reminder.id] ? (
+                            <span className="h-10 w-10">{reminderIcons[reminder.id]}</span>
+                          ) : categoryInfo.icon ? (
+                            <span>{categoryInfo.icon}</span>
                           ) : (
-                            <FaCalendar className="h-5 w-5 text-white" />
+                            <FaCalendar className="h-5 w-5 text-slate-400" />
                           )}
                         </div>
                         <div className="flex-1 min-w-0">

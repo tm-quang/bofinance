@@ -43,6 +43,8 @@ supabase/
 *.aab
 .gradle/
 local.properties
+docs/
+html/
 
 # Documentation files
 *.md

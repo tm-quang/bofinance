@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef, useMemo } from 'react'
 import { FaTimes, FaChevronRight, FaFolder, FaSearch, FaStar, FaEdit, FaChevronUp } from 'react-icons/fa'
 import { fetchCategoriesHierarchical, type CategoryWithChildren } from '../../lib/categoryService'
 import { getFavoriteCategories } from '../../lib/favoriteCategoriesService'
-import { getCachedUser } from '../../lib/userCache'
 import { CategoryIcon } from '../ui/CategoryIcon'
 import { CategoryListSkeleton } from '../skeletons'
 import { FavoriteCategoriesModal } from './FavoriteCategoriesModal'
@@ -42,25 +41,12 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
     }
   }, [isOpen])
 
-  // Load categories và favorites khi modal mở hoặc categoryType thay đổi
+  // Load categories và favorites khi modal mở
   useEffect(() => {
     if (isOpen) {
       const loadCategories = async () => {
         setIsLoading(true)
         try {
-          // Invalidate cache khi categoryType thay đổi để đảm bảo load đúng favorites
-          try {
-            const user = await getCachedUser()
-            if (user) {
-              const { invalidateCache } = await import('../../lib/cache')
-              const { cacheManager } = await import('../../lib/cache')
-              const cacheKey = await cacheManager.generateKey('favoriteCategories', { categoryType, userId: user.id })
-              await invalidateCache(cacheKey)
-            }
-          } catch (cacheError) {
-            console.warn('Error invalidating cache:', cacheError)
-          }
-
           const [categories, favoriteIdsArray] = await Promise.all([
             fetchCategoriesHierarchical(categoryType),
             getFavoriteCategories(categoryType),
@@ -228,15 +214,21 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
             <>
               {/* Favorite Categories Section - Only show when not searching */}
               {!searchTerm && (
-                <div className="px-4 pt-4 pb-4 mb-2 shadow-sm ring-1 rounded-2xl mx-4 mt-2 bg-white ring-slate-200">
+                <div className={`px-4 pt-4 pb-4 mb-3 shadow-sm ring-1 rounded-2xl mx-4 mt-2 ${
+                  categoryType === 'Chi tiêu' 
+                    ? 'bg-gradient-to-br from-rose-50/50 to-pink-50/30 ring-rose-100/50' 
+                    : 'bg-gradient-to-br from-emerald-50/50 to-green-50/30 ring-emerald-100/50'
+                }`}>
                   <div className="flex items-center gap-2 mb-4">
-                    <h4 className="text-base font-semibold text-slate-900">
-                      MỤC THƯỜNG DÙNG ({favoriteCategories.length})
+                    <h4 className={`text-base font-semibold ${
+                      categoryType === 'Chi tiêu' ? 'text-rose-900' : 'text-emerald-900'
+                    }`}>
+                      MỤC HAY DÙNG ({favoriteCategories.length})
                     </h4>
                     <FaChevronUp className="h-3.5 w-3.5 text-slate-400" />
                   </div>
                   {/* Favorite Categories Grid - Include Edit button as 8th item */}
-                  <div className="grid grid-cols-4 gap-2">
+                  <div className="grid grid-cols-4 gap-3">
                     {favoriteCategories.slice(0, 7).map((category) => {
                       const isSelected = selectedCategoryId === category.id
                       return (
@@ -244,7 +236,7 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
                           key={category.id}
                           type="button"
                           onClick={() => handleCategorySelect(category.id)}
-                          className={`relative flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all active:scale-95 ${
+                          className={`relative flex flex-col items-center gap-2 p-3 rounded-xl transition-all active:scale-95 ${
                             isSelected
                               ? 'bg-gradient-to-br from-sky-50 to-blue-50 ring-2 ring-sky-500 shadow-md'
                               : 'bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300'
@@ -253,12 +245,18 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
                           {/* Star Icon */}
                           <FaStar className="absolute top-1.5 right-1.5 h-3 w-3 text-amber-500 fill-current drop-shadow-sm z-10" />
                           {/* Category Icon */}
-                          <div className="flex h-20 w-20 items-center justify-center rounded-full transition-all">
+                          <div
+                            className={`flex h-12 w-12 items-center justify-center rounded-xl transition-all shadow-sm ${
+                              isSelected
+                                ? 'bg-gradient-to-br from-sky-500 to-blue-600 text-white scale-105'
+                                : 'bg-gradient-to-br from-slate-100 to-slate-200 text-slate-700'
+                            }`}
+                          >
                             <CategoryIcon
                               iconId={category.icon_id}
-                              className="h-14 w-14"
+                              className={`h-6 w-6 ${isSelected ? 'text-white' : ''}`}
                               fallback={
-                                <span className="text-3xl font-semibold text-slate-400">
+                                <span className={`text-lg font-semibold ${isSelected ? 'text-white' : 'text-slate-600'}`}>
                                   {category.name[0]?.toUpperCase() || '?'}
                                 </span>
                               }
@@ -279,10 +277,10 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
                     <button
                       type="button"
                       onClick={() => setIsFavoriteModalOpen(true)}
-                      className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 transition-all active:scale-95"
+                      className="flex flex-col items-center gap-2 p-3 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 transition-all active:scale-95"
                     >
-                      <div className="flex h-14 w-14 mt-6 items-center justify-center rounded-full bg-sky-100 text-sky-600">
-                        <FaEdit className="h-8 w-8" />
+                      <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
+                        <FaEdit className="h-6 w-6" />
                       </div>
                       <span className="text-xs font-semibold text-center text-slate-700 leading-tight">
                         Chỉnh sửa
@@ -308,28 +306,27 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
               </p>
             </div>
           ) : (
-            <div className="py-3 shadow-sm ring-1 rounded-2xl mx-4 mt-2 bg-white ring-slate-200">
-              {filteredCategories.map((parent, index) => {
+            <div className={`py-3 shadow-sm ring-1 rounded-2xl mx-4 mt-4 ${
+              categoryType === 'Chi tiêu'
+                ? 'bg-gradient-to-br from-rose-50/30 to-white ring-rose-100/50'
+                : 'bg-gradient-to-br from-emerald-50/30 to-white ring-emerald-100/50'
+            }`}>
+              {filteredCategories.map((parent) => {
                 const hasChildren = parent.children && parent.children.length > 0
                 const isExpanded = expandedParents.has(parent.id) || searchTerm.length > 0 // Auto-expand when searching
                 const isSelected = selectedCategoryId === parent.id
 
                 return (
-                  <div key={parent.id}>
-                    {/* Divider */}
-                    {index > 0 && (
-                      <div className="mx-4 border-t border-slate-200" />
-                    )}
-                    <div className="px-4">
-                      {/* Parent Category */}
-                      <div
-                        className={`group flex items-center gap-2 px-3 py-1 rounded-xl transition-all cursor-pointer ${
-                          isSelected
-                            ? 'bg-gradient-to-r from-sky-50 to-blue-50 ring-2 ring-sky-500 shadow-sm'
-                            : 'hover:bg-slate-50 active:bg-slate-100'
-                        }`}
-                        onClick={() => handleCategorySelect(parent.id)}
-                      >
+                  <div key={parent.id} className="mb-0.5 px-4">
+                    {/* Parent Category */}
+                    <div
+                      className={`group flex items-center gap-3 px-4 py-2 rounded-xl transition-all cursor-pointer ${
+                        isSelected
+                          ? 'bg-gradient-to-r from-sky-50 to-blue-50 ring-2 ring-sky-500 shadow-sm'
+                          : 'hover:bg-slate-50 active:bg-slate-100'
+                      }`}
+                      onClick={() => handleCategorySelect(parent.id)}
+                    >
                       {/* Expand/Collapse Button */}
                       {hasChildren ? (
                         <button
@@ -340,12 +337,12 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
                           }}
                           className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${
                             isExpanded
-                              ? 'bg-sky-200 text-sky-600'
-                              : 'bg-slate-200 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600'
+                              ? 'bg-sky-100 text-sky-600'
+                              : 'bg-slate-100 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600'
                           }`}
                         >
                           <FaChevronRight
-                            className={`h-5 w-5 transition-transform duration-200 ${
+                            className={`h-3.5 w-3.5 transition-transform duration-200 ${
                               isExpanded ? 'rotate-90' : ''
                             }`}
                           />
@@ -355,12 +352,18 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
                       )}
 
                       {/* Icon */}
-                      <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full transition-all">
+                      <div
+                        className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl transition-all shadow-sm ${
+                          isSelected
+                            ? 'bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-md scale-105'
+                            : 'bg-gradient-to-br from-slate-100 to-slate-200 text-slate-700 group-hover:scale-105 group-hover:shadow-md'
+                        }`}
+                      >
                         <CategoryIcon
                           iconId={parent.icon_id}
-                          className="h-14 w-14"
+                          className={`h-6 w-6 ${isSelected ? 'text-white' : ''}`}
                           fallback={
-                            <span className="text-3xl font-semibold text-slate-400">
+                            <span className={`text-lg font-semibold ${isSelected ? 'text-white' : 'text-slate-600'}`}>
                               {parent.name[0]?.toUpperCase() || '?'}
                             </span>
                           }
@@ -393,13 +396,13 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
 
                     {/* Children Categories - Only show if expanded */}
                     {hasChildren && isExpanded && parent.children && parent.children.length > 0 && (
-                      <div className="ml-4 mt-0.5 space-y-0.5 border-l-2 border-slate-200 pl-1">
+                      <div className="ml-4 mt-1 space-y-0.5 border-l-2 border-slate-200 pl-1">
                         {parent.children.map((child, index) => {
                           const isChildSelected = selectedCategoryId === child.id
                           return (
                             <div
                               key={child.id}
-                              className={`group flex items-center gap-2 px-3 py-1 rounded-xl transition-all cursor-pointer ${
+                              className={`group flex items-center gap-3 px-4 py-1 rounded-xl transition-all cursor-pointer ${
                                 isChildSelected
                                   ? 'bg-gradient-to-r from-sky-50 to-blue-50 ring-2 ring-sky-500 shadow-sm'
                                   : 'hover:bg-slate-50 active:bg-slate-100'
@@ -411,12 +414,20 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
                               <div className="w-5" />
 
                               {/* Icon */}
-                              <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-full transition-all">
+                              <div
+                                className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl transition-all shadow-sm ${
+                                  isChildSelected
+                                    ? 'bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-md scale-105'
+                                    : 'bg-gradient-to-br from-slate-100 to-slate-200 text-slate-700 group-hover:scale-105 group-hover:shadow-md'
+                                }`}
+                              >
                                 <CategoryIcon
                                   iconId={child.icon_id}
-                                  className="h-14 w-14"
+                                  className={`h-5 w-5 ${isChildSelected ? 'text-white' : ''}`}
                                   fallback={
-                                    <span className="text-2xl font-semibold text-slate-400">
+                                    <span className={`text-base font-semibold ${
+                                      isChildSelected ? 'text-white' : 'text-slate-600'
+                                    }`}>
                                       {child.name[0]?.toUpperCase() || '?'}
                                     </span>
                                   }
@@ -443,9 +454,8 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
                             </div>
                           )
                         })}
-                        </div>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
                 )
               })}
@@ -460,45 +470,7 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
       {/* Favorite Categories Modal */}
       <FavoriteCategoriesModal
         isOpen={isFavoriteModalOpen}
-        onClose={async () => {
-          setIsFavoriteModalOpen(false)
-          // Invalidate cache and reload favorites when modal closes
-          try {
-            const user = await getCachedUser()
-            if (user) {
-              const { invalidateCache } = await import('../../lib/cache')
-              const { cacheManager } = await import('../../lib/cache')
-              const cacheKey = await cacheManager.generateKey('favoriteCategories', { categoryType, userId: user.id })
-              await invalidateCache(cacheKey)
-            }
-            // Reload favorites
-            const favoriteIdsArray = await getFavoriteCategories(categoryType)
-            const favorites: CategoryWithChildren[] = []
-            const favoriteIdsSet = new Set(favoriteIdsArray.slice(0, 7))
-
-            const findCategoryById = (cats: CategoryWithChildren[], id: string): CategoryWithChildren | null => {
-              for (const cat of cats) {
-                if (cat.id === id) return cat
-                if (cat.children) {
-                  const found = findCategoryById(cat.children, id)
-                  if (found) return found
-                }
-              }
-              return null
-            }
-
-            favoriteIdsSet.forEach((id) => {
-              const category = findCategoryById(hierarchicalCategories, id)
-              if (category) {
-                favorites.push(category)
-              }
-            })
-
-            setFavoriteCategories(favorites)
-          } catch (error) {
-            console.error('Error reloading favorites:', error)
-          }
-        }}
+        onClose={() => setIsFavoriteModalOpen(false)}
         categoryType={categoryType}
       />
     </div>

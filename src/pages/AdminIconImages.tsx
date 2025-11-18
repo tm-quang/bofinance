@@ -14,6 +14,7 @@ import { useDialog } from '../contexts/dialogContext.helpers'
 import { getCachedAdminStatus } from '../lib/adminService'
 import HeaderBar from '../components/layout/HeaderBar'
 import { ModalFooterButtons } from '../components/ui/ModalFooterButtons'
+import { LoadingRing } from '../components/ui/LoadingRing'
 
 const ICON_GROUPS = [
   { id: 'life', label: 'Sinh hoạt' },
@@ -693,7 +694,9 @@ export default function AdminIconImages() {
 
               {/* Icons List */}
               {isLoading ? (
-                <div className="text-center py-12 text-slate-500">Đang tải...</div>
+                <div className="text-center py-12 flex items-center justify-center">
+                  <LoadingRing size="md" />
+                </div>
               ) : filteredIcons.length === 0 ? (
                 <div className="text-center py-12 text-slate-500">
                   {searchTerm || selectedGroup !== 'all' 

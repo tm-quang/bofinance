@@ -4,6 +4,15 @@ import { cacheFirstWithRefresh, cacheManager, invalidateCache } from './cache'
 import { getCachedUser } from './userCache'
 import { fetchTransactions, type TransactionRecord } from './transactionService'
 import { fetchCategories } from './categoryService'
+import {
+  getNowUTC7,
+  formatDateUTC7,
+  getFirstDayOfMonthUTC7,
+  getLastDayOfMonthUTC7,
+  getStartOfDayUTC7,
+  getEndOfDayUTC7,
+  getDateComponentsUTC7,
+} from '../utils/dateUtils'
 
 export type PeriodType = 'weekly' | 'monthly' | 'yearly'
 
@@ -69,35 +78,109 @@ const throwIfError = (error: PostgrestError | null, fallbackMessage: string): vo
 // Database columns match code expectations: period_start, period_end, period_type
 // No mapping needed
 
-// Calculate period dates
+// Get Monday of a given date in UTC+7 (week starts on Monday)
+const getMonday = (date: Date): Date => {
+  const d = new Date(date)
+  // Convert to UTC+7 first
+  const utc7Date = new Date(d.getTime() + (d.getTimezoneOffset() * 60000) + (7 * 3600000))
+  const day = utc7Date.getUTCDay()
+  const diff = utc7Date.getUTCDate() - day + (day === 0 ? -6 : 1) // Adjust when day is Sunday
+  const monday = new Date(utc7Date)
+  monday.setUTCDate(diff)
+  monday.setUTCHours(0, 0, 0, 0)
+  // Convert back to local time
+  return new Date(monday.getTime() - (7 * 3600000) - (monday.getTimezoneOffset() * 60000))
+}
+
+// Get Sunday of a given week in UTC+7 (week ends on Sunday)
+const getSunday = (monday: Date): Date => {
+  const sunday = new Date(monday)
+  sunday.setTime(sunday.getTime() + (6 * 24 * 60 * 60 * 1000)) // Add 6 days
+  // Set to end of day in UTC+7
+  const utc7Date = new Date(sunday.getTime() + (sunday.getTimezoneOffset() * 60000) + (7 * 3600000))
+  utc7Date.setUTCHours(23, 59, 59, 999)
+  // Convert back to local time
+  return new Date(utc7Date.getTime() - (7 * 3600000) - (utc7Date.getTimezoneOffset() * 60000))
+}
+
+// Calculate period dates in UTC+7
+// Ensures periods don't start in the past
 export const calculatePeriod = (
   periodType: PeriodType,
   year: number,
-  month?: number
+  month?: number,
+  weekStartDate?: Date // For weekly: the date to calculate week from
 ): { start: Date; end: Date } => {
+  const now = getNowUTC7()
+  const nowComponents = getDateComponentsUTC7(now)
+  const nowStartOfDay = getStartOfDayUTC7(nowComponents.year, nowComponents.month, nowComponents.day)
+
   if (periodType === 'monthly' && month) {
-    const start = new Date(year, month - 1, 1)
-    const end = new Date(year, month, 0, 23, 59, 59)
-    return { start, end }
+    // Create dates in UTC+7
+    // Start: first day of the month at 00:00:00 UTC+7
+    const selectedMonth = getFirstDayOfMonthUTC7(year, month)
+    // End: last day of the month at 23:59:59 UTC+7
+    const selectedMonthEnd = getLastDayOfMonthUTC7(year, month)
+    
+    // If selected month is in the past, use current month instead
+    if (selectedMonthEnd < nowStartOfDay) {
+      const currentMonth = getFirstDayOfMonthUTC7(nowComponents.year, nowComponents.month)
+      const currentMonthEnd = getLastDayOfMonthUTC7(nowComponents.year, nowComponents.month)
+      return { start: currentMonth, end: currentMonthEnd }
+    }
+    
+    return { start: selectedMonth, end: selectedMonthEnd }
   }
 
   if (periodType === 'yearly') {
-    const start = new Date(year, 0, 1)
-    const end = new Date(year, 11, 31, 23, 59, 59)
-    return { start, end }
+    // Create dates in UTC+7
+    const selectedYear = getStartOfDayUTC7(year, 1, 1)
+    const selectedYearEnd = getEndOfDayUTC7(year, 12, 31)
+    
+    // If selected year is in the past, use current year instead
+    if (selectedYearEnd < nowStartOfDay) {
+      const currentYear = getStartOfDayUTC7(nowComponents.year, 1, 1)
+      const currentYearEnd = getEndOfDayUTC7(nowComponents.year, 12, 31)
+      return { start: currentYear, end: currentYearEnd }
+    }
+    
+    return { start: selectedYear, end: selectedYearEnd }
   }
 
-  // Weekly - simplified, can be enhanced
-  const start = new Date(year, 0, 1)
-  const end = new Date(year, 11, 31, 23, 59, 59)
-  return { start, end }
+  // Weekly
+  if (periodType === 'weekly') {
+    let weekStart: Date
+    
+    if (weekStartDate) {
+      // Use provided week start date
+      weekStart = getMonday(weekStartDate)
+    } else {
+      // Use current week
+      weekStart = getMonday(now)
+    }
+    
+    // If the week is in the past, use current week instead
+    const weekEnd = getSunday(weekStart)
+    if (weekEnd < nowStartOfDay) {
+      weekStart = getMonday(now)
+    }
+    
+    const weekEndDate = getSunday(weekStart)
+    return { start: weekStart, end: weekEndDate }
+  }
+
+  // Fallback: return current month in UTC+7
+  const currentMonth = getFirstDayOfMonthUTC7(nowComponents.year, nowComponents.month)
+  const currentMonthEnd = getLastDayOfMonthUTC7(nowComponents.year, nowComponents.month)
+  return { start: currentMonth, end: currentMonthEnd }
 }
 
-// Get current period
+// Get current period in UTC+7
 export const getCurrentPeriod = (periodType: PeriodType): { start: Date; end: Date } => {
-  const now = new Date()
-  const year = now.getFullYear()
-  const month = now.getMonth() + 1
+  const now = getNowUTC7()
+  const nowComponents = getDateComponentsUTC7(now)
+  const year = nowComponents.year
+  const month = nowComponents.month
 
   if (periodType === 'monthly') {
     return calculatePeriod('monthly', year, month)
@@ -107,8 +190,8 @@ export const getCurrentPeriod = (periodType: PeriodType): { start: Date; end: Da
     return calculatePeriod('yearly', year)
   }
 
-  // Weekly - simplified
-  return calculatePeriod('yearly', year)
+  // Weekly - use current week in UTC+7
+  return calculatePeriod('weekly', year, undefined, now)
 }
 
 // Calculate spent amount
@@ -193,7 +276,9 @@ export const fetchBudgets = async (filters?: BudgetFilters): Promise<BudgetRecor
         }
         if (filters.month && filters.year) {
           const start = `${filters.year}-${String(filters.month).padStart(2, '0')}-01`
-          const end = new Date(filters.year, filters.month, 0).toISOString().split('T')[0]
+          // Format date in UTC+7
+          const endDate = getLastDayOfMonthUTC7(filters.year, filters.month)
+          const end = formatDateUTC7(endDate)
           query = query.gte('period_start', start)
           query = query.lte('period_end', end)
         }
@@ -273,90 +358,216 @@ export const getBudgetWithSpending = async (budgetId: string): Promise<BudgetWit
 
 // Create budget
 export const createBudget = async (payload: BudgetInsert): Promise<BudgetRecord> => {
-  const supabase = getSupabaseClient()
-  const user = await getCachedUser()
+  try {
+    const supabase = getSupabaseClient()
+    const user = await getCachedUser()
 
-  if (!user) {
-    throw new Error('Bạn cần đăng nhập để tạo ngân sách.')
-  }
+    if (!user) {
+      throw new Error('Bạn cần đăng nhập để tạo ngân sách.')
+    }
 
-  // Validate category is "Chi tiêu"
-  const categories = await fetchCategories()
-  const category = categories.find((c) => c.id === payload.category_id)
-  if (!category || category.type !== 'Chi tiêu') {
-    throw new Error('Ngân sách chỉ có thể đặt cho hạng mục "Chi tiêu".')
-  }
+    // Validate category is "Chi tiêu"
+    const categories = await fetchCategories()
+    const category = categories.find((c) => c.id === payload.category_id)
+    if (!category || category.type !== 'Chi tiêu') {
+      throw new Error('Ngân sách chỉ có thể đặt cho hạng mục "Chi tiêu".')
+    }
 
-  // Check for duplicate active budget
-  const existingBudgets = await fetchBudgets({
-    category_id: payload.category_id,
-    wallet_id: payload.wallet_id || undefined,
-    is_active: true,
-  })
-
-  const hasOverlap = existingBudgets.some((b) => {
-    const bStart = new Date(b.period_start)
-    const bEnd = new Date(b.period_end)
-    const pStart = new Date(payload.period_start)
-    const pEnd = new Date(payload.period_end)
-
-    return (
-      (pStart >= bStart && pStart <= bEnd) ||
-      (pEnd >= bStart && pEnd <= bEnd) ||
-      (pStart <= bStart && pEnd >= bEnd)
-    )
-  })
-
-  if (hasOverlap) {
-    throw new Error('Đã có ngân sách active cho hạng mục này trong khoảng thời gian này.')
-  }
-
-  const { data, error } = await supabase
-    .from(TABLE_NAME)
-    .insert({
-      ...payload,
-      user_id: user.id,
+    // Check for duplicate active budget
+    const existingBudgets = await fetchBudgets({
+      category_id: payload.category_id,
+      wallet_id: payload.wallet_id || undefined,
+      is_active: true,
     })
-    .select()
-    .single()
 
-  throwIfError(error, 'Không thể tạo ngân sách.')
+    const hasOverlap = existingBudgets.some((b) => {
+      const bStart = new Date(b.period_start)
+      const bEnd = new Date(b.period_end)
+      const pStart = new Date(payload.period_start)
+      const pEnd = new Date(payload.period_end)
 
-  if (!data) {
-    throw new Error('Không nhận được dữ liệu ngân sách sau khi tạo.')
+      return (
+        (pStart >= bStart && pStart <= bEnd) ||
+        (pEnd >= bStart && pEnd <= bEnd) ||
+        (pStart <= bStart && pEnd >= bEnd)
+      )
+    })
+
+    if (hasOverlap) {
+      throw new Error('Đã có ngân sách active cho hạng mục này trong khoảng thời gian này.')
+    }
+
+    // Build insert object, only including fields that have values
+    const insertData: Record<string, unknown> = {
+      user_id: user.id,
+      category_id: payload.category_id,
+      amount: payload.amount,
+      period_type: payload.period_type,
+      period_start: payload.period_start,
+      period_end: payload.period_end,
+      is_active: true,
+    }
+
+    // Only add optional fields if they have values
+    if (payload.wallet_id !== undefined && payload.wallet_id !== null) {
+      insertData.wallet_id = payload.wallet_id
+    }
+
+    if (payload.limit_type !== undefined && payload.limit_type !== null) {
+      insertData.limit_type = payload.limit_type
+    }
+
+    if (payload.notes) {
+      insertData.notes = payload.notes.trim()
+    }
+
+    const { data, error } = await supabase
+      .from(TABLE_NAME)
+      .insert(insertData)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Supabase error creating budget:', error)
+      
+      // Provide more user-friendly error messages
+      if (error.code === 'PGRST116' || error.message.includes('not found')) {
+        throw new Error('Không thể tạo ngân sách. Vui lòng thử lại.')
+      } else if (error.message.includes('column') && error.message.includes('not found')) {
+        // Schema error - column doesn't exist
+        throw new Error('Lỗi cấu hình database. Vui lòng liên hệ quản trị viên để cập nhật schema.')
+      } else if (error.message.includes('network') || error.message.includes('fetch')) {
+        throw new Error('Lỗi kết nối. Vui lòng kiểm tra kết nối mạng và thử lại')
+      } else if (error.code === '23505') {
+        // Unique constraint violation
+        throw new Error('Ngân sách này đã tồn tại. Vui lòng kiểm tra lại.')
+      } else if (error.code === '23503') {
+        // Foreign key constraint violation
+        throw new Error('Dữ liệu không hợp lệ. Vui lòng kiểm tra lại hạng mục hoặc ví đã chọn.')
+      }
+      throw new Error(error.message || 'Không thể tạo ngân sách.')
+    }
+
+    if (!data) {
+      throw new Error('Không nhận được dữ liệu ngân sách sau khi tạo.')
+    }
+
+    // Invalidate cache (don't let cache errors block the operation)
+    try {
+      await invalidateCache('budgets')
+    } catch (cacheError) {
+      console.warn('Error invalidating cache:', cacheError)
+      // Continue even if cache invalidation fails
+    }
+
+    return data
+  } catch (err) {
+    // Re-throw with better error message if it's not already an Error
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Đã xảy ra lỗi không mong muốn khi tạo ngân sách')
   }
-
-  await invalidateCache('budgets')
-
-  return data
 }
 
 // Update budget
 export const updateBudget = async (id: string, updates: BudgetUpdate): Promise<BudgetRecord> => {
-  const supabase = getSupabaseClient()
-  const user = await getCachedUser()
+  try {
+    const supabase = getSupabaseClient()
+    const user = await getCachedUser()
 
-  if (!user) {
-    throw new Error('Bạn cần đăng nhập để cập nhật ngân sách.')
+    if (!user) {
+      throw new Error('Bạn cần đăng nhập để cập nhật ngân sách.')
+    }
+
+    // Build update object, only including fields that are explicitly provided
+    const updateData: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    }
+
+    // Only include fields that are explicitly provided in updates
+    if (updates.wallet_id !== undefined) {
+      updateData.wallet_id = updates.wallet_id || null
+    }
+
+    if (updates.amount !== undefined) {
+      updateData.amount = updates.amount
+    }
+
+    if (updates.period_type !== undefined) {
+      updateData.period_type = updates.period_type
+    }
+
+    if (updates.period_start !== undefined) {
+      updateData.period_start = updates.period_start
+    }
+
+    if (updates.period_end !== undefined) {
+      updateData.period_end = updates.period_end
+    }
+
+    if (updates.is_active !== undefined) {
+      updateData.is_active = updates.is_active
+    }
+
+    // Only add limit_type if it's explicitly provided (including null)
+    if ('limit_type' in updates) {
+      updateData.limit_type = updates.limit_type || null
+    }
+
+    if (updates.notes !== undefined) {
+      updateData.notes = updates.notes ? updates.notes.trim() : null
+    }
+
+    const { data, error } = await supabase
+      .from(TABLE_NAME)
+      .update(updateData)
+      .eq('id', id)
+      .eq('user_id', user.id)
+      .select()
+      .single()
+
+    if (error) {
+      console.error('Supabase error updating budget:', error)
+      
+      // Provide more user-friendly error messages
+      if (error.code === 'PGRST116' || error.message.includes('not found')) {
+        throw new Error('Không thể cập nhật ngân sách. Vui lòng thử lại.')
+      } else if (error.message.includes('column') && error.message.includes('not found')) {
+        // Schema error - column doesn't exist
+        throw new Error('Lỗi cấu hình database. Vui lòng liên hệ quản trị viên để cập nhật schema.')
+      } else if (error.message.includes('network') || error.message.includes('fetch')) {
+        throw new Error('Lỗi kết nối. Vui lòng kiểm tra kết nối mạng và thử lại')
+      } else if (error.code === '23505') {
+        // Unique constraint violation
+        throw new Error('Ngân sách này đã tồn tại. Vui lòng kiểm tra lại.')
+      } else if (error.code === '23503') {
+        // Foreign key constraint violation
+        throw new Error('Dữ liệu không hợp lệ. Vui lòng kiểm tra lại hạng mục hoặc ví đã chọn.')
+      }
+      throw new Error(error.message || 'Không thể cập nhật ngân sách.')
+    }
+
+    if (!data) {
+      throw new Error('Không nhận được dữ liệu ngân sách sau khi cập nhật.')
+    }
+
+    // Invalidate cache (don't let cache errors block the operation)
+    try {
+      await invalidateCache('budgets')
+    } catch (cacheError) {
+      console.warn('Error invalidating cache:', cacheError)
+      // Continue even if cache invalidation fails
+    }
+
+    return data
+  } catch (err) {
+    // Re-throw with better error message if it's not already an Error
+    if (err instanceof Error) {
+      throw err
+    }
+    throw new Error('Đã xảy ra lỗi không mong muốn khi cập nhật ngân sách')
   }
-
-  const { data, error } = await supabase
-    .from(TABLE_NAME)
-    .update(updates)
-    .eq('id', id)
-    .eq('user_id', user.id)
-    .select()
-    .single()
-
-  throwIfError(error, 'Không thể cập nhật ngân sách.')
-
-  if (!data) {
-    throw new Error('Không nhận được dữ liệu ngân sách sau khi cập nhật.')
-  }
-
-  await invalidateCache('budgets')
-
-  return data
 }
 
 // Delete budget

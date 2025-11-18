@@ -22,7 +22,6 @@ import HeaderBar from '../components/layout/HeaderBar'
 import { IconManagementModal } from '../components/settings/IconManagementModal'
 import { NotificationSettingsModal } from '../components/settings/NotificationSettingsModal'
 import { AdminSettingsModal } from '../components/settings/AdminSettingsModal'
-import ExchangeRatesCard from '../components/exchangeRates/ExchangeRatesCard'
 import { getCurrentProfile, type ProfileRecord } from '../lib/profileService'
 import { useDialog } from '../contexts/dialogContext.helpers'
 import { getSupabaseClient } from '../lib/supabaseClient'
@@ -393,9 +392,6 @@ const SettingsPage = () => {
               ))}
           </div>
         </section>
-
-        {/* Exchange Rates */}
-        <ExchangeRatesCard />
 
         {/* System Settings */}
         <section className="grid gap-4 sm:gap-6 lg:grid-cols-2">

@@ -182,20 +182,28 @@ export const ReminderCalendar = ({
           const selected = isSelected(day)
 
           // Get primary color for the date (first color or default)
-          const primaryColor = reminderColors[0] || 'amber'
+          const primaryColor = reminderColors[0] || 'red'
           const colorClasses: Record<string, { bg: string; text: string; dot: string; selected: string }> = {
-            amber: { bg: 'bg-amber-500', text: 'text-white', dot: 'bg-amber-600', selected: 'bg-amber-500' },
-            emerald: { bg: 'bg-emerald-500', text: 'text-white', dot: 'bg-emerald-600', selected: 'bg-emerald-500' },
-            rose: { bg: 'bg-rose-500', text: 'text-white', dot: 'bg-rose-600', selected: 'bg-rose-500' },
-            sky: { bg: 'bg-sky-500', text: 'text-white', dot: 'bg-sky-600', selected: 'bg-sky-500' },
-            blue: { bg: 'bg-blue-500', text: 'text-white', dot: 'bg-blue-600', selected: 'bg-blue-500' },
-            purple: { bg: 'bg-purple-500', text: 'text-white', dot: 'bg-purple-600', selected: 'bg-purple-500' },
-            indigo: { bg: 'bg-indigo-500', text: 'text-white', dot: 'bg-indigo-600', selected: 'bg-indigo-500' },
-            pink: { bg: 'bg-pink-500', text: 'text-white', dot: 'bg-pink-600', selected: 'bg-pink-500' },
-            orange: { bg: 'bg-orange-500', text: 'text-white', dot: 'bg-orange-600', selected: 'bg-orange-500' },
-            teal: { bg: 'bg-teal-500', text: 'text-white', dot: 'bg-teal-600', selected: 'bg-teal-500' },
+            // Màu mới - khác biệt rõ ràng
+            red: { bg: 'bg-red-600', text: 'text-white', dot: 'bg-red-700', selected: 'bg-red-600' },
+            green: { bg: 'bg-green-600', text: 'text-white', dot: 'bg-green-700', selected: 'bg-green-600' },
+            orange: { bg: 'bg-orange-600', text: 'text-white', dot: 'bg-orange-700', selected: 'bg-orange-600' },
+            blue: { bg: 'bg-blue-600', text: 'text-white', dot: 'bg-blue-700', selected: 'bg-blue-600' },
+            yellow: { bg: 'bg-yellow-500', text: 'text-slate-900', dot: 'bg-yellow-600', selected: 'bg-yellow-500' },
+            purple: { bg: 'bg-purple-600', text: 'text-white', dot: 'bg-purple-700', selected: 'bg-purple-600' },
+            pink: { bg: 'bg-pink-600', text: 'text-white', dot: 'bg-pink-700', selected: 'bg-pink-600' },
+            cyan: { bg: 'bg-cyan-600', text: 'text-white', dot: 'bg-cyan-700', selected: 'bg-cyan-600' },
+            fuchsia: { bg: 'bg-fuchsia-600', text: 'text-white', dot: 'bg-fuchsia-700', selected: 'bg-fuchsia-600' },
+            lime: { bg: 'bg-lime-500', text: 'text-slate-900', dot: 'bg-lime-600', selected: 'bg-lime-500' },
+            // Màu cũ để backward compatibility
+            amber: { bg: 'bg-amber-600', text: 'text-white', dot: 'bg-amber-700', selected: 'bg-amber-600' },
+            emerald: { bg: 'bg-emerald-600', text: 'text-white', dot: 'bg-emerald-700', selected: 'bg-emerald-600' },
+            rose: { bg: 'bg-rose-600', text: 'text-white', dot: 'bg-rose-700', selected: 'bg-rose-600' },
+            sky: { bg: 'bg-sky-600', text: 'text-white', dot: 'bg-sky-700', selected: 'bg-sky-600' },
+            indigo: { bg: 'bg-indigo-600', text: 'text-white', dot: 'bg-indigo-700', selected: 'bg-indigo-600' },
+            teal: { bg: 'bg-teal-600', text: 'text-white', dot: 'bg-teal-700', selected: 'bg-teal-600' },
           }
-          const colorClass = colorClasses[primaryColor] || colorClasses.amber
+          const colorClass = colorClasses[primaryColor] || colorClasses.red
 
           return (
             <button
@@ -221,7 +229,7 @@ export const ReminderCalendar = ({
                     <span
                       key={idx}
                       className={`flex h-1.5 w-1.5 items-center justify-center rounded-full ${
-                        colorClasses[color]?.dot || colorClasses.amber.dot
+                        colorClasses[color]?.dot || colorClasses.red.dot
                       }`}
                     />
                   ))}

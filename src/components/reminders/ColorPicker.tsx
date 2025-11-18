@@ -6,17 +6,24 @@ type ColorPickerProps = {
   label?: string
 }
 
+// Bộ màu khác biệt rõ ràng, đối lập nhau và đậm hơn
+// Chọn 10 màu phân bố đều trên vòng tròn màu sắc để dễ phân biệt
 const AVAILABLE_COLORS = [
-  { id: 'amber', name: 'Vàng', bg: 'bg-amber-500', ring: 'ring-amber-300' },
-  { id: 'emerald', name: 'Xanh lá', bg: 'bg-emerald-500', ring: 'ring-emerald-300' },
-  { id: 'rose', name: 'Hồng', bg: 'bg-rose-500', ring: 'ring-rose-300' },
-  { id: 'sky', name: 'Xanh dương', bg: 'bg-sky-500', ring: 'ring-sky-300' },
-  { id: 'blue', name: 'Xanh đậm', bg: 'bg-blue-500', ring: 'ring-blue-300' },
-  { id: 'purple', name: 'Tím', bg: 'bg-purple-500', ring: 'ring-purple-300' },
-  { id: 'indigo', name: 'Chàm', bg: 'bg-indigo-500', ring: 'ring-indigo-300' },
-  { id: 'pink', name: 'Hồng đậm', bg: 'bg-pink-500', ring: 'ring-pink-300' },
-  { id: 'orange', name: 'Cam', bg: 'bg-orange-500', ring: 'ring-orange-300' },
-  { id: 'teal', name: 'Xanh ngọc', bg: 'bg-teal-500', ring: 'ring-teal-300' },
+  // Đỏ - Xanh lá (đối lập)
+  { id: 'red', name: 'Đỏ', bg: 'bg-red-600', ring: 'ring-red-400' },
+  { id: 'green', name: 'Xanh lá', bg: 'bg-green-600', ring: 'ring-green-400' },
+  // Cam - Xanh dương (đối lập)
+  { id: 'orange', name: 'Cam', bg: 'bg-orange-600', ring: 'ring-orange-400' },
+  { id: 'blue', name: 'Xanh dương', bg: 'bg-blue-600', ring: 'ring-blue-400' },
+  // Vàng - Tím (đối lập)
+  { id: 'yellow', name: 'Vàng', bg: 'bg-yellow-500', ring: 'ring-yellow-400' },
+  { id: 'purple', name: 'Tím', bg: 'bg-purple-600', ring: 'ring-purple-400' },
+  // Hồng - Xanh ngọc (đối lập)
+  { id: 'pink', name: 'Hồng', bg: 'bg-pink-600', ring: 'ring-pink-400' },
+  { id: 'cyan', name: 'Xanh ngọc', bg: 'bg-cyan-600', ring: 'ring-cyan-400' },
+  // Đỏ tươi - Xanh lục (đối lập)
+  { id: 'fuchsia', name: 'Đỏ tươi', bg: 'bg-fuchsia-600', ring: 'ring-fuchsia-400' },
+  { id: 'lime', name: 'Xanh lục', bg: 'bg-lime-500', ring: 'ring-lime-400' },
 ]
 
 export const ColorPicker = ({ value, onChange, label }: ColorPickerProps) => {

@@ -13,6 +13,7 @@ import { useNotification } from '../../contexts/notificationContext.helpers'
 import { useDialog } from '../../contexts/dialogContext.helpers'
 import { searchReactIcons, getCachedIconLibrary } from '../../utils/iconLoader'
 import { ModalFooterButtons } from '../ui/ModalFooterButtons'
+import { LoadingRing } from '../ui/LoadingRing'
 
 type IconManagementModalProps = {
   isOpen: boolean
@@ -640,7 +641,9 @@ export const IconManagementModal = ({ isOpen, onClose }: IconManagementModalProp
 
               {/* Icons List */}
               {isLoading ? (
-                <div className="text-center py-12 text-slate-500">Đang tải...</div>
+                <div className="text-center py-12 flex items-center justify-center">
+                  <LoadingRing size="md" />
+                </div>
               ) : filteredIcons.length === 0 ? (
                 <div className="text-center py-12 text-slate-500">Không có icon nào</div>
               ) : (

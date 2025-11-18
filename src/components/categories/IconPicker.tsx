@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useRef } from 'react'
 import { FaSearch, FaArrowLeft } from 'react-icons/fa'
 import { fetchIcons } from '../../lib/iconService'
+import { LoadingRing } from '../ui/LoadingRing'
 
 type IconPickerProps = {
     isOpen: boolean
@@ -28,73 +29,123 @@ export const IconPicker: React.FC<IconPickerProps> = ({
     const [iconSearchTerm, setIconSearchTerm] = useState('')
     const [allIcons, setAllIcons] = useState<IconItem[]>([])
     const [isLoadingIcons, setIsLoadingIcons] = useState(false)
+    const loadingRef = useRef(false)
 
     // Load all icons when modal opens - chỉ lấy từ icons_images (image hoặc svg)
     useEffect(() => {
-        if (isOpen) {
-            const loadAllIcons = async () => {
-                setIsLoadingIcons(true)
-                try {
-                    // Chỉ fetch icons từ database có icon_type = 'image' hoặc 'svg'
-                    const dbIconsData = await fetchIcons({ is_active: true })
-                    const imageIcons = dbIconsData.filter(
-                        icon => icon.icon_type === 'image' || icon.icon_type === 'svg'
-                    )
-
-                    // Chuyển đổi sang IconItem format
-                    const iconItems: IconItem[] = imageIcons.map((dbIcon) => {
-                        let iconNode: React.ReactNode = null
-                        if (dbIcon.image_url) {
-                            iconNode = (
-                                <img
-                                    src={dbIcon.image_url}
-                                    alt={dbIcon.label}
-                                    className="h-full w-full object-contain"
-                                />
-                            )
-                        }
-
-                        return {
-                            id: dbIcon.id, // Sử dụng id (UUID) thay vì name
-                            label: dbIcon.label,
-                            groupId: dbIcon.group_id,
-                            iconNode,
-                            isUsed: usedIconIds.has(dbIcon.id),
-                        }
-                    })
-
-                    // Sort: used icons first, then by group, then by display_order, then by label
-                    iconItems.sort((a, b) => {
-                        if (a.isUsed !== b.isUsed) {
-                            return a.isUsed ? -1 : 1
-                        }
-                        if (a.groupId !== b.groupId) {
-                            return a.groupId.localeCompare(b.groupId)
-                        }
-                        // Tìm display_order từ dbIconsData
-                        const iconA = imageIcons.find(i => i.id === a.id)
-                        const iconB = imageIcons.find(i => i.id === b.id)
-                        const orderA = iconA?.display_order || 0
-                        const orderB = iconB?.display_order || 0
-                        if (orderA !== orderB) {
-                            return orderA - orderB
-                        }
-                        return a.label.localeCompare(b.label)
-                    })
-
-                    setAllIcons(iconItems)
-                } catch (error) {
-                    console.error('Error loading icons:', error)
-                } finally {
-                    setIsLoadingIcons(false)
-                }
-            }
-            loadAllIcons()
-        } else {
+        if (!isOpen) {
             // Reset when closing
             setIconSearchTerm('')
+            setAllIcons([])
+            loadingRef.current = false
+            return
         }
-    }, [isOpen, usedIconIds])
+
+        // Tránh load nhiều lần cùng lúc
+        if (loadingRef.current) {
+            return
+        }
+
+        let isCancelled = false
+        loadingRef.current = true
+
+        const loadAllIcons = async () => {
+            setIsLoadingIcons(true)
+            try {
+                // Chỉ fetch icons từ database có icon_type = 'image' hoặc 'svg'
+                const dbIconsData = await fetchIcons({ is_active: true })
+                
+                if (isCancelled) {
+                    loadingRef.current = false
+                    return
+                }
+
+                const imageIcons = dbIconsData.filter(
+                    icon => icon.icon_type === 'image' || icon.icon_type === 'svg'
+                )
+
+                if (isCancelled) {
+                    loadingRef.current = false
+                    return
+                }
+
+                // Chuyển đổi sang IconItem format
+                // Tạo một Set từ usedIconIds để check nhanh hơn và tránh re-render
+                const usedIdsSet = usedIconIds instanceof Set ? usedIconIds : new Set(Array.isArray(usedIconIds) ? usedIconIds : [])
+                const iconItems: IconItem[] = imageIcons.map((dbIcon) => {
+                    let iconNode: React.ReactNode = null
+                    if (dbIcon.image_url) {
+                        iconNode = (
+                            <img
+                                src={dbIcon.image_url}
+                                alt={dbIcon.label}
+                                className="h-full w-full object-contain"
+                                loading="lazy"
+                                onError={(e) => {
+                                    // Hide image if it fails to load
+                                    e.currentTarget.style.display = 'none'
+                                }}
+                            />
+                        )
+                    }
+
+                    return {
+                        id: dbIcon.id, // Sử dụng id (UUID) thay vì name
+                        label: dbIcon.label,
+                        groupId: dbIcon.group_id,
+                        iconNode,
+                        isUsed: usedIdsSet.has(dbIcon.id),
+                    }
+                })
+
+                if (isCancelled) {
+                    loadingRef.current = false
+                    return
+                }
+
+                // Sort: used icons first, then by group, then by display_order, then by label
+                iconItems.sort((a, b) => {
+                    if (a.isUsed !== b.isUsed) {
+                        return a.isUsed ? -1 : 1
+                    }
+                    if (a.groupId !== b.groupId) {
+                        return a.groupId.localeCompare(b.groupId)
+                    }
+                    // Tìm display_order từ dbIconsData
+                    const iconA = imageIcons.find(i => i.id === a.id)
+                    const iconB = imageIcons.find(i => i.id === b.id)
+                    const orderA = iconA?.display_order || 0
+                    const orderB = iconB?.display_order || 0
+                    if (orderA !== orderB) {
+                        return orderA - orderB
+                    }
+                    return a.label.localeCompare(b.label)
+                })
+
+                if (!isCancelled) {
+                    setAllIcons(iconItems)
+                }
+            } catch (error) {
+                if (!isCancelled) {
+                    console.error('Error loading icons:', error)
+                    setAllIcons([])
+                }
+            } finally {
+                if (!isCancelled) {
+                    setIsLoadingIcons(false)
+                    loadingRef.current = false
+                }
+            }
+        }
+
+        loadAllIcons()
+
+        // Cleanup function
+        return () => {
+            isCancelled = true
+            loadingRef.current = false
+        }
+    }, [isOpen]) // Chỉ depend on isOpen, không depend on usedIconIds để tránh infinite loop
 
     const handleIconSelect = (iconId: string) => {
         onSelect(iconId)
@@ -158,9 +209,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
             <div className="flex-1 overflow-y-auto overscroll-contain p-3 min-h-0">
                 {isLoadingIcons ? (
                     <div className="flex items-center justify-center py-12">
-                        <span className="text-sm text-slate-500">
-                            Đang tải biểu tượng...
-                        </span>
+                        <LoadingRing size="md" />
                     </div>
                 ) : filteredIcons.length === 0 ? (
                     <div className="flex items-center justify-center py-12">
