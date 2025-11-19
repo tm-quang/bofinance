@@ -37,6 +37,7 @@ export type CategoryInsert = {
 
 export type CategoryUpdate = Partial<CategoryInsert> & {
   icon_id?: string
+  icon_url?: string | null
   parent_id?: string | null
   display_order?: number
   is_default?: boolean
@@ -83,7 +84,7 @@ export const fetchCategories = async (): Promise<CategoryRecord[]> => {
       throwIfError(error, 'Không thể tải hạng mục.')
 
       const categories = data ?? []
-      
+
       // Populate icon_url từ icons table nếu chưa có
       // Chỉ lấy cho những category có icon_id là UUID và chưa có icon_url
       const categoriesNeedingIconUrl = categories.filter(
@@ -113,7 +114,7 @@ export const fetchCategories = async (): Promise<CategoryRecord[]> => {
             const iconUrl = iconUrlMap.get(category.icon_id)
             if (iconUrl) {
               category.icon_url = iconUrl
-              
+
               // Optionally update in database (async, không block)
               Promise.resolve(
                 supabase
@@ -152,16 +153,16 @@ export const fetchCategoriesHierarchical = async (categoryType?: CategoryType): 
     cacheKey,
     async () => {
       const allCategories = await fetchCategories()
-      
+
       // Filter theo type nếu có
-      const filteredCategories = categoryType 
+      const filteredCategories = categoryType
         ? allCategories.filter(cat => cat.type === categoryType)
         : allCategories
-      
+
       // Tách hạng mục cha và con
       const parentCategories = filteredCategories.filter(cat => !cat.parent_id)
       const childCategories = filteredCategories.filter(cat => cat.parent_id)
-      
+
       // Nhóm con theo parent_id
       const childrenByParent = new Map<string, CategoryRecord[]>()
       childCategories.forEach(child => {
@@ -171,7 +172,7 @@ export const fetchCategoriesHierarchical = async (categoryType?: CategoryType): 
         }
         childrenByParent.get(parentId)!.push(child)
       })
-      
+
       // Tạo cấu trúc phân cấp
       return parentCategories.map(parent => ({
         ...parent,
@@ -399,7 +400,7 @@ export const syncCategoriesFromDefault = async (): Promise<void> => {
     // Thử đọc từ database trước
     const { fetchDefaultCategoriesHierarchical } = await import('./defaultCategoryService')
     const dbCategories = await fetchDefaultCategoriesHierarchical()
-    
+
     if (dbCategories && dbCategories.length > 0) {
       // Có dữ liệu trong database, sử dụng
       defaultCategories = dbCategories.map(cat => ({
@@ -458,7 +459,7 @@ export const syncCategoriesFromDefault = async (): Promise<void> => {
       }))
     }))
   }
-  
+
   if (!defaultCategories || defaultCategories.length === 0) {
     throw new Error('Hệ thống chưa có hạng mục mặc định.')
   }
@@ -467,7 +468,7 @@ export const syncCategoriesFromDefault = async (): Promise<void> => {
   try {
     // Lấy tất cả parent categories (không có parent_id)
     const parentCategories = defaultCategories.filter(cat => !cat.parent_id)
-    
+
     // Filter out duplicates: chỉ insert những category chưa tồn tại
     // Check lại database một lần nữa trước khi insert để tránh duplicate
     const parentInserts = parentCategories
@@ -486,8 +487,8 @@ export const syncCategoriesFromDefault = async (): Promise<void> => {
         display_order: cat.display_order,
       }))
 
-    let insertedParents: any[] = []
-    
+    let insertedParents: Pick<CategoryRecord, 'id' | 'name' | 'type'>[] = []
+
     // Chỉ insert nếu có categories mới
     if (parentInserts.length > 0) {
       // Final check: Query lại database một lần nữa trước khi insert để tránh duplicate
@@ -496,7 +497,7 @@ export const syncCategoriesFromDefault = async (): Promise<void> => {
         .select('id, name, type, parent_id')
         .eq('user_id', user.id)
         .is('parent_id', null)
-      
+
       if (finalCheck && finalCheck.length > 0) {
         // Đã có categories, không insert nữa
         console.log('Categories đã tồn tại, bỏ qua insert (race condition)')
@@ -507,11 +508,11 @@ export const syncCategoriesFromDefault = async (): Promise<void> => {
       } else {
         // Chưa có categories, tiến hành insert
         const { data: inserted, error: parentError } = await supabase
-        .from(TABLE_NAME)
-        .insert(parentInserts)
-        .select()
+          .from(TABLE_NAME)
+          .insert(parentInserts)
+          .select()
 
-      if (parentError) {
+        if (parentError) {
           // Nếu lỗi duplicate (có thể do race condition), check lại
           if (parentError.code === '23505' || parentError.message?.includes('duplicate')) {
             console.warn('Duplicate category detected, reloading existing categories')
@@ -520,7 +521,7 @@ export const syncCategoriesFromDefault = async (): Promise<void> => {
               .select('id, name, type, parent_id')
               .eq('user_id', user.id)
               .is('parent_id', null)
-            
+
             if (reloaded) {
               reloaded.forEach(cat => {
                 const key = `${cat.name}_${cat.type}_null`
@@ -528,11 +529,11 @@ export const syncCategoriesFromDefault = async (): Promise<void> => {
               })
             }
           } else {
-        throw parentError
-      }
+            throw parentError
+          }
         } else {
           insertedParents = inserted || []
-          
+
           // Update map với các categories vừa insert
           insertedParents.forEach((inserted) => {
             const key = `${inserted.name}_${inserted.type}_null`
@@ -549,7 +550,7 @@ export const syncCategoriesFromDefault = async (): Promise<void> => {
         .select('id, name, type, parent_id')
         .eq('user_id', user.id)
         .is('parent_id', null)
-      
+
       if (reloaded) {
         reloaded.forEach(cat => {
           const key = `${cat.name}_${cat.type}_null`
@@ -602,25 +603,25 @@ export const syncCategoriesFromDefault = async (): Promise<void> => {
       }
     })
 
-      // Insert batch tất cả children cùng lúc (chỉ những cái chưa tồn tại)
-      if (childInserts.length > 0) {
-        const { data: insertedChildren, error: childError } = await supabase
-          .from(TABLE_NAME)
-          .insert(childInserts)
-          .select()
+    // Insert batch tất cả children cùng lúc (chỉ những cái chưa tồn tại)
+    if (childInserts.length > 0) {
+      const { data: insertedChildren, error: childError } = await supabase
+        .from(TABLE_NAME)
+        .insert(childInserts)
+        .select()
 
-        if (childError) {
-          console.error('Error inserting child categories:', childError)
-          // Không throw, vì parent đã insert thành công
-        } else if (insertedChildren) {
-          // Update map với các children vừa insert
-          insertedChildren.forEach(child => {
-            const key = `${child.name}_${child.type}_${child.parent_id}`
-            existingCategoryMap.set(key, child.id)
-          })
-        }
+      if (childError) {
+        console.error('Error inserting child categories:', childError)
+        // Không throw, vì parent đã insert thành công
+      } else if (insertedChildren) {
+        // Update map với các children vừa insert
+        insertedChildren.forEach(child => {
+          const key = `${child.name}_${child.type}_${child.parent_id}`
+          existingCategoryMap.set(key, child.id)
+        })
       }
-    
+    }
+
     // Invalidate cache sau khi sync thành công
     await invalidateCategoriesCache()
   } catch (error) {
@@ -712,7 +713,7 @@ export const updateCategoriesIconUrlFromDefault = async (): Promise<void> => {
     // Chỉ update nếu chưa có icon_url hoặc icon_url là null
     if (!category.icon_url) {
       let key: string
-      
+
       if (category.parent_id) {
         // Children category: match theo parent name
         const parentName = parentIdToNameMap.get(category.parent_id) || 'null'
@@ -787,13 +788,13 @@ export const deleteCategory = async (id: string): Promise<void> => {
       .select('id, name, user_id')
       .eq('id', id)
       .maybeSingle()
-    
+
     console.log('Category without user filter:', categoryWithoutUserFilter)
-    
+
     if (categoryWithoutUserFilter) {
       throw new Error('Bạn không có quyền xóa hạng mục này. Hạng mục không thuộc về tài khoản của bạn.')
     }
-    
+
     throw new Error('Không tìm thấy hạng mục cần xóa hoặc đã bị xóa trước đó.')
   }
 
@@ -855,14 +856,14 @@ export const deleteCategory = async (id: string): Promise<void> => {
       .select('id')
       .eq('id', id)
       .maybeSingle()
-    
+
     if (!checkCategory) {
       // Category đã bị xóa (có thể do race condition hoặc đã xóa trước đó)
       console.log('Category already deleted, invalidating cache...')
       await invalidateCategoriesCache()
       return // Không throw error, vì category đã được xóa
     }
-    
+
     throw new Error('Không thể xóa hạng mục. Có thể do bạn không có quyền hoặc hạng mục đã bị thay đổi.')
   }
 

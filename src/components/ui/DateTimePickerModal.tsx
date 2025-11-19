@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { FaChevronLeft, FaChevronRight, FaChevronDown, FaClock, FaTimes } from 'react-icons/fa'
+import { formatDateUTC7, getNowUTC7, createDateUTC7, getDateComponentsUTC7 } from '../../utils/dateUtils'
 
 interface DateTimePickerModalProps {
   isOpen: boolean
@@ -10,6 +11,13 @@ interface DateTimePickerModalProps {
   showTime?: boolean
 }
 
+// Parse date string YYYY-MM-DD to Date object in UTC+7 timezone
+// This ensures dates are parsed according to Vietnam timezone (UTC+7)
+const parseDateString = (dateStr: string): Date => {
+  const [year, month, day] = dateStr.split('-').map(Number)
+  return createDateUTC7(year, month, day, 0, 0, 0, 0)
+}
+
 export const DateTimePickerModal = ({
   isOpen,
   onClose,
@@ -18,34 +26,62 @@ export const DateTimePickerModal = ({
   initialTime,
   showTime = true,
 }: DateTimePickerModalProps) => {
+
   const [selectedDate, setSelectedDate] = useState<Date>(() => {
     if (initialDate) {
-      const date = new Date(initialDate)
-      return isNaN(date.getTime()) ? new Date() : date
+      try {
+        const date = parseDateString(initialDate)
+        return isNaN(date.getTime()) ? getNowUTC7() : date
+      } catch {
+        return getNowUTC7()
+      }
     }
-    return new Date()
+    return getNowUTC7()
   })
 
   const [selectedTime, setSelectedTime] = useState<string>(() => {
     if (initialTime) {
       return initialTime
     }
-    const now = new Date()
-    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+    const now = getNowUTC7()
+    const components = getDateComponentsUTC7(now)
+    return `${String(components.hour).padStart(2, '0')}:${String(components.minute).padStart(2, '0')}`
   })
 
   const [currentMonth, setCurrentMonth] = useState(() => {
-    const date = initialDate ? new Date(initialDate) : new Date()
-    return isNaN(date.getTime()) ? new Date() : date
+    if (initialDate) {
+      try {
+        const date = parseDateString(initialDate)
+        if (isNaN(date.getTime())) {
+          const now = getNowUTC7()
+          const components = getDateComponentsUTC7(now)
+          return createDateUTC7(components.year, components.month, 1)
+        }
+        const components = getDateComponentsUTC7(date)
+        return createDateUTC7(components.year, components.month, 1)
+      } catch {
+        const now = getNowUTC7()
+        const components = getDateComponentsUTC7(now)
+        return createDateUTC7(components.year, components.month, 1)
+      }
+    }
+    const now = getNowUTC7()
+    const components = getDateComponentsUTC7(now)
+    return createDateUTC7(components.year, components.month, 1)
   })
 
   // Update selected date when initialDate changes
   useEffect(() => {
     if (initialDate) {
-      const date = new Date(initialDate)
-      if (!isNaN(date.getTime())) {
-        setSelectedDate(date)
-        setCurrentMonth(new Date(date.getFullYear(), date.getMonth(), 1))
+      try {
+        const date = parseDateString(initialDate)
+        if (!isNaN(date.getTime())) {
+          setSelectedDate(date)
+          const components = getDateComponentsUTC7(date)
+          setCurrentMonth(createDateUTC7(components.year, components.month, 1))
+        }
+      } catch {
+        // Invalid date format, ignore
       }
     }
   }, [initialDate])
@@ -59,69 +95,93 @@ export const DateTimePickerModal = ({
 
   if (!isOpen) return null
 
-  const today = new Date()
-  today.setHours(0, 0, 0, 0)
+  // Get today in UTC+7
+  const nowUTC7 = getNowUTC7()
+  const todayComponents = getDateComponentsUTC7(nowUTC7)
+  const today = createDateUTC7(todayComponents.year, todayComponents.month, todayComponents.day)
 
-  const currentDate = new Date(selectedDate)
-  currentDate.setHours(0, 0, 0, 0)
+  // Get selected date in UTC+7
+  const selectedComponents = getDateComponentsUTC7(selectedDate)
+  const currentDate = createDateUTC7(selectedComponents.year, selectedComponents.month, selectedComponents.day)
 
   const isToday = currentDate.getTime() === today.getTime()
 
-  // Get first day of month and number of days
-  const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1)
-  const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0)
-  const daysInMonth = lastDay.getDate()
-  const startingDayOfWeek = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1 // Monday = 0
+  // Get first day of month and number of days in UTC+7
+  const monthComponents = getDateComponentsUTC7(currentMonth)
+  const firstDay = createDateUTC7(monthComponents.year, monthComponents.month, 1)
+  // Get last day of month
+  const nextMonth = monthComponents.month === 12 ? { year: monthComponents.year + 1, month: 1 } : { year: monthComponents.year, month: monthComponents.month + 1 }
+  const lastDayDate = createDateUTC7(nextMonth.year, nextMonth.month, 1)
+  const lastDay = new Date(lastDayDate)
+  lastDay.setUTCDate(lastDay.getUTCDate() - 1)
+  const lastDayComponents = getDateComponentsUTC7(lastDay)
+  const daysInMonth = lastDayComponents.day
+  const startingDayOfWeek = firstDay.getUTCDay() === 0 ? 6 : firstDay.getUTCDay() - 1 // Monday = 0
 
   // Weekday labels
   const weekdays = ['T.2', 'T.3', 'T.4', 'T.5', 'T.6', 'T.7', 'CN']
 
   // Navigate months
   const goToPreviousMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() - 1, 1))
+    const components = getDateComponentsUTC7(currentMonth)
+    const prevMonth = components.month === 1 ? { year: components.year - 1, month: 12 } : { year: components.year, month: components.month - 1 }
+    setCurrentMonth(createDateUTC7(prevMonth.year, prevMonth.month, 1))
   }
 
   const goToNextMonth = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 1))
+    const components = getDateComponentsUTC7(currentMonth)
+    const nextMonth = components.month === 12 ? { year: components.year + 1, month: 1 } : { year: components.year, month: components.month + 1 }
+    setCurrentMonth(createDateUTC7(nextMonth.year, nextMonth.month, 1))
   }
 
   const goToPreviousYear = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear() - 1, currentMonth.getMonth(), 1))
+    const components = getDateComponentsUTC7(currentMonth)
+    setCurrentMonth(createDateUTC7(components.year - 1, components.month, 1))
   }
 
   const goToNextYear = () => {
-    setCurrentMonth(new Date(currentMonth.getFullYear() + 1, currentMonth.getMonth(), 1))
+    const components = getDateComponentsUTC7(currentMonth)
+    setCurrentMonth(createDateUTC7(components.year + 1, components.month, 1))
   }
 
   const goToToday = () => {
-    const today = new Date()
-    setSelectedDate(today)
-    setCurrentMonth(new Date(today.getFullYear(), today.getMonth(), 1))
+    const now = getNowUTC7()
+    const components = getDateComponentsUTC7(now)
+    const todayDate = createDateUTC7(components.year, components.month, components.day)
+    setSelectedDate(todayDate)
+    setCurrentMonth(createDateUTC7(components.year, components.month, 1))
   }
 
   // Select date
   const selectDate = (day: number) => {
-    const newDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)
+    const components = getDateComponentsUTC7(currentMonth)
+    const newDate = createDateUTC7(components.year, components.month, day)
     setSelectedDate(newDate)
   }
 
   // Check if date is selected
   const isDateSelected = (day: number) => {
-    const checkDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)
+    const monthComponents = getDateComponentsUTC7(currentMonth)
+    const checkDate = createDateUTC7(monthComponents.year, monthComponents.month, day)
+    const checkComponents = getDateComponentsUTC7(checkDate)
+    const selectedComponents = getDateComponentsUTC7(selectedDate)
     return (
-      checkDate.getFullYear() === selectedDate.getFullYear() &&
-      checkDate.getMonth() === selectedDate.getMonth() &&
-      checkDate.getDate() === selectedDate.getDate()
+      checkComponents.year === selectedComponents.year &&
+      checkComponents.month === selectedComponents.month &&
+      checkComponents.day === selectedComponents.day
     )
   }
 
   // Check if date is today
   const isDateToday = (day: number) => {
-    const checkDate = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day)
+    const monthComponents = getDateComponentsUTC7(currentMonth)
+    const checkDate = createDateUTC7(monthComponents.year, monthComponents.month, day)
+    const checkComponents = getDateComponentsUTC7(checkDate)
+    const todayComponents = getDateComponentsUTC7(today)
     return (
-      checkDate.getFullYear() === today.getFullYear() &&
-      checkDate.getMonth() === today.getMonth() &&
-      checkDate.getDate() === today.getDate()
+      checkComponents.year === todayComponents.year &&
+      checkComponents.month === todayComponents.month &&
+      checkComponents.day === todayComponents.day
     )
   }
 
@@ -141,14 +201,16 @@ export const DateTimePickerModal = ({
       'Tháng 11',
       'Tháng 12',
     ]
-    return `${monthNames[currentMonth.getMonth()]} ${currentMonth.getFullYear()}`
+    const components = getDateComponentsUTC7(currentMonth)
+    return `${monthNames[components.month - 1]} ${components.year}`
   }
 
   // Format selected date
   const formatSelectedDate = () => {
-    const day = String(selectedDate.getDate()).padStart(2, '0')
-    const month = String(selectedDate.getMonth() + 1).padStart(2, '0')
-    const year = selectedDate.getFullYear()
+    const components = getDateComponentsUTC7(selectedDate)
+    const day = String(components.day).padStart(2, '0')
+    const month = String(components.month).padStart(2, '0')
+    const year = components.year
     return `${day}/${month}/${year}`
   }
 
@@ -161,7 +223,8 @@ export const DateTimePickerModal = ({
 
   // Handle confirm
   const handleConfirm = () => {
-    const dateStr = selectedDate.toISOString().split('T')[0]
+    // Use formatDateUTC7 to format date in UTC+7 timezone
+    const dateStr = formatDateUTC7(selectedDate)
     onConfirm(dateStr, showTime ? selectedTime : undefined)
     onClose()
   }

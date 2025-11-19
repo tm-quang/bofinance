@@ -12,10 +12,10 @@ type NumberPadModalProps = {
 
 const QUICK_VALUES = [100, 1000, 10000, 20000]
 
+const getNumericValue = (formatted: string) => formatted.replace(/\./g, '')
+
 export const NumberPadModal = ({ isOpen, onClose, value, onChange, onConfirm }: NumberPadModalProps) => {
-  // Get numeric value from formatted string (remove dots)
-  const getNumericValue = useCallback((formatted: string) => formatted.replace(/\./g, ''), [])
-  
+
   const [displayValue, setDisplayValue] = useState(getNumericValue(value))
 
   // Sync display value when modal opens or value prop changes
@@ -23,7 +23,7 @@ export const NumberPadModal = ({ isOpen, onClose, value, onChange, onConfirm }: 
     if (isOpen) {
       setDisplayValue(getNumericValue(value))
     }
-  }, [isOpen, value, getNumericValue])
+  }, [isOpen, value])
 
   // Update display value when prop value changes - optimized with useCallback
   const handleValueChange = useCallback((newValue: string) => {

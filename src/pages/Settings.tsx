@@ -4,12 +4,7 @@ import {
   FaChevronRight,
   FaBell,
   FaCloud,
-  FaFilter,
   FaDownload,
-  FaSmile,
-  FaMoon,
-  FaPalette,
-  FaSun,
   FaUser,
   FaWallet,
   FaExclamationCircle,
@@ -50,26 +45,26 @@ const financeToggleSettings = [
   },
 ]
 
-const themeOptions = [
-  {
-    id: 'classic',
-    label: 'Giao diện sáng tối giản',
-    description: 'Nền trắng, card rõ ràng, phù hợp môi trường văn phòng.',
-    icon: <FaPalette className="h-5 w-5" />,
-  },
-  {
-    id: 'vivid',
-    label: 'Giao diện đa sắc',
-    description: 'Dải màu gradient cho nav và thẻ, tạo cảm hứng sử dụng.',
-    icon: <FaFilter className="h-5 w-5" />,
-  },
-  {
-    id: 'focus',
-    label: 'Giao diện tập trung',
-    description: 'Nhấn mạnh dữ liệu tài chính với card tối, chữ sáng.',
-    icon: <FaSmile className="h-5 w-5" />,
-  },
-]
+// const themeOptions = [
+//   {
+//     id: 'classic',
+//     label: 'Giao diện sáng tối giản',
+//     description: 'Nền trắng, card rõ ràng, phù hợp môi trường văn phòng.',
+//     icon: <FaPalette className="h-5 w-5" />,
+//   },
+//   {
+//     id: 'vivid',
+//     label: 'Giao diện đa sắc',
+//     description: 'Dải màu gradient cho nav và thẻ, tạo cảm hứng sử dụng.',
+//     icon: <FaFilter className="h-5 w-5" />,
+//   },
+//   {
+//     id: 'focus',
+//     label: 'Giao diện tập trung',
+//     description: 'Nhấn mạnh dữ liệu tài chính với card tối, chữ sáng.',
+//     icon: <FaSmile className="h-5 w-5" />,
+//   },
+// ]
 
 // Reserved for future use
 // const accountShortcuts = [
@@ -110,7 +105,7 @@ const SettingsPage = () => {
   const [isIconManagementOpen, setIsIconManagementOpen] = useState(false)
   const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false)
   const [isAdminSettingsModalOpen, setIsAdminSettingsModalOpen] = useState(false)
-  const [darkMode, setDarkMode] = useState(false)
+  // const [darkMode, setDarkMode] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true)
 
@@ -120,7 +115,7 @@ const SettingsPage = () => {
     autoBackup: true,
   })
 
-  const [selectedTheme, setSelectedTheme] = useState('classic')
+  // const [selectedTheme, setSelectedTheme] = useState('classic')
 
   // Load profile and check admin status
   useEffect(() => {
@@ -194,18 +189,47 @@ const SettingsPage = () => {
   const handleLogout = async () => {
     await showConfirm('Bạn có chắc chắn muốn đăng xuất?', async () => {
       const supabase = getSupabaseClient()
+      
       // Clear welcome modal flag when logging out
       sessionStorage.removeItem('showWelcomeModal')
       
       // Clear cache và preload timestamp khi logout
+      try {
       const { clearAllCache } = await import('../lib/cache')
       const { clearPreloadTimestamp } = await import('../lib/dataPreloader')
       await clearAllCache()
       await clearPreloadTimestamp()
-      clearUserCache() // Clear user cache khi logout
+      } catch (error) {
+        console.warn('Error clearing cache:', error)
+      }
       
-      await supabase.auth.signOut()
-      navigate('/login')
+      // Clear user cache khi logout
+      clearUserCache()
+      
+      // Clear auth token từ localStorage
+      try {
+        localStorage.removeItem('bofin-auth-token')
+        // Clear tất cả keys liên quan đến auth
+        Object.keys(localStorage).forEach(key => {
+          if (key.includes('supabase') || key.includes('auth')) {
+            localStorage.removeItem(key)
+          }
+        })
+      } catch (error) {
+        console.warn('Error clearing auth storage:', error)
+      }
+      
+      // Sign out với scope local (không cần server confirmation)
+      // Bỏ qua lỗi nếu có vì chúng ta đã clear local storage
+      try {
+        await supabase.auth.signOut({ scope: 'local' })
+      } catch (error) {
+        console.warn('SignOut error (ignored):', error)
+      }
+      
+      // Luôn reload trang sau khi logout, bất kể có lỗi hay không
+      // Dùng replace thay vì href để không lưu vào history và đảm bảo reload ngay
+      window.location.replace('/login')
     })
   }
 
@@ -393,8 +417,8 @@ const SettingsPage = () => {
           </div>
         </section>
 
-        {/* System Settings */}
-        <section className="grid gap-4 sm:gap-6 lg:grid-cols-2">
+        {/* System Settings - Tạm ẩn */}
+        {/* <section className="grid gap-4 sm:gap-6 lg:grid-cols-2">
           <div className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
             <h2 className="mb-4 text-base font-bold text-slate-900 sm:text-lg">Giao diện</h2>
             <p className="mb-4 text-xs text-slate-500 sm:text-sm">
@@ -463,7 +487,7 @@ const SettingsPage = () => {
                 </button>
             </div>
           </div>
-        </section>
+        </section> */}
 
 
 

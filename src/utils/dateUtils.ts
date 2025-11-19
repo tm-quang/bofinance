@@ -3,25 +3,64 @@
  * All date operations should use these utilities to ensure consistency
  */
 
-const UTC_OFFSET_HOURS = 7 // UTC+7 for Vietnam
-
 /**
  * Get current date/time in UTC+7
+ * Returns a Date object that represents the current time in UTC+7 timezone
  */
 export const getNowUTC7 = (): Date => {
   const now = new Date()
-  // Get UTC time
-  const utc = now.getTime() + (now.getTimezoneOffset() * 60000)
-  // Add UTC+7 offset
-  return new Date(utc + (UTC_OFFSET_HOURS * 3600000))
+  
+  // Use Intl.DateTimeFormat to get UTC+7 components
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
+  
+  const parts = formatter.formatToParts(now)
+  const year = parseInt(parts.find(p => p.type === 'year')?.value || '0')
+  const month = parseInt(parts.find(p => p.type === 'month')?.value || '0')
+  const day = parseInt(parts.find(p => p.type === 'day')?.value || '0')
+  const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0')
+  const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0')
+  const second = parseInt(parts.find(p => p.type === 'second')?.value || '0')
+  
+  // Create date in UTC+7 timezone
+  return createDateUTC7(year, month, day, hour, minute, second)
 }
 
 /**
  * Convert a Date object to UTC+7
+ * Takes a Date object and returns a new Date object representing the same moment in UTC+7
  */
 export const toUTC7 = (date: Date): Date => {
-  const utc = date.getTime() + (date.getTimezoneOffset() * 60000)
-  return new Date(utc + (UTC_OFFSET_HOURS * 3600000))
+  // Use Intl.DateTimeFormat to get UTC+7 components
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
+  
+  const parts = formatter.formatToParts(date)
+  const year = parseInt(parts.find(p => p.type === 'year')?.value || '0')
+  const month = parseInt(parts.find(p => p.type === 'month')?.value || '0')
+  const day = parseInt(parts.find(p => p.type === 'day')?.value || '0')
+  const hour = parseInt(parts.find(p => p.type === 'hour')?.value || '0')
+  const minute = parseInt(parts.find(p => p.type === 'minute')?.value || '0')
+  const second = parseInt(parts.find(p => p.type === 'second')?.value || '0')
+  
+  // Create date in UTC+7 timezone
+  return createDateUTC7(year, month, day, hour, minute, second)
 }
 
 /**
@@ -38,10 +77,11 @@ export const createDateUTC7 = (year: number, month: number, day: number, hour: n
  * This ensures dates are always formatted correctly regardless of system timezone
  */
 export const formatDateUTC7 = (date: Date): string => {
-  const utc7Date = toUTC7(date)
-  const year = utc7Date.getUTCFullYear()
-  const month = String(utc7Date.getUTCMonth() + 1).padStart(2, '0')
-  const day = String(utc7Date.getUTCDate()).padStart(2, '0')
+  // Get UTC+7 components directly
+  const components = getDateComponentsUTC7(date)
+  const year = components.year
+  const month = String(components.month).padStart(2, '0')
+  const day = String(components.day).padStart(2, '0')
   return `${year}-${month}-${day}`
 }
 
@@ -60,14 +100,26 @@ export const formatDateLocal = (date: Date): string => {
  * Get date components in UTC+7
  */
 export const getDateComponentsUTC7 = (date: Date): { year: number; month: number; day: number; hour: number; minute: number; second: number } => {
-  const utc7Date = toUTC7(date)
+  // Use Intl.DateTimeFormat to get UTC+7 components directly
+  const formatter = new Intl.DateTimeFormat('en-US', {
+    timeZone: 'Asia/Ho_Chi_Minh',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
+  
+  const parts = formatter.formatToParts(date)
   return {
-    year: utc7Date.getUTCFullYear(),
-    month: utc7Date.getUTCMonth() + 1,
-    day: utc7Date.getUTCDate(),
-    hour: utc7Date.getUTCHours(),
-    minute: utc7Date.getUTCMinutes(),
-    second: utc7Date.getUTCSeconds(),
+    year: parseInt(parts.find(p => p.type === 'year')?.value || '0'),
+    month: parseInt(parts.find(p => p.type === 'month')?.value || '0'),
+    day: parseInt(parts.find(p => p.type === 'day')?.value || '0'),
+    hour: parseInt(parts.find(p => p.type === 'hour')?.value || '0'),
+    minute: parseInt(parts.find(p => p.type === 'minute')?.value || '0'),
+    second: parseInt(parts.find(p => p.type === 'second')?.value || '0'),
   }
 }
 

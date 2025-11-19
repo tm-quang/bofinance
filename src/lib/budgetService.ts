@@ -658,10 +658,16 @@ export const checkBudgetLimit = async (
     amount: number
     transaction_date: string
     type: 'Thu' | 'Chi'
+    exclude_from_reports?: boolean
   }
 ): Promise<{ allowed: boolean; budget: BudgetRecord | null; message: string }> => {
   // Only check for expense transactions
   if (transaction.type !== 'Chi') {
+    return { allowed: true, budget: null, message: '' }
+  }
+  
+  // Skip budget check if transaction is excluded from reports
+  if (transaction.exclude_from_reports) {
     return { allowed: true, budget: null, message: '' }
   }
 

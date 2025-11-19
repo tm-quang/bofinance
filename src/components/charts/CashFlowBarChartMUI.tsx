@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react'
-import { FaChartBar } from 'react-icons/fa'
 
 type CashFlowBarChartData = {
   label: string
@@ -120,9 +119,13 @@ export const CashFlowBarChartMUI = ({ data, height = 300 }: CashFlowBarChartProp
 
   if (data.length === 0) {
     return (
-      <div className="flex h-48 flex-col items-center justify-center rounded-2xl bg-slate-50 text-sm text-slate-500">
-        <div className="mb-3 rounded-full bg-white p-3">
-          <FaChartBar className="h-6 w-6 text-slate-400" />
+      <div className="flex h-auto flex-col items-center justify-center text-sm text-slate-500 space-y-3">
+        <div className="mb-3 p-3 overflow-hidden">
+          <img 
+            src="/report-analysis-6-23.png" 
+            alt="Chưa có dữ liệu" 
+            className="h-56 w-56 object-contain opacity-90"
+          />
         </div>
         <span>Chưa có dữ liệu để hiển thị</span>
       </div>

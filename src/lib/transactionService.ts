@@ -3,6 +3,7 @@ import type { PostgrestError } from '@supabase/supabase-js'
 import { getSupabaseClient } from './supabaseClient'
 import { cacheFirstWithRefresh, cacheManager, invalidateCache } from './cache'
 import { getCachedUser } from './userCache'
+import { formatDateUTC7, getNowUTC7 } from '../utils/dateUtils'
 
 export type TransactionType = 'Thu' | 'Chi'
 
@@ -18,6 +19,13 @@ export type TransactionRecord = {
   notes: string | null
   tags: string[] | null
   image_urls: string[] | null
+  location: string | null
+  recipient_name: string | null
+  is_borrowed: boolean
+  lender_name: string | null
+  lender_phone: string | null
+  borrow_date: string | null
+  exclude_from_reports: boolean
   created_at: string
   updated_at: string
 }
@@ -32,6 +40,13 @@ export type TransactionInsert = {
   notes?: string
   tags?: string[]
   image_urls?: string[]
+  location?: string | null
+  recipient_name?: string | null
+  is_borrowed?: boolean
+  lender_name?: string | null
+  lender_phone?: string | null
+  borrow_date?: string | null
+  exclude_from_reports?: boolean
 }
 
 export type TransactionUpdate = Partial<
@@ -51,17 +66,10 @@ export type TransactionFilters = {
   tags?: string[]
   limit?: number
   offset?: number
+  exclude_from_reports?: boolean // If true, only get excluded transactions. If false, only get included transactions. If undefined, get all.
 }
 
 const TABLE_NAME = 'transactions'
-
-// Helper function to format date as YYYY-MM-DD in local timezone
-const formatDateLocal = (date: Date): string => {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${year}-${month}-${day}`
-}
 
 const throwIfError = (error: PostgrestError | null, fallbackMessage: string): void => {
   if (error) {
@@ -110,6 +118,9 @@ export const fetchTransactions = async (
       }
       if (filters.tags && filters.tags.length > 0) {
         query = query.contains('tags', filters.tags)
+      }
+      if (typeof filters.exclude_from_reports === 'boolean') {
+        query = query.eq('exclude_from_reports', filters.exclude_from_reports)
       }
       if (typeof filters.limit === 'number') {
         query = query.limit(filters.limit)
@@ -168,28 +179,24 @@ export const createTransaction = async (
 
   // Check budget limits before creating transaction (only for expense transactions)
   if (payload.type === 'Chi') {
-    try {
-      const { checkBudgetLimit } = await import('./budgetService')
-      const budgetCheck = await checkBudgetLimit({
-        category_id: payload.category_id,
-        wallet_id: payload.wallet_id,
-        amount: payload.amount,
-        transaction_date: payload.transaction_date || formatDateLocal(new Date()),
-        type: payload.type,
-      })
+    const { checkBudgetLimit } = await import('./budgetService')
+    const budgetCheck = await checkBudgetLimit({
+      category_id: payload.category_id,
+      wallet_id: payload.wallet_id,
+      amount: payload.amount,
+      transaction_date: payload.transaction_date || formatDateUTC7(getNowUTC7()),
+      type: payload.type,
+      exclude_from_reports: payload.exclude_from_reports || false,
+    })
 
-      // Hard limit: Reject transaction
-      if (!budgetCheck.allowed) {
-        throw new Error(budgetCheck.message)
-      }
+    // Hard limit: Reject transaction
+    if (!budgetCheck.allowed) {
+      throw new Error(budgetCheck.message)
+    }
 
-      // Soft limit: Store warning message to return to caller
-      if (budgetCheck.message) {
-        budgetWarning = budgetCheck.message
-      }
-    } catch (error) {
-      // Re-throw budget limit errors
-      throw error
+    // Soft limit: Store warning message to return to caller
+    if (budgetCheck.message) {
+      budgetWarning = budgetCheck.message
     }
   }
 
@@ -198,7 +205,7 @@ export const createTransaction = async (
     .insert({
       ...payload,
       user_id: user.id,
-      transaction_date: payload.transaction_date || formatDateLocal(new Date()),
+      transaction_date: payload.transaction_date || formatDateUTC7(getNowUTC7()),
     })
     .select()
     .single()
@@ -300,7 +307,7 @@ export const deleteTransaction = async (id: string): Promise<void> => {
   }
 
   // Lấy wallet_id trước khi xóa (để trigger có thể hoàn tác số dư)
-  const { data: _transaction } = await supabase
+  await supabase
     .from(TABLE_NAME)
     .select('wallet_id')
     .eq('id', id)

@@ -4,7 +4,7 @@
  * Sử dụng BroadcastChannel (modern) và StorageEvent (fallback)
  */
 
-type CacheSyncEvent = 
+type CacheSyncEvent =
   | { type: 'CACHE_INVALIDATE'; pattern: string }
   | { type: 'CACHE_CLEAR' }
   | { type: 'CACHE_SET'; key: string }
@@ -18,7 +18,7 @@ class CacheSyncService {
   constructor() {
     // Check if BroadcastChannel is supported
     this.isSupported = typeof BroadcastChannel !== 'undefined'
-    
+
     if (this.isSupported) {
       try {
         this.channel = new BroadcastChannel('bofin_cache_sync')
@@ -126,7 +126,7 @@ class CacheSyncService {
         setTimeout(() => {
           try {
             localStorage.removeItem(key)
-          } catch (e) {
+          } catch {
             // Ignore cleanup errors
           }
         }, 100)
@@ -141,7 +141,7 @@ class CacheSyncService {
    */
   subscribe(listener: (event: CacheSyncEvent) => void): () => void {
     this.listeners.add(listener)
-    
+
     // Return unsubscribe function
     return () => {
       this.listeners.delete(listener)

@@ -6,12 +6,12 @@ import { getCachedUser } from './userCache'
 import { playNotificationSound } from './notificationSoundService'
 import { getServiceWorkerRegistration } from './serviceWorkerManager'
 
-export type NotificationType = 
-  | 'transaction' 
-  | 'reminder' 
-  | 'budget' 
-  | 'system' 
-  | 'admin' 
+export type NotificationType =
+  | 'transaction'
+  | 'reminder'
+  | 'budget'
+  | 'system'
+  | 'admin'
   | 'promotion'
   | 'event'
 
@@ -112,10 +112,10 @@ export const fetchNotifications = async (
     if (error) {
       // PGRST116 = PostgREST "not found" error code
       // Also check for 404 in message (HTTP 404 when table doesn't exist)
-      if (error.code === 'PGRST116' || 
-          error.message?.includes('404') || 
-          error.message?.includes('not found') ||
-          error.message?.toLowerCase().includes('relation') && error.message?.toLowerCase().includes('does not exist')) {
+      if (error.code === 'PGRST116' ||
+        error.message?.includes('404') ||
+        error.message?.includes('not found') ||
+        error.message?.toLowerCase().includes('relation') && error.message?.toLowerCase().includes('does not exist')) {
         // Table doesn't exist, return empty array silently
         return []
       }
@@ -178,7 +178,7 @@ export const updateNotification = async (
     throw new Error('Bạn cần đăng nhập để cập nhật thông báo.')
   }
 
-  const updateData: any = {
+  const updateData: Record<string, unknown> = {
     updated_at: new Date().toISOString(),
   }
 
@@ -205,10 +205,10 @@ export const updateNotification = async (
 
   // If table doesn't exist, save to localStorage as fallback
   if (error) {
-    if (error.code === 'PGRST116' || 
-        error.message?.includes('404') || 
-        error.message?.includes('not found') ||
-        error.message?.toLowerCase().includes('relation') && error.message?.toLowerCase().includes('does not exist')) {
+    if (error.code === 'PGRST116' ||
+      error.message?.includes('404') ||
+      error.message?.includes('not found') ||
+      error.message?.toLowerCase().includes('relation') && error.message?.toLowerCase().includes('does not exist')) {
       // Table doesn't exist, chỉ log warning
       console.warn('Notification table does not exist, cannot update:', id)
       return null // Silently succeed if table doesn't exist
@@ -282,10 +282,10 @@ export const markAllNotificationsAsRead = async (): Promise<void> => {
 
   // If table doesn't exist, save to localStorage as fallback
   if (error) {
-    if (error.code === 'PGRST116' || 
-        error.message?.includes('404') || 
-        error.message?.includes('not found') ||
-        error.message?.toLowerCase().includes('relation') && error.message?.toLowerCase().includes('does not exist')) {
+    if (error.code === 'PGRST116' ||
+      error.message?.includes('404') ||
+      error.message?.includes('not found') ||
+      error.message?.toLowerCase().includes('relation') && error.message?.toLowerCase().includes('does not exist')) {
       // Table doesn't exist, mark all current notifications as read in localStorage
       try {
         const storageKey = `notification_read_${user.id}`
@@ -311,13 +311,13 @@ export const markAllNotificationsAsRead = async (): Promise<void> => {
  */
 const isAggregatedNotificationId = (id: string): boolean => {
   // Aggregated notifications have prefixes like: transaction_, reminder_, budget_
-  return id.startsWith('transaction_') || 
-         id.startsWith('reminder_') || 
-         id.startsWith('budget_') ||
-         id.startsWith('system_') ||
-         id.startsWith('admin_') ||
-         id.startsWith('promotion_') ||
-         id.startsWith('event_')
+  return id.startsWith('transaction_') ||
+    id.startsWith('reminder_') ||
+    id.startsWith('budget_') ||
+    id.startsWith('system_') ||
+    id.startsWith('admin_') ||
+    id.startsWith('promotion_') ||
+    id.startsWith('event_')
 }
 
 /**
@@ -341,10 +341,10 @@ export const deleteNotification = async (id: string): Promise<void> => {
   // Nếu có lỗi, throw error (không dùng localStorage fallback)
   if (error) {
     // Nếu table không tồn tại, chỉ log warning
-    if (error.code === 'PGRST116' || 
-        error.message?.includes('404') || 
-        error.message?.includes('not found') ||
-        error.message?.toLowerCase().includes('relation') && error.message?.toLowerCase().includes('does not exist')) {
+    if (error.code === 'PGRST116' ||
+      error.message?.includes('404') ||
+      error.message?.includes('not found') ||
+      error.message?.toLowerCase().includes('relation') && error.message?.toLowerCase().includes('does not exist')) {
       console.warn('Notification table does not exist, cannot delete:', id)
       return // Silently succeed if table doesn't exist
     }
@@ -386,7 +386,7 @@ export const getAllNotifications = async (
   try {
     // Try to get from database first
     const dbNotifications = await fetchNotifications(filters)
-    
+
     // Chỉ trả về thông báo từ database (không tự động tạo nữa)
     return dbNotifications
   } catch (error) {

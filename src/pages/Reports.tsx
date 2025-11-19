@@ -17,7 +17,7 @@ import { CategoryFilter } from '../components/reports/CategoryFilter'
 // import { TransactionListSkeleton } from '../components/skeletons'
 import { useNotification } from '../contexts/notificationContext.helpers'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
-import { getIconNode } from '../utils/iconLoader'
+import { getIconNodeFromCategory } from '../utils/iconLoader'
 import { fetchCategories, type CategoryRecord } from '../lib/categoryService'
 import { fetchTransactions, type TransactionRecord } from '../lib/transactionService'
 // import { fetchWallets, type WalletRecord } from '../lib/walletService' // Reserved for future use
@@ -138,6 +138,7 @@ const ReportPage = () => {
   const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
   const [isLoading, setIsLoading] = useState(true)
   const [searchTerm, setSearchTerm] = useState('')
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [typeFilter, setTypeFilter] = useState<'all' | 'Thu' | 'Chi'>('all')
   const [rangeType, setRangeType] = useState<DateRangeType>('month')
   const [customStartDate, setCustomStartDate] = useState<string>('')
@@ -182,17 +183,18 @@ const ReportPage = () => {
           fetchTransactions({
             start_date: dateRange.start,
             end_date: dateRange.end,
+            exclude_from_reports: false, // Only get transactions included in reports
           }),
           fetchCategories(),
           // fetchWallets(false), // Reserved for future use
         ])
         
-        // Load icons for all categories
+        // Load icons for all categories using icon_url from category
         const iconsMap: Record<string, React.ReactNode> = {}
         await Promise.all(
           categoriesData.map(async (category) => {
             try {
-              const iconNode = await getIconNode(category.icon_id)
+              const iconNode = await getIconNodeFromCategory(category.icon_id, category.icon_url, 'h-full w-full object-cover rounded-full')
               if (iconNode) {
                 iconsMap[category.id] = <span className="h-14 w-14 flex items-center justify-center rounded-full overflow-hidden">{iconNode}</span>
               } else {
@@ -488,7 +490,40 @@ const ReportPage = () => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
-      <HeaderBar variant="page" title="BÁO CÁO & THỐNG KÊ" />
+      <HeaderBar 
+        variant="page" 
+        title={isSearchOpen ? '' : "BÁO CÁO & THỐNG KÊ"}
+        showIcon={
+          <button
+            type="button"
+            onClick={() => setIsSearchOpen(!isSearchOpen)}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100 transition hover:scale-110 active:scale-95"
+            aria-label="Tìm kiếm"
+          >
+            <FaSearch className="h-4 w-4 text-slate-600" />
+          </button>
+        }
+        customContent={
+          isSearchOpen ? (
+            <div className="flex-1 px-4">
+              <div className="relative">
+                <FaSearch className="absolute left-4 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm theo mô tả, hạng mục hoặc ngày..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  autoFocus
+                  className="w-full rounded-xl border-2 border-slate-200 bg-white py-2 pl-11 pr-4 text-sm text-slate-900 placeholder-slate-400 transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                  onBlur={() => {
+                    // Không đóng search khi blur, chỉ đóng khi bấm nút search lại
+                  }}
+                />
+              </div>
+            </div>
+          ) : null
+        }
+      />
       <main className="flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 pt-2 pb-4 sm:pt-2 sm:pb-4">
           {/* Summary Cards */}
@@ -566,10 +601,10 @@ const ReportPage = () => {
               />
             </FilterAccordionSection>
 
-            {/* Hạng mục & tìm kiếm - Hiển thị thứ hai */}
+            {/* Hạng mục - Hiển thị thứ hai */}
             <FilterAccordionSection
-              title="Hạng mục & tìm kiếm"
-              subtitle="Chọn nhanh hạng mục và tìm kiếm giao dịch"
+              title="Hạng mục"
+              subtitle="Chọn nhanh hạng mục"
               isOpen={openFilterSections.category}
               onToggle={() => toggleSection('category')}
             >
@@ -591,18 +626,7 @@ const ReportPage = () => {
                   </button>
                 </div>
               )}
-              <div className="mt-4">
-                <p className="mb-2 text-xs font-medium text-slate-600 sm:text-sm">Từ khóa</p>
-                <div className="relative">
-                  <FaSearch className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    placeholder="Tìm theo mô tả, hạng mục hoặc ngày..."
-                    className="h-11 w-full rounded-2xl border border-slate-200 bg-white pl-10 pr-3 text-sm text-slate-900 outline-none focus:border-sky-400 focus:ring-2 focus:ring-sky-100"
-                  />
-                </div>
-              </div>
+              {/* Search field đã được di chuyển lên header */}
             </FilterAccordionSection>
 
             {/* Loại giao dịch - Hiển thị cuối cùng */}

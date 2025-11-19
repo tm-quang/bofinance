@@ -1,3 +1,4 @@
+import { useRef } from 'react'
 import { FaPlus, FaCalendar, FaWallet } from 'react-icons/fa'
 import { type TransactionRecord } from '../../lib/transactionService'
 
@@ -22,6 +23,7 @@ interface TransactionCardProps {
   onLongPressStart: (transaction: TransactionRecord) => void
   onLongPressEnd: () => void
   onLongPressCancel: () => void
+  onClick?: (transaction: TransactionRecord) => void
   formatCurrency: (value: number) => string
   formatDate: (date: Date) => string
 }
@@ -33,6 +35,7 @@ export const TransactionCard = ({
   onLongPressStart,
   onLongPressEnd,
   onLongPressCancel,
+  onClick,
   formatCurrency,
   formatDate,
 }: TransactionCardProps) => {
@@ -40,13 +43,68 @@ export const TransactionCard = ({
   const categoryIcon = categoryInfo.icon
   const transactionDate = new Date(transaction.transaction_date)
 
+  const longPressTimerRef = useRef<number | null>(null)
+  const wasLongPressRef = useRef(false)
+
+  const handleTouchStart = () => {
+    wasLongPressRef.current = false
+    onLongPressStart(transaction)
+    // Set a timer to detect long press
+    longPressTimerRef.current = window.setTimeout(() => {
+      wasLongPressRef.current = true
+    }, 500)
+  }
+
+  const handleTouchEnd = () => {
+    const wasLongPress = wasLongPressRef.current
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+    onLongPressEnd()
+    // Only trigger onClick if it wasn't a long press
+    if (!wasLongPress && onClick) {
+      // Small delay to ensure long press modal doesn't interfere
+      setTimeout(() => {
+        onClick(transaction)
+      }, 100)
+    }
+    wasLongPressRef.current = false
+  }
+
+  const handleMouseDown = () => {
+    wasLongPressRef.current = false
+    onLongPressStart(transaction)
+    // Set a timer to detect long press
+    longPressTimerRef.current = window.setTimeout(() => {
+      wasLongPressRef.current = true
+    }, 500)
+  }
+
+  const handleMouseUp = () => {
+    const wasLongPress = wasLongPressRef.current
+    if (longPressTimerRef.current) {
+      window.clearTimeout(longPressTimerRef.current)
+      longPressTimerRef.current = null
+    }
+    onLongPressEnd()
+    // Only trigger onClick if it wasn't a long press
+    if (!wasLongPress && onClick) {
+      // Small delay to ensure long press modal doesn't interfere
+      setTimeout(() => {
+        onClick(transaction)
+      }, 100)
+    }
+    wasLongPressRef.current = false
+  }
+
   return (
     <div
-      onTouchStart={() => onLongPressStart(transaction)}
-      onTouchEnd={onLongPressEnd}
+      onTouchStart={handleTouchStart}
+      onTouchEnd={handleTouchEnd}
       onTouchCancel={onLongPressCancel}
-      onMouseDown={() => onLongPressStart(transaction)}
-      onMouseUp={onLongPressEnd}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
       onMouseLeave={onLongPressCancel}
       className={`group relative flex items-center gap-3 rounded-3xl p-3 shadow-lg border transition-all select-none cursor-pointer hover:shadow-md active:scale-[0.98] ${
         isIncome

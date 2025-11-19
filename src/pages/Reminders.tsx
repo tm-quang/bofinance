@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FaCalendar, FaCheck, FaTimes, FaEdit, FaTrash, FaPlus, FaBell, FaBellSlash } from 'react-icons/fa'
+import { FaCalendar, FaCheck, FaTimes, FaEdit, FaTrash, FaPlus, FaBell, FaBellSlash, FaSearch } from 'react-icons/fa'
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
 import { ReminderModal } from '../components/reminders/ReminderModal'
@@ -36,6 +36,8 @@ const RemindersPage = () => {
   const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
   const [reminderIcons, setReminderIcons] = useState<Record<string, React.ReactNode>>({})
   const [isLoading, setIsLoading] = useState(true)
+  const [searchTerm, setSearchTerm] = useState('')
+  const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isModalOpen, setIsModalOpen] = useState(false)
   const [editingReminder, setEditingReminder] = useState<ReminderRecord | null>(null)
   // const [selectedReminder, setSelectedReminder] = useState<ReminderRecord | null>(null)
@@ -47,7 +49,7 @@ const RemindersPage = () => {
 
   useEffect(() => {
     loadData()
-    
+
     // Request notification permission on mount
     requestNotificationPermission()
   }, [])
@@ -58,7 +60,7 @@ const RemindersPage = () => {
 
     // Start Service Worker periodic checking (works even when browser is closed)
     startPeriodicReminderCheck()
-    
+
     // Also check immediately when reminders change
     checkRemindersAndNotify().catch(console.error)
 
@@ -216,7 +218,7 @@ const RemindersPage = () => {
   const handleEdit = (reminder: ReminderRecord) => {
     // Check if it's a note (no amount, category, wallet) or reminder
     const isNote = !reminder.amount && !reminder.category_id && !reminder.wallet_id
-    
+
     if (isNote) {
       setEditingReminder(reminder)
       setIsNoteModalOpen(true)
@@ -238,7 +240,7 @@ const RemindersPage = () => {
       await deleteReminder(reminderToDelete.id)
       success('Đã xóa nhắc nhở thành công!')
       loadData()
-    } catch (error) {
+    } catch {
       showError('Không thể xóa nhắc nhở.')
     } finally {
       setIsDeleteConfirmOpen(false)
@@ -251,7 +253,7 @@ const RemindersPage = () => {
       await completeReminder(reminder.id)
       success('Đã đánh dấu hoàn thành!')
       loadData()
-    } catch (error) {
+    } catch {
       showError('Không thể cập nhật nhắc nhở.')
     }
   }
@@ -261,7 +263,7 @@ const RemindersPage = () => {
       await skipReminder(reminder.id)
       success('Đã bỏ qua nhắc nhở!')
       loadData()
-    } catch (error) {
+    } catch {
       showError('Không thể cập nhật nhắc nhở.')
     }
   }
@@ -287,13 +289,39 @@ const RemindersPage = () => {
     return wallet?.name || null
   }
 
+  // Filter reminders by search term
+  const filteredReminders = useMemo(() => {
+    if (!searchTerm.trim()) return reminders
+
+    const term = searchTerm.toLowerCase().trim()
+    return reminders.filter((r) => {
+      // Search in title
+      if (r.title?.toLowerCase().includes(term)) return true
+      // Search in notes
+      if (r.notes?.toLowerCase().includes(term)) return true
+      // Search in category name
+      if (r.category_id) {
+        const category = categories.find(c => c.id === r.category_id)
+        if (category?.name?.toLowerCase().includes(term)) return true
+      }
+      // Search in wallet name
+      if (r.wallet_id) {
+        const wallet = wallets.find(w => w.id === r.wallet_id)
+        if (wallet?.name?.toLowerCase().includes(term)) return true
+      }
+      // Search in date
+      if (r.reminder_date?.includes(term)) return true
+      return false
+    })
+  }, [reminders, searchTerm, categories, wallets])
+
   // Group reminders by date
   const today = new Date().toISOString().split('T')[0]
-  const todayReminders = reminders.filter((r) => r.reminder_date === today && !r.completed_at)
-  const upcomingReminders = reminders.filter(
+  const todayReminders = filteredReminders.filter((r) => r.reminder_date === today && !r.completed_at)
+  const upcomingReminders = filteredReminders.filter(
     (r) => r.reminder_date > today && !r.completed_at
   )
-  const pastReminders = reminders.filter((r) => r.reminder_date < today && !r.completed_at)
+  const pastReminders = filteredReminders.filter((r) => r.reminder_date < today && !r.completed_at)
 
   const formatDate = (dateStr: string) => {
     const date = new Date(dateStr)
@@ -327,7 +355,7 @@ const RemindersPage = () => {
 
   const getReminderColor = (reminder: ReminderRecord) => {
     if (reminder.color) return reminder.color
-    
+
     // Default colors based on type
     const isNote = !reminder.amount && !reminder.category_id && !reminder.wallet_id
     if (isNote) return 'amber'
@@ -357,14 +385,47 @@ const RemindersPage = () => {
       })
       await loadData()
       success(`Đã ${reminder.enable_notification ? 'tắt' : 'bật'} thông báo cho nhắc nhở`)
-    } catch (error) {
+    } catch {
       showError('Không thể cập nhật thông báo')
     }
   }
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
-      <HeaderBar variant="page" title="Ghi chú & kế hoạch" />
+      <HeaderBar
+        variant="page"
+        title={isSearchOpen ? '' : "Ghi chú & kế hoạch"}
+        showIcon={
+          <button
+            type="button"
+            onClick={() => setIsSearchOpen(!isSearchOpen)}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100 transition hover:scale-110 active:scale-95"
+            aria-label="Tìm kiếm"
+          >
+            <FaSearch className="h-4 w-4 text-slate-600" />
+          </button>
+        }
+        customContent={
+          isSearchOpen ? (
+            <div className="flex-1 px-4">
+              <div className="relative">
+                <FaSearch className="absolute left-4 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm ghi chú, kế hoạch..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  autoFocus
+                  className="w-full rounded-xl border-2 border-slate-200 bg-white py-2 pl-11 pr-4 text-sm text-slate-900 placeholder-slate-400 transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                  onBlur={() => {
+                    // Không đóng search khi blur, chỉ đóng khi bấm nút search lại
+                  }}
+                />
+              </div>
+            </div>
+          ) : null
+        }
+      />
 
       <main className="flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 pt-2 pb-4 sm:pt-2 sm:pb-4">
@@ -381,12 +442,12 @@ const RemindersPage = () => {
           ) : (
             <>
               {/* Header with Add Button */}
-              {reminders.length > 0 && (
+              {filteredReminders.length > 0 && (
                 <div className="flex items-center justify-between">
                   <div>
                     <h2 className="text-lg font-bold text-slate-900">Kế hoạch nhắc nhở</h2>
                     <p className="mt-1 text-sm text-slate-500">
-                      {reminders.filter((r) => !r.completed_at).length} nhắc nhở đang chờ
+                      {filteredReminders.filter((r) => !r.completed_at).length} nhắc nhở đang chờ
                     </p>
                   </div>
                   <button
@@ -400,274 +461,273 @@ const RemindersPage = () => {
               )}
 
               {/* Today's Reminders */}
-          {todayReminders.length > 0 && (
-            <section className="space-y-3">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700">
-                Kế hoạch hôm nay
-              </h2>
-              <div className="space-y-2">
-                {todayReminders.map((reminder) => {
-                  const categoryInfo = getCategoryInfo(reminder.category_id)
-                  const walletName = getWalletName(reminder.wallet_id)
-                  const isNote = !reminder.amount && !reminder.category_id && !reminder.wallet_id
-                  const reminderColor = getReminderColor(reminder)
-                  const colorClasses = getColorClasses(reminderColor)
+              {todayReminders.length > 0 && (
+                <section className="space-y-3">
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700">
+                    Kế hoạch hôm nay
+                  </h2>
+                  <div className="space-y-2">
+                    {todayReminders.map((reminder) => {
+                      const categoryInfo = getCategoryInfo(reminder.category_id)
+                      const walletName = getWalletName(reminder.wallet_id)
+                      const isNote = !reminder.amount && !reminder.category_id && !reminder.wallet_id
+                      const reminderColor = getReminderColor(reminder)
+                      const colorClasses = getColorClasses(reminderColor)
 
-                  return (
-                    <div
-                      key={reminder.id}
-                      className={`rounded-2xl p-4 shadow-lg ring-1 ${colorClasses.bg} ${colorClasses.border}`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full">
-                          {reminderIcons[reminder.id] ? (
-                            <span className="h-12 w-12">{reminderIcons[reminder.id]}</span>
-                          ) : categoryInfo.icon ? (
-                            <span>{categoryInfo.icon}</span>
-                          ) : (
-                            <FaCalendar className="h-6 w-6 text-slate-400" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-slate-900">{reminder.title}</h3>
-                          {reminder.amount && (
-                            <p className="mt-1 text-lg font-bold text-slate-900">
-                              {formatVNDDisplay(reminder.amount)}
-                            </p>
-                          )}
-                          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                            {categoryInfo.name && (
-                              <span className="rounded-full bg-white/80 px-2 py-1">
-                                {categoryInfo.name}
-                              </span>
-                            )}
-                            {walletName && (
-                              <span className="rounded-full bg-white/80 px-2 py-1">{walletName}</span>
-                            )}
-                            {reminder.reminder_time && (
-                              <span className="rounded-full bg-white/80 px-2 py-1">
-                                {formatTime(reminder.reminder_time)}
-                              </span>
-                            )}
-                          </div>
-                          {reminder.notes && (
-                            <p className="mt-2 text-sm text-slate-600">{reminder.notes}</p>
-                          )}
-                          {isNote && (
-                            <span className="mt-2 inline-block rounded-full bg-white/80 px-2 py-1 text-xs font-medium text-slate-600">
-                              Ghi chú
-                            </span>
-                          )}
-                        </div>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleNotification(reminder)}
-                          className="shrink-0 text-slate-400 hover:text-slate-600 transition"
-                          title={reminder.enable_notification ? 'Tắt thông báo' : 'Bật thông báo'}
+                      return (
+                        <div
+                          key={reminder.id}
+                          className={`rounded-2xl p-4 shadow-lg ring-1 ${colorClasses.bg} ${colorClasses.border}`}
                         >
-                          {reminder.enable_notification ? (
-                            <FaBell className="h-4 w-4" />
-                          ) : (
-                            <FaBellSlash className="h-4 w-4" />
-                          )}
-                        </button>
-                      </div>
-                      <div className="mt-3 flex gap-2">
-                        {!isNote && (
-                          <button
-                            onClick={() => handleCreateTransaction(reminder)}
-                            className="flex-1 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
-                          >
-                            Tạo giao dịch
-                          </button>
-                        )}
-                        <button
-                          onClick={() => handleComplete(reminder)}
-                          className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600"
-                        >
-                          <FaCheck className="h-4 w-4" />
-                        </button>
-                        <button
-                          onClick={() => handleSkip(reminder)}
-                          className="rounded-xl bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-300"
-                        >
-                          <FaTimes className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-          )}
-
-          {/* Upcoming Reminders */}
-          {upcomingReminders.length > 0 && (
-            <section className="space-y-3">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700">
-                Sắp tới
-              </h2>
-              <div className="space-y-2">
-                {upcomingReminders.map((reminder) => {
-                  const categoryInfo = getCategoryInfo(reminder.category_id)
-                  const walletName = getWalletName(reminder.wallet_id)
-                  const isNote = !reminder.amount && !reminder.category_id && !reminder.wallet_id
-                  const reminderColor = getReminderColor(reminder)
-                  const colorClasses = getColorClasses(reminderColor)
-
-                  return (
-                    <div
-                      key={reminder.id}
-                      className={`rounded-2xl p-4 shadow-sm ring-1 ${colorClasses.bg} ${colorClasses.border}`}
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
-                          {reminderIcons[reminder.id] ? (
-                            <span className="h-10 w-10">{reminderIcons[reminder.id]}</span>
-                          ) : categoryInfo.icon ? (
-                            <span>{categoryInfo.icon}</span>
-                          ) : (
-                            <FaCalendar className="h-5 w-5 text-slate-400" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full">
+                              {reminderIcons[reminder.id] ? (
+                                <span className="h-12 w-12">{reminderIcons[reminder.id]}</span>
+                              ) : categoryInfo.icon ? (
+                                <span>{categoryInfo.icon}</span>
+                              ) : (
+                                <FaCalendar className="h-6 w-6 text-slate-400" />
+                              )}
+                            </div>
                             <div className="flex-1 min-w-0">
                               <h3 className="font-semibold text-slate-900">{reminder.title}</h3>
                               {reminder.amount && (
-                                <p className="mt-1 text-base font-bold text-slate-900">
+                                <p className="mt-1 text-lg font-bold text-slate-900">
                                   {formatVNDDisplay(reminder.amount)}
                                 </p>
                               )}
-                            </div>
-                            <div className="text-right">
-                              <p className="text-sm font-semibold text-slate-700">
-                                {formatDate(reminder.reminder_date)}
-                              </p>
-                              {reminder.reminder_time && (
-                                <p className="text-xs text-slate-500">
-                                  {formatTime(reminder.reminder_time)}
-                                </p>
+                              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                                {categoryInfo.name && (
+                                  <span className="rounded-full bg-white/80 px-2 py-1">
+                                    {categoryInfo.name}
+                                  </span>
+                                )}
+                                {walletName && (
+                                  <span className="rounded-full bg-white/80 px-2 py-1">{walletName}</span>
+                                )}
+                                {reminder.reminder_time && (
+                                  <span className="rounded-full bg-white/80 px-2 py-1">
+                                    {formatTime(reminder.reminder_time)}
+                                  </span>
+                                )}
+                              </div>
+                              {reminder.notes && (
+                                <p className="mt-2 text-sm text-slate-600">{reminder.notes}</p>
+                              )}
+                              {isNote && (
+                                <span className="mt-2 inline-block rounded-full bg-white/80 px-2 py-1 text-xs font-medium text-slate-600">
+                                  Ghi chú
+                                </span>
                               )}
                             </div>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleNotification(reminder)}
+                              className="shrink-0 text-slate-400 hover:text-slate-600 transition"
+                              title={reminder.enable_notification ? 'Tắt thông báo' : 'Bật thông báo'}
+                            >
+                              {reminder.enable_notification ? (
+                                <FaBell className="h-4 w-4" />
+                              ) : (
+                                <FaBellSlash className="h-4 w-4" />
+                              )}
+                            </button>
                           </div>
-                          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
-                            {categoryInfo.name && (
-                              <span className="rounded-full bg-slate-100 px-2 py-1">
-                                {categoryInfo.name}
-                              </span>
+                          <div className="mt-3 flex gap-2">
+                            {!isNote && (
+                              <button
+                                onClick={() => handleCreateTransaction(reminder)}
+                                className="flex-1 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+                              >
+                                Tạo giao dịch
+                              </button>
                             )}
-                            {walletName && (
-                              <span className="rounded-full bg-white/80 px-2 py-1">{walletName}</span>
-                            )}
-                            {isNote && (
-                              <span className="rounded-full bg-white/80 px-2 py-1">Ghi chú</span>
-                            )}
+                            <button
+                              onClick={() => handleComplete(reminder)}
+                              className="rounded-xl bg-emerald-500 px-4 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-600"
+                            >
+                              <FaCheck className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleSkip(reminder)}
+                              className="rounded-xl bg-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-300"
+                            >
+                              <FaTimes className="h-4 w-4" />
+                            </button>
                           </div>
                         </div>
-                        <button
-                          type="button"
-                          onClick={() => handleToggleNotification(reminder)}
-                          className="shrink-0 text-slate-400 hover:text-slate-600 transition"
-                          title={reminder.enable_notification ? 'Tắt thông báo' : 'Bật thông báo'}
-                        >
-                          {reminder.enable_notification ? (
-                            <FaBell className="h-4 w-4" />
-                          ) : (
-                            <FaBellSlash className="h-4 w-4" />
-                          )}
-                        </button>
-                      </div>
-                      <div className="mt-3 flex gap-2">
-                        <button
-                          onClick={() => handleEdit(reminder)}
-                          className="flex-1 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 shadow-sm"
-                        >
-                          <FaEdit className="mr-2 inline h-4 w-4" />
-                          Sửa
-                        </button>
-                        <button
-                          onClick={() => handleDelete(reminder)}
-                          className="rounded-xl bg-rose-100 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-200"
-                        >
-                          <FaTrash className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-          )}
+                      )
+                    })}
+                  </div>
+                </section>
+              )}
 
-          {/* Past Reminders */}
-          {pastReminders.length > 0 && (
-            <section className="space-y-3">
-              <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">
-                Đã qua
-              </h2>
-              <div className="space-y-2">
-                {pastReminders.map((reminder) => {
-                  const categoryInfo = getCategoryInfo(reminder.category_id)
-                  const isIncome = reminder.type === 'Thu'
+              {/* Upcoming Reminders */}
+              {upcomingReminders.length > 0 && (
+                <section className="space-y-3">
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-slate-700">
+                    Sắp tới
+                  </h2>
+                  <div className="space-y-2">
+                    {upcomingReminders.map((reminder) => {
+                      const categoryInfo = getCategoryInfo(reminder.category_id)
+                      const walletName = getWalletName(reminder.wallet_id)
+                      const isNote = !reminder.amount && !reminder.category_id && !reminder.wallet_id
+                      const reminderColor = getReminderColor(reminder)
+                      const colorClasses = getColorClasses(reminderColor)
 
-                  return (
-                    <div
-                      key={reminder.id}
-                      className="rounded-2xl bg-slate-50 p-4 opacity-60 ring-1 ring-slate-200"
-                    >
-                      <div className="flex items-start gap-3">
+                      return (
                         <div
-                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
-                            isIncome ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'
-                          }`}
+                          key={reminder.id}
+                          className={`rounded-2xl p-4 shadow-sm ring-1 ${colorClasses.bg} ${colorClasses.border}`}
                         >
-                          {categoryInfo.icon ? (
-                            categoryInfo.icon
-                          ) : (
-                            <FaCalendar className="h-5 w-5" />
-                          )}
+                          <div className="flex items-start gap-3">
+                            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
+                              {reminderIcons[reminder.id] ? (
+                                <span className="h-10 w-10">{reminderIcons[reminder.id]}</span>
+                              ) : categoryInfo.icon ? (
+                                <span>{categoryInfo.icon}</span>
+                              ) : (
+                                <FaCalendar className="h-5 w-5 text-slate-400" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <h3 className="font-semibold text-slate-900">{reminder.title}</h3>
+                                  {reminder.amount && (
+                                    <p className="mt-1 text-base font-bold text-slate-900">
+                                      {formatVNDDisplay(reminder.amount)}
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="text-right">
+                                  <p className="text-sm font-semibold text-slate-700">
+                                    {formatDate(reminder.reminder_date)}
+                                  </p>
+                                  {reminder.reminder_time && (
+                                    <p className="text-xs text-slate-500">
+                                      {formatTime(reminder.reminder_time)}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-600">
+                                {categoryInfo.name && (
+                                  <span className="rounded-full bg-slate-100 px-2 py-1">
+                                    {categoryInfo.name}
+                                  </span>
+                                )}
+                                {walletName && (
+                                  <span className="rounded-full bg-white/80 px-2 py-1">{walletName}</span>
+                                )}
+                                {isNote && (
+                                  <span className="rounded-full bg-white/80 px-2 py-1">Ghi chú</span>
+                                )}
+                              </div>
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => handleToggleNotification(reminder)}
+                              className="shrink-0 text-slate-400 hover:text-slate-600 transition"
+                              title={reminder.enable_notification ? 'Tắt thông báo' : 'Bật thông báo'}
+                            >
+                              {reminder.enable_notification ? (
+                                <FaBell className="h-4 w-4" />
+                              ) : (
+                                <FaBellSlash className="h-4 w-4" />
+                              )}
+                            </button>
+                          </div>
+                          <div className="mt-3 flex gap-2">
+                            <button
+                              onClick={() => handleEdit(reminder)}
+                              className="flex-1 rounded-xl bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 shadow-sm"
+                            >
+                              <FaEdit className="mr-2 inline h-4 w-4" />
+                              Sửa
+                            </button>
+                            <button
+                              onClick={() => handleDelete(reminder)}
+                              className="rounded-xl bg-rose-100 px-4 py-2 text-sm font-semibold text-rose-700 transition hover:bg-rose-200"
+                            >
+                              <FaTrash className="h-4 w-4" />
+                            </button>
+                          </div>
                         </div>
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-slate-700">{reminder.title}</h3>
-                          <p className="mt-1 text-xs text-slate-500">
-                            {formatDate(reminder.reminder_date)}
-                          </p>
-                        </div>
-                        <button
-                          onClick={() => handleDelete(reminder)}
-                          className="rounded-xl bg-slate-200 px-3 py-2 text-slate-600 transition hover:bg-slate-300"
+                      )
+                    })}
+                  </div>
+                </section>
+              )}
+
+              {/* Past Reminders */}
+              {pastReminders.length > 0 && (
+                <section className="space-y-3">
+                  <h2 className="text-sm font-bold uppercase tracking-wider text-slate-400">
+                    Đã qua
+                  </h2>
+                  <div className="space-y-2">
+                    {pastReminders.map((reminder) => {
+                      const categoryInfo = getCategoryInfo(reminder.category_id)
+                      const isIncome = reminder.type === 'Thu'
+
+                      return (
+                        <div
+                          key={reminder.id}
+                          className="rounded-2xl bg-slate-50 p-4 opacity-60 ring-1 ring-slate-200"
                         >
-                          <FaTrash className="h-4 w-4" />
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-          )}
+                          <div className="flex items-start gap-3">
+                            <div
+                              className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${isIncome ? 'bg-emerald-100 text-emerald-600' : 'bg-rose-100 text-rose-600'
+                                }`}
+                            >
+                              {categoryInfo.icon ? (
+                                categoryInfo.icon
+                              ) : (
+                                <FaCalendar className="h-5 w-5" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <h3 className="font-semibold text-slate-700">{reminder.title}</h3>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {formatDate(reminder.reminder_date)}
+                              </p>
+                            </div>
+                            <button
+                              onClick={() => handleDelete(reminder)}
+                              className="rounded-xl bg-slate-200 px-3 py-2 text-slate-600 transition hover:bg-slate-300"
+                            >
+                              <FaTrash className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </section>
+              )}
 
               {/* Empty State */}
-              {reminders.length === 0 && (
-            <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-12 shadow-lg ring-1 ring-slate-100">
-              <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
-                <FaCalendar className="h-8 w-8 text-slate-400" />
-              </div>
-              <h3 className="mb-2 text-lg font-semibold text-slate-900">
-                Chưa có kế hoạch nhắc nhở nào
-              </h3>
-              <p className="mb-6 text-center text-sm text-slate-500">
-                Tạo nhắc nhở mới để không bỏ lỡ các khoản thu chi quan trọng
-              </p>
-              <button
-                onClick={handleAddClick}
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-6 py-3 text-white font-semibold shadow-lg hover:from-sky-600 hover:to-blue-700 transition-all"
-              >
-                <FaPlus className="h-5 w-5" />
-                Tạo nhắc nhở đầu tiên
-              </button>
-            </div>
+              {filteredReminders.length === 0 && (
+                <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-12 shadow-lg ring-1 ring-slate-100">
+                  <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
+                    <FaCalendar className="h-8 w-8 text-slate-400" />
+                  </div>
+                  <h3 className="mb-2 text-lg font-semibold text-slate-900">
+                    Chưa có kế hoạch nhắc nhở nào
+                  </h3>
+                  <p className="mb-6 text-center text-sm text-slate-500">
+                    Tạo nhắc nhở mới để không bỏ lỡ các khoản thu chi quan trọng
+                  </p>
+                  <button
+                    onClick={handleAddClick}
+                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-6 py-3 text-white font-semibold shadow-lg hover:from-sky-600 hover:to-blue-700 transition-all"
+                  >
+                    <FaPlus className="h-5 w-5" />
+                    Tạo nhắc nhở đầu tiên
+                  </button>
+                </div>
               )}
             </>
           )}

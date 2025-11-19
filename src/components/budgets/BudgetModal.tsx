@@ -3,7 +3,7 @@ import { FaTimes } from 'react-icons/fa'
 import { CustomSelect } from '../ui/CustomSelect'
 import { NumberPadModal } from '../ui/NumberPadModal'
 import { ModalFooterButtons } from '../ui/ModalFooterButtons'
-import { fetchCategories, type CategoryRecord } from '../../lib/categoryService'
+import { fetchCategories } from '../../lib/categoryService'
 import { fetchWallets, type WalletRecord } from '../../lib/walletService'
 import {
   createBudget,
@@ -16,8 +16,11 @@ import {
 import { useNotification } from '../../contexts/notificationContext.helpers'
 import { formatVNDInput, parseVNDInput } from '../../utils/currencyInput'
 import { CATEGORY_ICON_MAP } from '../../constants/categoryIcons'
-import { getIconNode } from '../../utils/iconLoader'
+import { getIconNodeFromCategory } from '../../utils/iconLoader'
 import { LoadingRing } from '../ui/LoadingRing'
+import { FaWallet } from 'react-icons/fa'
+import { fetchCategoriesHierarchical, type CategoryWithChildren } from '../../lib/categoryService'
+import { CategorySelectHierarchical } from '../ui/CategorySelectHierarchical'
 
 type BudgetModalProps = {
   isOpen: boolean
@@ -62,7 +65,7 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
     notes: '',
   })
 
-  const [categories, setCategories] = useState<CategoryRecord[]>([])
+  const [hierarchicalCategories, setHierarchicalCategories] = useState<CategoryWithChildren[]>([])
   const [wallets, setWallets] = useState<WalletRecord[]>([])
   const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
   const [isLoading, setIsLoading] = useState(false)
@@ -78,22 +81,23 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
       setIsLoading(true)
       setError(null)
       try {
-        const [categoriesData, walletsData] = await Promise.all([
+        const [categoriesData, hierarchicalData, walletsData] = await Promise.all([
           fetchCategories(),
+          fetchCategoriesHierarchical('Chi tiêu'),
           fetchWallets(false),
         ])
 
         // Filter only expense categories
         const expenseCategories = categoriesData.filter(c => c.type === 'Chi tiêu')
         
-        // Load icons for all categories
+        // Load icons for all categories using icon_url from category
         const iconsMap: Record<string, React.ReactNode> = {}
         await Promise.all(
           expenseCategories.map(async (category) => {
             try {
-              const iconNode = await getIconNode(category.icon_id)
+              const iconNode = await getIconNodeFromCategory(category.icon_id, category.icon_url, 'h-full w-full object-cover rounded-full')
               if (iconNode) {
-                iconsMap[category.id] = iconNode
+                iconsMap[category.id] = <span className="h-4 w-4 inline-flex items-center justify-center rounded-full overflow-hidden">{iconNode}</span>
               } else {
                 // Fallback to hardcoded icon
                 const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
@@ -119,7 +123,7 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
         )
         setCategoryIcons(iconsMap)
         
-        setCategories(expenseCategories)
+        setHierarchicalCategories(hierarchicalData)
         setWallets(walletsData)
 
         // Load budget if editing
@@ -239,19 +243,14 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
 
   if (!isOpen) return null
 
-  const expenseCategories = categories.filter(c => c.type === 'Chi tiêu')
-  const categoryOptions = expenseCategories.map(cat => ({
-    value: cat.id,
-    label: cat.name,
-    icon: categoryIcons[cat.id] || '💰',
-  }))
+  // Category options are now handled by CategorySelectHierarchical
 
   const walletOptions = [
-    { value: '', label: 'Tất cả ví', icon: '💼' },
+    { value: '', label: 'Tất cả ví', icon: <FaWallet className="h-4 w-4" /> },
     ...wallets.map(wallet => ({
       value: wallet.id,
       label: wallet.name,
-      icon: wallet.icon || '💳',
+      icon: <FaWallet className="h-4 w-4" />,
       metadata: wallet.type,
     })),
   ]
@@ -359,8 +358,9 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
                 <label className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
                   Hạng mục <span className="text-red-500">*</span>
                 </label>
-                <CustomSelect
-                  options={categoryOptions}
+                <CategorySelectHierarchical
+                  categories={hierarchicalCategories}
+                  categoryIcons={categoryIcons}
                   value={formData.category_id}
                   onChange={(value) => setFormData((prev) => ({ ...prev, category_id: value }))}
                   placeholder="Chọn hạng mục"

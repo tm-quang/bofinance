@@ -27,7 +27,7 @@ export default function AdminIconImages() {
   const navigate = useNavigate()
   const { success, error: showError } = useNotification()
   const { showConfirm } = useDialog()
-  
+
   const [icons, setIcons] = useState<IconRecord[]>([])
   const [isLoading, setIsLoading] = useState(false)
   const [isFormOpen, setIsFormOpen] = useState(false)
@@ -35,7 +35,7 @@ export default function AdminIconImages() {
   const [selectedGroup, setSelectedGroup] = useState<string>('all')
   const [searchTerm, setSearchTerm] = useState('')
   const fileInputRef = useRef<HTMLInputElement>(null)
-  
+
   // Admin check
   const [isUserAdmin, setIsUserAdmin] = useState(false)
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true)
@@ -53,7 +53,7 @@ export default function AdminIconImages() {
   const [imagePreview, setImagePreview] = useState<string | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [viewingIcon, setViewingIcon] = useState<IconRecord | null>(null)
-  
+
   // Bulk upload state
   const [isBulkUploadMode, setIsBulkUploadMode] = useState(false)
   const [bulkUploadFiles, setBulkUploadFiles] = useState<File[]>([])
@@ -95,10 +95,10 @@ export default function AdminIconImages() {
       // Invalidate cache first to ensure fresh data
       const { invalidateIconCache } = await import('../lib/iconService')
       await invalidateIconCache()
-      
+
       // Chỉ lấy icons có type là 'image' hoặc 'svg'
       const allIcons = await fetchIcons({ is_active: true })
-      const imageIcons = allIcons.filter(icon => 
+      const imageIcons = allIcons.filter(icon =>
         icon.icon_type === 'image' || icon.icon_type === 'svg'
       )
       setIcons(imageIcons)
@@ -151,7 +151,7 @@ export default function AdminIconImages() {
       await deleteIcon(icon.id)
       success('Đã xóa icon thành công!')
       loadIcons()
-    } catch (error) {
+    } catch {
       showError('Không thể xóa icon.')
     }
   }
@@ -185,12 +185,12 @@ export default function AdminIconImages() {
           .toLowerCase()
           .replace(/[^a-z0-9]+/g, '_')
           .replace(/^_+|_+$/g, '') // Loại bỏ dấu gạch dưới ở đầu và cuối
-        
+
         // Tự động điền tên hiển thị từ tên file (giữ nguyên format gốc, chỉ loại bỏ extension)
         const displayName = fileNameWithoutExt
           .replace(/[-_]/g, ' ') // Thay dấu gạch bằng khoảng trắng
           .replace(/\b\w/g, (char) => char.toUpperCase()) // Viết hoa chữ cái đầu mỗi từ
-        
+
         setFormData((prev) => ({
           ...prev,
           name: normalizedName || 'icon',
@@ -212,7 +212,7 @@ export default function AdminIconImages() {
     files.forEach((file) => {
       const isSvg = file.name.toLowerCase().endsWith('.svg')
       const isImage = file.type.startsWith('image/')
-      
+
       if (isSvg || isImage) {
         validFiles.push(file)
       } else {
@@ -307,7 +307,7 @@ export default function AdminIconImages() {
       if (bulkFileInputRef.current) {
         bulkFileInputRef.current.value = ''
       }
-    } catch (error) {
+    } catch {
       showError('Có lỗi xảy ra khi upload nhiều file.')
     } finally {
       setIsBulkUploading(false)
@@ -372,7 +372,7 @@ export default function AdminIconImages() {
       setEditingIcon(null)
       setSelectedImage(null)
       setImagePreview(null)
-      
+
       // Reload icons after a short delay to ensure cache is cleared
       setTimeout(() => {
         loadIcons()
@@ -389,19 +389,19 @@ export default function AdminIconImages() {
       if (icon.icon_type === 'svg') {
         return (
           <div className="h-12 w-12 flex items-center justify-center">
-            <img 
-              src={icon.image_url} 
-              alt={icon.label} 
-              className="h-full w-full object-contain" 
+            <img
+              src={icon.image_url}
+              alt={icon.label}
+              className="h-full w-full object-contain"
             />
           </div>
         )
       }
       return (
-        <img 
-          src={icon.image_url} 
-          alt={icon.label} 
-          className="h-12 w-12 object-contain rounded-lg" 
+        <img
+          src={icon.image_url}
+          alt={icon.label}
+          className="h-12 w-12 object-contain rounded-lg"
         />
       )
     }
@@ -410,8 +410,8 @@ export default function AdminIconImages() {
 
   const filteredIcons = icons.filter((icon) => {
     if (selectedGroup !== 'all' && icon.group_id !== selectedGroup) return false
-    if (searchTerm && !icon.label.toLowerCase().includes(searchTerm.toLowerCase()) && 
-        !icon.name.toLowerCase().includes(searchTerm.toLowerCase())) return false
+    if (searchTerm && !icon.label.toLowerCase().includes(searchTerm.toLowerCase()) &&
+      !icon.name.toLowerCase().includes(searchTerm.toLowerCase())) return false
     return true
   })
 
@@ -445,12 +445,12 @@ export default function AdminIconImages() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
-      <HeaderBar 
-        variant="page" 
-        title="Quản lý Icon Images" 
+      <HeaderBar
+        variant="page"
+        title="Quản lý Icon Images"
         onBack={() => navigate('/settings')}
       />
-      
+
       <main className="flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 pt-2 pb-4 sm:pt-2 sm:pb-4">
           {/* Header with Add Button */}
@@ -537,22 +537,20 @@ export default function AdminIconImages() {
                     <button
                       type="button"
                       onClick={() => setFormData((prev) => ({ ...prev, icon_type: 'image' }))}
-                      className={`rounded-xl border-2 p-3 text-sm font-medium transition-all ${
-                        formData.icon_type === 'image'
+                      className={`rounded-xl border-2 p-3 text-sm font-medium transition-all ${formData.icon_type === 'image'
                           ? 'border-sky-500 bg-sky-50 text-sky-700'
                           : 'border-slate-200 bg-white text-slate-700'
-                      }`}
+                        }`}
                     >
                       PNG/JPG
                     </button>
                     <button
                       type="button"
                       onClick={() => setFormData((prev) => ({ ...prev, icon_type: 'svg' }))}
-                      className={`rounded-xl border-2 p-3 text-sm font-medium transition-all ${
-                        formData.icon_type === 'svg'
+                      className={`rounded-xl border-2 p-3 text-sm font-medium transition-all ${formData.icon_type === 'svg'
                           ? 'border-sky-500 bg-sky-50 text-sky-700'
                           : 'border-slate-200 bg-white text-slate-700'
-                      }`}
+                        }`}
                     >
                       SVG
                     </button>
@@ -652,7 +650,7 @@ export default function AdminIconImages() {
                     setIsFormOpen(false)
                     setEditingIcon(null)
                   }}
-                  onConfirm={() => {}}
+                  onConfirm={() => { }}
                   confirmText={isSubmitting ? 'Đang lưu...' : editingIcon ? 'Cập nhật' : 'Tạo icon'}
                   isSubmitting={isSubmitting}
                   disabled={isSubmitting}
@@ -699,8 +697,8 @@ export default function AdminIconImages() {
                 </div>
               ) : filteredIcons.length === 0 ? (
                 <div className="text-center py-12 text-slate-500">
-                  {searchTerm || selectedGroup !== 'all' 
-                    ? 'Không tìm thấy icon nào' 
+                  {searchTerm || selectedGroup !== 'all'
+                    ? 'Không tìm thấy icon nào'
                     : 'Chưa có icon nào. Hãy thêm icon mới!'}
                 </div>
               ) : (
@@ -857,7 +855,7 @@ export default function AdminIconImages() {
                       const displayName = fileNameWithoutExt
                         .replace(/[-_]/g, ' ')
                         .replace(/\b\w/g, (char) => char.toUpperCase()) || normalizedName
-                      
+
                       return (
                         <div
                           key={index}
@@ -934,16 +932,16 @@ export default function AdminIconImages() {
                 <div className="flex h-48 w-48 items-center justify-center rounded-2xl bg-slate-50 border-2 border-slate-200">
                   {viewingIcon.image_url ? (
                     viewingIcon.icon_type === 'svg' ? (
-                      <img 
-                        src={viewingIcon.image_url} 
-                        alt={viewingIcon.label} 
-                        className="h-full w-full object-contain p-4" 
+                      <img
+                        src={viewingIcon.image_url}
+                        alt={viewingIcon.label}
+                        className="h-full w-full object-contain p-4"
                       />
                     ) : (
-                      <img 
-                        src={viewingIcon.image_url} 
-                        alt={viewingIcon.label} 
-                        className="h-full w-full object-contain rounded-xl" 
+                      <img
+                        src={viewingIcon.image_url}
+                        alt={viewingIcon.label}
+                        className="h-full w-full object-contain rounded-xl"
                       />
                     )
                   ) : (

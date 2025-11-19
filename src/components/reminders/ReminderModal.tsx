@@ -9,6 +9,7 @@ import { fetchWallets, getDefaultWallet, type WalletRecord } from '../../lib/wal
 import { useNotification } from '../../contexts/notificationContext.helpers'
 import { formatVNDInput, parseVNDInput } from '../../utils/currencyInput'
 import { CATEGORY_ICON_MAP } from '../../constants/categoryIcons'
+import { formatDateUTC7, getNowUTC7 } from '../../utils/dateUtils'
 import { getIconNode } from '../../utils/iconLoader'
 import { ColorPicker } from './ColorPicker'
 import { IconPicker } from '../categories/IconPicker'
@@ -55,7 +56,7 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
     category_id: '',
     wallet_id: '',
     icon_id: '',
-    reminder_date: new Date().toISOString().split('T')[0],
+    reminder_date: formatDateUTC7(getNowUTC7()),
     reminder_time: '',
     repeat_type: 'none',
     notes: '',
@@ -383,7 +384,7 @@ export const ReminderModal = ({ isOpen, onClose, onSuccess, reminder, defaultDat
         category_id: '',
         wallet_id: '',
         icon_id: '',
-        reminder_date: new Date().toISOString().split('T')[0],
+        reminder_date: formatDateUTC7(getNowUTC7()),
         reminder_time: '',
         repeat_type: 'none',
         notes: '',

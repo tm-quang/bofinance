@@ -12,7 +12,8 @@ export default defineConfig({
           // Tách vendor libraries thành chunks riêng
           'react-vendor': ['react', 'react-dom', 'react-router-dom'],
           'supabase-vendor': ['@supabase/supabase-js'],
-          'icons-vendor': ['react-icons'],
+          'mui-vendor': ['@mui/material', '@mui/x-charts', '@emotion/react', '@emotion/styled'],
+          // 'icons-vendor': ['react-icons'], // Để Vite tự động split dynamic imports
         },
       },
     },

@@ -47,8 +47,8 @@ export const NetAssetsCard = ({ className = '', refreshTrigger = 0 }: NetAssetsC
         const wallets = await fetchWallets()
         const selectedWallets = wallets.filter((w) => walletIds.includes(w.id))
         
-        // Lấy tất cả giao dịch từ các ví được chọn
-        const allTransactions = await fetchTransactions({})
+        // Lấy tất cả giao dịch từ các ví được chọn (chỉ lấy những giao dịch không bị exclude)
+        const allTransactions = await fetchTransactions({ exclude_from_reports: false })
         const selectedTransactions = allTransactions.filter((t) =>
           walletIds.includes(t.wallet_id)
         )

@@ -96,7 +96,7 @@ export const IconManagementModal = ({ isOpen, onClose }: IconManagementModalProp
         try {
           const results = await searchReactIcons(formData.react_icon_library, reactIconSearch)
           setReactIconResults(results)
-        } catch (error) {
+        } catch {
           setReactIconResults([])
         }
       } else {
@@ -111,7 +111,7 @@ export const IconManagementModal = ({ isOpen, onClose }: IconManagementModalProp
     try {
       const data = await fetchIcons({ is_active: true })
       setIcons(data)
-    } catch (error) {
+    } catch {
       showError('Không thể tải danh sách icons.')
     } finally {
       setIsLoading(false)
@@ -166,7 +166,7 @@ export const IconManagementModal = ({ isOpen, onClose }: IconManagementModalProp
       await deleteIcon(icon.id)
       success('Đã xóa icon thành công!')
       loadIcons()
-    } catch (error) {
+    } catch {
       showError('Không thể xóa icon.')
     }
   }
@@ -341,44 +341,40 @@ export const IconManagementModal = ({ isOpen, onClose }: IconManagementModalProp
                   <button
                     type="button"
                     onClick={() => setFormData((prev) => ({ ...prev, icon_type: 'react-icon' }))}
-                    className={`rounded-xl border-2 p-3 text-sm font-medium transition-all ${
-                      formData.icon_type === 'react-icon'
+                    className={`rounded-xl border-2 p-3 text-sm font-medium transition-all ${formData.icon_type === 'react-icon'
                         ? 'border-sky-500 bg-sky-50 text-sky-700'
                         : 'border-slate-200 bg-white text-slate-700'
-                    }`}
+                      }`}
                   >
                     React Icon
                   </button>
                   <button
                     type="button"
                     onClick={() => setFormData((prev) => ({ ...prev, icon_type: 'image' }))}
-                    className={`rounded-xl border-2 p-3 text-sm font-medium transition-all ${
-                      formData.icon_type === 'image'
+                    className={`rounded-xl border-2 p-3 text-sm font-medium transition-all ${formData.icon_type === 'image'
                         ? 'border-sky-500 bg-sky-50 text-sky-700'
                         : 'border-slate-200 bg-white text-slate-700'
-                    }`}
+                      }`}
                   >
                     Upload PNG/JPG
                   </button>
                   <button
                     type="button"
                     onClick={() => setFormData((prev) => ({ ...prev, icon_type: 'svg' }))}
-                    className={`rounded-xl border-2 p-3 text-sm font-medium transition-all ${
-                      formData.icon_type === 'svg'
+                    className={`rounded-xl border-2 p-3 text-sm font-medium transition-all ${formData.icon_type === 'svg'
                         ? 'border-sky-500 bg-sky-50 text-sky-700'
                         : 'border-slate-200 bg-white text-slate-700'
-                    }`}
+                      }`}
                   >
                     Upload SVG
                   </button>
                   <button
                     type="button"
                     onClick={() => setFormData((prev) => ({ ...prev, icon_type: 'svg-url' }))}
-                    className={`rounded-xl border-2 p-3 text-sm font-medium transition-all ${
-                      formData.icon_type === 'svg-url'
+                    className={`rounded-xl border-2 p-3 text-sm font-medium transition-all ${formData.icon_type === 'svg-url'
                         ? 'border-sky-500 bg-sky-50 text-sky-700'
                         : 'border-slate-200 bg-white text-slate-700'
-                    }`}
+                      }`}
                   >
                     SVG URL
                   </button>
@@ -445,11 +441,10 @@ export const IconManagementModal = ({ isOpen, onClose }: IconManagementModalProp
                                 onClick={() =>
                                   setFormData((prev) => ({ ...prev, react_icon_name: iconName }))
                                 }
-                                className={`flex h-12 w-12 items-center justify-center rounded-lg border-2 transition-all ${
-                                  formData.react_icon_name === iconName
+                                className={`flex h-12 w-12 items-center justify-center rounded-lg border-2 transition-all ${formData.react_icon_name === iconName
                                     ? 'border-sky-500 bg-sky-50'
                                     : 'border-slate-200 hover:border-slate-300'
-                                }`}
+                                  }`}
                               >
                                 {IconComponent ? (
                                   React.createElement(IconComponent, { className: 'h-6 w-6 text-slate-700' })
@@ -597,13 +592,13 @@ export const IconManagementModal = ({ isOpen, onClose }: IconManagementModalProp
 
               <ModalFooterButtons
                 onCancel={() => {
-                    setIsFormOpen(false)
-                    setEditingIcon(null)
-                  }}
-                onConfirm={() => {}}
+                  setIsFormOpen(false)
+                  setEditingIcon(null)
+                }}
+                onConfirm={() => { }}
                 confirmText={isSubmitting ? 'Đang lưu...' : editingIcon ? 'Cập nhật' : 'Tạo icon'}
                 isSubmitting={isSubmitting}
-                  disabled={isSubmitting}
+                disabled={isSubmitting}
                 confirmButtonType="submit"
                 formId="icon-form"
               />
@@ -666,10 +661,10 @@ export const IconManagementModal = ({ isOpen, onClose }: IconManagementModalProp
                                 <p className="text-xs text-slate-500 mt-0.5 truncate">{icon.name}</p>
                                 <div className="flex items-center gap-2 mt-2 flex-wrap">
                                   <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
-                                    {icon.icon_type === 'react-icon' ? 'React Icon' : 
-                                     icon.icon_type === 'image' ? 'PNG/JPG' :
-                                     icon.icon_type === 'svg' ? 'SVG' :
-                                     icon.icon_type === 'svg-url' ? 'SVG URL' : 'Ảnh'}
+                                    {icon.icon_type === 'react-icon' ? 'React Icon' :
+                                      icon.icon_type === 'image' ? 'PNG/JPG' :
+                                        icon.icon_type === 'svg' ? 'SVG' :
+                                          icon.icon_type === 'svg-url' ? 'SVG URL' : 'Ảnh'}
                                   </span>
                                   <span className="text-xs text-slate-500">•</span>
                                   <span className="text-xs text-slate-600">{icon.group_label}</span>
@@ -741,10 +736,10 @@ export const IconManagementModal = ({ isOpen, onClose }: IconManagementModalProp
                             </td>
                             <td className="px-4 py-3">
                               <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-700">
-                                {icon.icon_type === 'react-icon' ? 'React Icon' : 
-                                 icon.icon_type === 'image' ? 'PNG/JPG' :
-                                 icon.icon_type === 'svg' ? 'SVG' :
-                                 icon.icon_type === 'svg-url' ? 'SVG URL' : 'Ảnh'}
+                                {icon.icon_type === 'react-icon' ? 'React Icon' :
+                                  icon.icon_type === 'image' ? 'PNG/JPG' :
+                                    icon.icon_type === 'svg' ? 'SVG' :
+                                      icon.icon_type === 'svg-url' ? 'SVG URL' : 'Ảnh'}
                               </span>
                             </td>
                             <td className="px-4 py-3 text-sm text-slate-600">{icon.group_label}</td>

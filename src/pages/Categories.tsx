@@ -5,21 +5,23 @@ import {
     FaSearch,
     FaArrowLeft,
     FaFolder,
+    FaChevronRight,
+    FaTrash,
 } from 'react-icons/fa'
 
 import HeaderBar from '../components/layout/HeaderBar'
-import { CategoryCardSkeleton } from '../components/skeletons'
+import { CategoryListSkeleton } from '../components/skeletons'
 import { useNotification } from '../contexts/notificationContext.helpers'
 import { useDialog } from '../contexts/dialogContext.helpers'
 import {
     CATEGORY_ICON_GROUPS,
     CATEGORY_ICON_MAP,
 } from '../constants/categoryIcons'
-import { getIconNode } from '../utils/iconLoader'
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { fetchIcons, type IconRecord } from '../lib/iconService'
 import { IconPicker } from '../components/categories/IconPicker'
 import { ModalFooterButtons } from '../components/ui/ModalFooterButtons'
+import { SearchableSelect } from '../components/ui/SearchableSelect'
 import {
     createCategory,
     deleteCategory as deleteCategoryFromDb,
@@ -48,6 +50,7 @@ type CategoryFormState = {
     name: string
     type: CategoryType
     iconId: string
+    iconUrl?: string | null
     parentId?: string | null
 }
 
@@ -94,7 +97,7 @@ export const CategoriesPage = () => {
 
     // Lấy hạng mục phân cấp theo tab hiện tại
     const currentHierarchicalCategories = useMemo(() => {
-        return hierarchicalCategories.filter(cat => 
+        return hierarchicalCategories.filter(cat =>
             cat.type === (activeTab === 'expense' ? 'Chi tiêu' : 'Thu nhập')
         )
     }, [hierarchicalCategories, activeTab])
@@ -105,18 +108,18 @@ export const CategoriesPage = () => {
         if (!normalizedSearch) {
             return currentHierarchicalCategories
         }
-        
+
         return currentHierarchicalCategories
             .map(parent => {
                 // Check if parent matches
                 const parentMatches = parent.name.toLowerCase().includes(normalizedSearch)
-                
+
                 // Filter children
                 const childrenArray = Array.isArray(parent.children) ? parent.children : []
-                const filteredChildren = childrenArray.filter(child => 
+                const filteredChildren = childrenArray.filter(child =>
                     child.name.toLowerCase().includes(normalizedSearch)
                 )
-                
+
                 // If parent matches or has matching children, include it
                 if (parentMatches || filteredChildren.length > 0) {
                     const result: CategoryWithChildren = {
@@ -145,6 +148,7 @@ export const CategoriesPage = () => {
             name: '',
             type: categoryType,
             iconId: CATEGORY_ICON_GROUPS[0]?.icons[0]?.id ?? 'other',
+            iconUrl: null,
             parentId: parentId ?? null,
         })
         setFormError(null)
@@ -179,15 +183,15 @@ export const CategoriesPage = () => {
             // Invalidate cache trước khi fetch
             const { invalidateCache } = await import('../lib/cache')
             await invalidateCache('categories')
-            
+
             // Đợi một chút để cache được clear
             await new Promise(resolve => setTimeout(resolve, 150))
-            
+
             const [flatData, hierarchicalData] = await Promise.all([
                 fetchCategories(),
                 fetchCategoriesHierarchical(),
             ])
-            
+
             setCategories(sortCategories(flatData.map(record => mapRecordToCategory(record))))
             setHierarchicalCategories(hierarchicalData.map(cat => ({
                 ...cat,
@@ -211,22 +215,22 @@ export const CategoriesPage = () => {
                     fetchCategories(),
                     fetchCategoriesHierarchical(),
                 ])
-                
+
                 // Chỉ sync default categories nếu user CHƯA CÓ categories nào cả (lần đầu tiên)
                 // Không sync lại nếu user đã có categories (kể cả khi xóa một số)
                 if (flatData.length === 0) {
                     // User chưa có categories nào, sync từ default
-                initializeDefaultCategories().catch((initError) => {
-                    // Không báo lỗi nếu đã có hạng mục mặc định
-                    console.log('Default categories check:', initError)
-                })
+                    initializeDefaultCategories().catch((initError) => {
+                        // Không báo lỗi nếu đã có hạng mục mặc định
+                        console.log('Default categories check:', initError)
+                    })
 
                     // Reload lại sau khi sync
                     const [reloadedFlat, reloadedHierarchical] = await Promise.all([
-                    fetchCategories(),
-                    fetchCategoriesHierarchical(),
-                ])
-                
+                        fetchCategories(),
+                        fetchCategoriesHierarchical(),
+                    ])
+
                     setCategories(sortCategories(reloadedFlat.map(record => mapRecordToCategory(record))))
                     setHierarchicalCategories(reloadedHierarchical.map(cat => ({
                         ...cat,
@@ -242,7 +246,7 @@ export const CategoriesPage = () => {
                                 fetchCategories(),
                                 fetchCategoriesHierarchical(),
                             ])
-                            
+
                             setCategories(sortCategories(reloadedFlat.map(record => mapRecordToCategory(record))))
                             setHierarchicalCategories(reloadedHierarchical.map(cat => ({
                                 ...cat,
@@ -260,10 +264,10 @@ export const CategoriesPage = () => {
                         children: Array.isArray(cat.children) ? cat.children : [],
                     })))
                 }
-                
+
                 // Mặc định tất cả categories đều thu gọn
                 setExpandedParents(new Set())
-                
+
                 setLoadError(null)
             } catch (error) {
                 console.error('Không thể tải hạng mục:', error)
@@ -283,7 +287,7 @@ export const CategoriesPage = () => {
                 // Nếu fail, sẽ fallback về hardcoded icons (không ảnh hưởng đến app)
                 const icons = await fetchIcons({ is_active: true })
                 setDbIcons(icons)
-            } catch (error) {
+            } catch {
                 // Silently fail - app sẽ dùng hardcoded icons từ CATEGORY_ICON_MAP
                 // Không cần log vì fetchIcons đã handle error và return empty array
                 setDbIcons([])
@@ -300,6 +304,7 @@ export const CategoriesPage = () => {
             name: category.name,
             type: category.type,
             iconId: category.iconId,
+            iconUrl: category.iconUrl,
             parentId: category.parentId ?? null,
         })
         setFormError(null)
@@ -337,7 +342,15 @@ export const CategoriesPage = () => {
     }
 
     const handleIconSelect = (iconId: string) => {
-        setFormState((prev) => ({ ...prev, iconId }))
+        // Tìm icon trong dbIcons để lấy iconUrl nếu có
+        const selectedIcon = dbIcons.find(icon => icon.id === iconId)
+        const iconUrl = selectedIcon?.image_url || null
+
+        setFormState((prev) => ({
+            ...prev,
+            iconId,
+            iconUrl,
+        }))
     }
 
     // Get icons used in current category type for prioritization
@@ -377,6 +390,7 @@ export const CategoriesPage = () => {
                     name: trimmedName,
                     type: formState.type,
                     icon_id: formState.iconId,
+                    icon_url: formState.iconUrl,
                     parent_id: formState.parentId,
                 })
                 success('Đã cập nhật hạng mục thành công!')
@@ -408,8 +422,8 @@ export const CategoriesPage = () => {
 
     return (
         <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
-            <HeaderBar 
-                variant="page" 
+            <HeaderBar
+                variant="page"
                 title="Hạng mục - Thu - Chi"
                 onReload={reloadCategories}
                 isReloading={isLoading}
@@ -421,22 +435,20 @@ export const CategoriesPage = () => {
                         <button
                             type="button"
                             onClick={() => setActiveTab('expense')}
-                            className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition-all sm:px-5 sm:py-3 ${
-                                activeTab === 'expense'
+                            className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition-all sm:px-5 sm:py-3 ${activeTab === 'expense'
                                     ? 'bg-gradient-to-r from-rose-500 to-rose-600 text-white shadow-md shadow-rose-500/30'
                                     : 'text-slate-600 hover:bg-slate-50'
-                            }`}
+                                }`}
                         >
                             Khoản chi
                         </button>
                         <button
                             type="button"
                             onClick={() => setActiveTab('income')}
-                            className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition-all sm:px-5 sm:py-3 ${
-                                activeTab === 'income'
+                            className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition-all sm:px-5 sm:py-3 ${activeTab === 'income'
                                     ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md shadow-emerald-500/30'
                                     : 'text-slate-600 hover:bg-slate-50'
-                            }`}
+                                }`}
                         >
                             Khoản thu
                         </button>
@@ -454,8 +466,8 @@ export const CategoriesPage = () => {
                     </div>
 
                     {/* Category List */}
-                    <section 
-                        className="rounded-2xl bg-white shadow-sm ring-1 ring-slate-100/50 overflow-hidden"
+                    <section
+                        className="rounded-2xl bg-white ring-1 ring-slate-100/50 overflow-hidden"
                         onClick={handleClickOutside}
                     >
                         {loadError && (
@@ -465,8 +477,8 @@ export const CategoriesPage = () => {
                         )}
 
                         {isLoading ? (
-                            <div className="p-3">
-                            <CategoryCardSkeleton count={6} />
+                            <div className="py-2 rounded-2xl mx-4 bg-white">
+                                <CategoryListSkeleton count={6} />
                             </div>
                         ) : filteredHierarchicalCategories.length === 0 ? (
                             <div className="flex flex-col items-center justify-center border-2 border-dashed border-slate-200 bg-slate-50/50 p-10 text-center">
@@ -481,70 +493,127 @@ export const CategoriesPage = () => {
                                 </p>
                             </div>
                         ) : (
-                            <div className="divide-y divide-slate-100">
-                                {filteredHierarchicalCategories.map((parentCategory) => {
+                            <div className="py-2 rounded-2xl mx-4 bg-white">
+                                {filteredHierarchicalCategories.map((parentCategory, index) => {
                                     const isExpanded = expandedParents.has(parentCategory.id)
                                     const childrenArray = Array.isArray(parentCategory.children) ? parentCategory.children : []
                                     const hasChildren = childrenArray.length > 0
-                                    
+
                                     return (
                                         <div key={parentCategory.id}>
-                                            {/* Parent Category - List Item */}
-                                            <CategoryListItem
-                                                category={{
-                                                    id: parentCategory.id,
-                                                    name: parentCategory.name,
-                                                    type: parentCategory.type,
-                                                    iconId: parentCategory.icon_id,
-                                                    iconUrl: parentCategory.icon_url,
-                                                    parentId: parentCategory.parent_id,
-                                                    isDefault: parentCategory.is_default,
-                                                }}
-                                                hasChildren={hasChildren}
-                                                isExpanded={isExpanded}
-                                                onToggleExpand={() => toggleParentExpanded(parentCategory.id)}
-                                                onEdit={() => openEditForm({
-                                                    id: parentCategory.id,
-                                                    name: parentCategory.name,
-                                                    type: parentCategory.type,
-                                                    iconId: parentCategory.icon_id,
-                                                    iconUrl: parentCategory.icon_url,
-                                                    parentId: parentCategory.parent_id,
-                                                    isDefault: parentCategory.is_default,
-                                                })}
-                                            />
-                                            
-                                            {/* Children Categories */}
-                                            {hasChildren && isExpanded && (
-                                                <div className="bg-slate-50/50">
-                                                    {childrenArray.map((child) => (
-                                                        <CategoryListItem
-                                                            key={child.id}
-                                                            category={{
-                                                                id: child.id,
-                                                                name: child.name,
-                                                                type: child.type,
-                                                                iconId: child.icon_id,
-                                                                iconUrl: child.icon_url,
-                                                                parentId: child.parent_id,
-                                                                isDefault: child.is_default,
-                                                            }}
-                                                            hasChildren={false}
-                                                            isExpanded={false}
-                                                            isChild={true}
-                                                            onEdit={() => openEditForm({
-                                                                id: child.id,
-                                                                name: child.name,
-                                                                type: child.type,
-                                                                iconId: child.icon_id,
-                                                                iconUrl: child.icon_url,
-                                                                parentId: child.parent_id,
-                                                                isDefault: child.is_default,
-                                                            })}
-                                    />
-                                ))}
-                                                </div>
+                                            {/* Divider */}
+                                            {index > 0 && (
+                                                <div className="mx-4 border-t border-slate-200" />
                                             )}
+                                            <div className="px-4 py-1">
+                                                {/* Parent Category */}
+                                                <div
+                                                    className="group flex items-center gap-2 px-3 py-2 rounded-xl transition-all cursor-pointer hover:bg-slate-50 active:bg-slate-100"
+                                                    onClick={() => openEditForm({
+                                                        id: parentCategory.id,
+                                                        name: parentCategory.name,
+                                                        type: parentCategory.type,
+                                                        iconId: parentCategory.icon_id,
+                                                        iconUrl: parentCategory.icon_url,
+                                                        parentId: parentCategory.parent_id,
+                                                        isDefault: parentCategory.is_default,
+                                                    })}
+                                                >
+                                                    {/* Expand/Collapse Button */}
+                                                    {hasChildren ? (
+                                                        <button
+                                                            type="button"
+                                                            onClick={(e) => {
+                                                                e.stopPropagation()
+                                                                toggleParentExpanded(parentCategory.id)
+                                                            }}
+                                                            className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${isExpanded
+                                                                    ? 'bg-sky-200 text-sky-600'
+                                                                    : 'bg-slate-200 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600'
+                                                                }`}
+                                                        >
+                                                            <FaChevronRight
+                                                                className={`h-5 w-5 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''
+                                                                    }`}
+                                                            />
+                                                        </button>
+                                                    ) : (
+                                                        <div className="w-7" />
+                                                    )}
+
+                                                    {/* Icon */}
+                                                    <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full transition-all">
+                                                        <CategoryIcon
+                                                            iconId={parentCategory.icon_id}
+                                                            iconUrl={parentCategory.icon_url}
+                                                            className="h-14 w-14"
+                                                            fallback={
+                                                                <span className="text-3xl font-semibold text-slate-400">
+                                                                    {parentCategory.name[0]?.toUpperCase() || '?'}
+                                                                </span>
+                                                            }
+                                                        />
+                                                    </div>
+
+                                                    {/* Name */}
+                                                    <div className="flex-1 min-w-0">
+                                                        <p className="truncate text-base font-semibold text-slate-900">
+                                                            {parentCategory.name}
+                                                        </p>
+                                                        {hasChildren && childrenArray.length > 0 && (
+                                                            <p className="text-xs text-slate-500">
+                                                                {childrenArray.length} {childrenArray.length === 1 ? 'hạng mục con' : 'hạng mục con'}
+                                                            </p>
+                                                        )}
+                                                    </div>
+                                                </div>
+
+                                                {/* Children Categories - Only show if expanded */}
+                                                {hasChildren && isExpanded && childrenArray.length > 0 && (
+                                                    <div className="ml-4 mt-1 space-y-1 border-l-2 border-slate-200 pl-1">
+                                                        {childrenArray.map((child, childIndex) => (
+                                                            <div
+                                                                key={child.id}
+                                                                className="group flex items-center gap-2 px-3 py-2 rounded-xl transition-all cursor-pointer hover:bg-slate-50 active:bg-slate-100"
+                                                                onClick={() => openEditForm({
+                                                                    id: child.id,
+                                                                    name: child.name,
+                                                                    type: child.type,
+                                                                    iconId: child.icon_id,
+                                                                    iconUrl: child.icon_url,
+                                                                    parentId: child.parent_id,
+                                                                    isDefault: child.is_default,
+                                                                })}
+                                                                style={{ animationDelay: `${childIndex * 30}ms` }}
+                                                            >
+                                                                {/* Spacer for alignment */}
+                                                                <div className="w-5" />
+
+                                                                {/* Icon */}
+                                                                <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-full transition-all">
+                                                                    <CategoryIcon
+                                                                        iconId={child.icon_id}
+                                                                        iconUrl={child.icon_url}
+                                                                        className="h-14 w-14"
+                                                                        fallback={
+                                                                            <span className="text-2xl font-semibold text-slate-400">
+                                                                                {child.name[0]?.toUpperCase() || '?'}
+                                                                            </span>
+                                                                        }
+                                                                    />
+                                                                </div>
+
+                                                                {/* Name */}
+                                                                <div className="flex-1 min-w-0">
+                                                                    <p className="truncate text-sm font-semibold text-slate-900">
+                                                                        {child.name}
+                                                                    </p>
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                    </div>
+                                                )}
+                                            </div>
                                         </div>
                                     )
                                 })}
@@ -582,16 +651,63 @@ export const CategoriesPage = () => {
                                 <p className="flex-1 px-4 text-center text-base font-semibold uppercase tracking-[0.2em] text-slate-800">
                                     {editingId ? 'Cập nhật hạng mục' : 'Thêm hạng mục mới'}
                                 </p>
-                                <div className="flex h-11 w-11 items-center justify-center text-slate-500">
-                                    {/* Empty space để cân bằng layout */}
-                                </div>
+                                {editingId ? (
+                                    <button
+                                        type="button"
+                                        onClick={async (e) => {
+                                            e.preventDefault()
+                                            e.stopPropagation()
+
+                                            const editingCategory = categories.find(c => c.id === editingId)
+                                            if (!editingCategory) return
+
+                                            await showDialog({
+                                                message: `Bạn có chắc muốn xóa hạng mục "${editingCategory.name}"? Tất cả giao dịch liên quan sẽ không còn hạng mục.`,
+                                                type: 'warning',
+                                                title: 'Xóa hạng mục',
+                                                confirmText: 'Xóa',
+                                                cancelText: 'Hủy',
+                                                onConfirm: async () => {
+                                                    try {
+                                                        setIsDeleting(true)
+                                                        await deleteCategoryFromDb(editingId)
+
+                                                        success('Đã xóa hạng mục thành công!')
+                                                        closeForm()
+                                                        // Reload sau khi đóng form
+                                                        await reloadCategories()
+                                                    } catch (error) {
+                                                        setIsLoading(false)
+                                                        const message =
+                                                            error instanceof Error
+                                                                ? `Không thể xóa hạng mục: ${error.message}`
+                                                                : 'Không thể xóa hạng mục. Vui lòng thử lại sau.'
+                                                        setFormError(message)
+                                                        showError(message)
+                                                    } finally {
+                                                        setIsDeleting(false)
+                                                    }
+                                                },
+                                            })
+                                        }}
+                                        disabled={isSubmitting || isDeleting}
+                                        className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100 text-rose-600 transition-all hover:bg-rose-50 hover:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-50 active:scale-95"
+                                        aria-label="Xóa hạng mục"
+                                    >
+                                        <FaTrash className="h-5 w-5" />
+                                    </button>
+                                ) : (
+                                    <div className="flex h-11 w-11 items-center justify-center text-slate-500">
+                                        {/* Empty space để cân bằng layout */}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </header>
 
                     {/* Form Content */}
                     <form id="category-form" className="flex h-full flex-col" onSubmit={handleSubmit}>
-                        <div className={`flex-1 overflow-y-auto overscroll-contain bg-[#F7F9FC] p-4 space-y-5 ${editingId ? 'pb-24' : ''}`}>
+                        <div className={`flex-1 overflow-y-auto overscroll-contain bg-[#F7F9FC] p-4 space-y-4 ${editingId ? 'pb-24' : 'pb-24'}`}>
                             {/* Category Name */}
                             <div className="space-y-2">
                                 <label className="block text-sm font-semibold text-slate-700">
@@ -617,24 +733,28 @@ export const CategoriesPage = () => {
                                     <button
                                         type="button"
                                         onClick={() => setFormState((prev) => ({ ...prev, type: 'Chi tiêu' }))}
-                                        className={`h-12 rounded-xl border-2 px-4 text-sm font-semibold transition-all ${
-                                            formState.type === 'Chi tiêu'
-                                                ? 'border-rose-500 bg-rose-50 text-rose-600 shadow-sm'
-                                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                                        }`}
+                                        className={`group relative h-14 rounded-2xl border-2 px-4 text-sm font-bold transition-all active:scale-[0.98] ${formState.type === 'Chi tiêu'
+                                                ? 'border-rose-500 bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-lg shadow-rose-500/30 ring-2 ring-rose-400/20'
+                                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                                            }`}
                                     >
-                                        Chi tiêu
+                                        <span className="relative z-10">Chi tiêu</span>
+                                        {formState.type === 'Chi tiêu' && (
+                                            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent" />
+                                        )}
                                     </button>
                                     <button
                                         type="button"
                                         onClick={() => setFormState((prev) => ({ ...prev, type: 'Thu nhập' }))}
-                                        className={`h-12 rounded-xl border-2 px-4 text-sm font-semibold transition-all ${
-                                            formState.type === 'Thu nhập'
-                                                ? 'border-emerald-500 bg-emerald-50 text-emerald-600 shadow-sm'
-                                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
-                                        }`}
+                                        className={`group relative h-14 rounded-2xl border-2 px-4 text-sm font-bold transition-all active:scale-[0.98] ${formState.type === 'Thu nhập'
+                                                ? 'border-emerald-500 bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30 ring-2 ring-emerald-400/20'
+                                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                                            }`}
                                     >
-                                        Thu nhập
+                                        <span className="relative z-10">Thu nhập</span>
+                                        {formState.type === 'Thu nhập' && (
+                                            <div className="absolute inset-0 rounded-2xl bg-gradient-to-br from-white/20 to-transparent" />
+                                        )}
                                     </button>
                                 </div>
                             </div>
@@ -644,25 +764,34 @@ export const CategoriesPage = () => {
                                 <label className="block text-sm font-semibold text-slate-700">
                                     Hạng mục cha (tùy chọn)
                                 </label>
-                                <select
+                                <SearchableSelect
+                                    options={[
+                                        { value: '', label: 'Không có (Hạng mục cha)' },
+                                        ...parentCategoriesForForm.map((parent) => ({
+                                            value: parent.id,
+                                            label: parent.name,
+                                            icon: (
+                                                <CategoryIcon
+                                                    iconId={parent.iconId}
+                                                    iconUrl={parent.iconUrl}
+                                                    className="h-5 w-5"
+                                                />
+                                            ),
+                                        })),
+                                    ]}
                                     value={formState.parentId || ''}
-                                    onChange={(event) =>
-                                        setFormState((prev) => ({ 
-                                            ...prev, 
-                                            parentId: event.target.value || null 
+                                    onChange={(value) =>
+                                        setFormState((prev) => ({
+                                            ...prev,
+                                            parentId: value || null
                                         }))
                                     }
-                                    className="h-12 w-full rounded-xl border-0 bg-slate-50 px-4 text-sm text-slate-900 shadow-sm ring-1 ring-slate-200/50 outline-none transition-all focus:bg-white focus:ring-2 focus:ring-sky-500/20"
-                                >
-                                    <option value="">Không có (Hạng mục cha)</option>
-                                    {parentCategoriesForForm.map((parent) => (
-                                        <option key={parent.id} value={parent.id}>
-                                            {parent.name}
-                                        </option>
-                                    ))}
-                                </select>
+                                    placeholder="Chọn hạng mục cha"
+                                    searchPlaceholder="Tìm kiếm hạng mục cha..."
+                                    emptyMessage="Chưa có hạng mục cha"
+                                />
                                 <p className="text-xs text-slate-500">
-                                    {formState.parentId 
+                                    {formState.parentId
                                         ? 'Hạng mục này sẽ là mục con của hạng mục cha đã chọn'
                                         : 'Để trống để tạo hạng mục cha (có thể thêm mục con sau)'}
                                 </p>
@@ -676,15 +805,37 @@ export const CategoriesPage = () => {
                                 <button
                                     type="button"
                                     onClick={() => setIsIconPickerOpen(true)}
-                                    className="flex w-full items-center justify-between gap-3 rounded-xl border-2 border-slate-200 bg-white px-4 py-3.5 transition-all hover:border-sky-400 hover:bg-sky-50"
+                                    className="group relative flex w-full items-center gap-4 rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-slate-50/50 p-4 transition-all hover:border-sky-400 hover:from-sky-50 hover:to-blue-50/50 hover:shadow-lg active:scale-[0.98]"
                                 >
-                                    <span className="flex items-center gap-3">
-                                        <IconPreview iconId={formState.iconId} className="h-12 w-12" />
-                                        <span className="text-sm font-medium text-slate-900">
-                                            {CATEGORY_ICON_MAP[formState.iconId]?.label ?? dbIcons.find(i => i.name === formState.iconId)?.label ?? 'Chưa chọn'}
-                                        </span>
-                                    </span>
-                                    <span className="text-xs font-semibold text-sky-500">Thay đổi</span>
+                                    {/* Icon Preview */}
+                                    <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden">
+                                        <CategoryIcon
+                                            iconId={formState.iconId}
+                                            iconUrl={formState.iconUrl}
+                                            className="h-16 w-16"
+                                            fallback={
+                                                <span className="text-lg font-semibold text-slate-400">
+                                                    {formState.iconId?.[0]?.toUpperCase() || '?'}
+                                                </span>
+                                            }
+                                        />
+                                    </div>
+
+                                    {/* Icon Info */}
+                                    <div className="flex-1 min-w-0 text-left">
+                                        <p className="text-sm font-semibold text-slate-900">
+                                            {CATEGORY_ICON_MAP[formState.iconId]?.label ?? dbIcons.find(i => i.name === formState.iconId)?.label ?? 'Chưa chọn biểu tượng'}
+                                        </p>
+                                        <p className="mt-0.5 text-xs text-slate-500">
+                                            Nhấn để chọn biểu tượng
+                                        </p>
+                                    </div>
+
+                                    {/* Change Button */}
+                                    <div className="flex shrink-0 items-center gap-2 rounded-lg bg-sky-100 px-3 py-2 text-xs font-bold text-sky-700 transition-all group-hover:bg-sky-200 group-hover:text-sky-800">
+                                        <span>Thay đổi</span>
+                                        <FaChevronRight className="h-3 w-3" />
+                                    </div>
                                 </button>
                             </div>
 
@@ -697,53 +848,6 @@ export const CategoriesPage = () => {
                         </div>
 
                         {/* Action Buttons - Fixed at bottom */}
-                        {editingId && (
-                            <div className="fixed bottom-20 left-0 right-0 z-40 bg-[#F7F9FC] px-4 pb-2">
-                                <button
-                                    type="button"
-                                    onClick={async (e) => {
-                                        e.preventDefault()
-                                        e.stopPropagation()
-                                        
-                                        const editingCategory = categories.find(c => c.id === editingId)
-                                        if (!editingCategory) return
-
-                                        await showDialog({
-                                            message: `Bạn có chắc muốn xóa hạng mục "${editingCategory.name}"? Tất cả giao dịch liên quan sẽ không còn hạng mục.`,
-                                            type: 'warning',
-                                            title: 'Xóa hạng mục',
-                                            confirmText: 'Xóa',
-                                            cancelText: 'Hủy',
-                                            onConfirm: async () => {
-                                                try {
-                                                    setIsDeleting(true)
-                                                    await deleteCategoryFromDb(editingId)
-                                                    
-                                                    success('Đã xóa hạng mục thành công!')
-                                                    closeForm()
-                                                    // Reload sau khi đóng form
-                                                    await reloadCategories()
-                                                } catch (error) {
-                                                    setIsLoading(false)
-                                                    const message =
-                                                        error instanceof Error
-                                                            ? `Không thể xóa hạng mục: ${error.message}`
-                                                            : 'Không thể xóa hạng mục. Vui lòng thử lại sau.'
-                                                    setFormError(message)
-                                                    showError(message)
-                                                } finally {
-                                                    setIsDeleting(false)
-                                                }
-                                            },
-                                        })
-                                    }}
-                                    disabled={isSubmitting || isDeleting}
-                                    className="w-full max-w-md mx-auto rounded-xl border-2 border-rose-200 bg-white px-4 py-3 text-sm font-semibold text-rose-600 transition hover:border-rose-300 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50 shadow-lg"
-                                >
-                                    {isDeleting ? 'Đang xóa...' : 'Xóa hạng mục'}
-                                </button>
-                            </div>
-                        )}
                         <ModalFooterButtons
                             onCancel={closeForm}
                             onConfirm={() => {
@@ -755,10 +859,10 @@ export const CategoriesPage = () => {
                                 }
                             }}
                             confirmText={isSubmitting
-                                        ? 'Đang lưu...'
-                                        : editingId
-                                            ? 'Lưu thay đổi'
-                                            : 'Thêm hạng mục'}
+                                ? 'Đang lưu...'
+                                : editingId
+                                    ? 'Lưu thay đổi'
+                                    : 'Thêm hạng mục'}
                             isSubmitting={isSubmitting}
                             disabled={isSubmitting || isDeleting}
                             confirmButtonType="button"
@@ -781,147 +885,6 @@ export const CategoriesPage = () => {
     )
 }
 
-type CategoryListItemProps = {
-    category: Category
-    hasChildren: boolean
-    isExpanded: boolean
-    isChild?: boolean
-    onToggleExpand?: () => void
-    onEdit: () => void
-}
 
-const CategoryListItem = ({ 
-    category, 
-    hasChildren, 
-    isExpanded, 
-    isChild = false,
-    onToggleExpand,
-    onEdit, 
-}: CategoryListItemProps) => {
-    const handleItemClick = (e: React.MouseEvent) => {
-        // Nếu click vào chevron, chỉ toggle expand
-        if ((e.target as HTMLElement).closest('button[data-chevron]')) {
-            return
-        }
-        // Click vào icon hoặc tên sẽ mở modal Edit
-        onEdit()
-    }
-
-    return (
-        <div 
-            data-category-item
-            className={`group relative flex items-center gap-3 px-4 py-3 transition-colors hover:bg-slate-50 cursor-pointer ${isChild ? 'pl-12' : ''}`}
-            onClick={handleItemClick}
-        >
-            {/* Chevron for expand/collapse */}
-            {hasChildren && onToggleExpand ? (
-                <button
-                    data-chevron
-                    type="button"
-                    onClick={(e) => {
-                        e.stopPropagation()
-                        onToggleExpand()
-                    }}
-                    className="flex h-6 w-6 shrink-0 items-center justify-center text-slate-400 transition-colors hover:text-slate-600"
-                >
-                    <span className={`text-xs transition-transform ${isExpanded ? 'rotate-90' : ''}`}>
-                        ▶
-                    </span>
-                </button>
-            ) : (
-                <div className="w-6" />
-            )}
-
-            {/* Icon - Clickable */}
-            <div 
-                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full"
-                onClick={handleItemClick}
-            >
-                <CategoryIcon 
-                    iconId={category.iconId}
-                    iconUrl={category.iconUrl}
-                    className="h-10 w-10"
-                    fallback={<span className="text-lg font-semibold text-slate-600">{category.name[0]?.toUpperCase() || '?'}</span>}
-                />
-            </div>
-
-            {/* Name - Clickable */}
-            <div className="flex-1 min-w-0" onClick={handleItemClick}>
-                <p className="truncate text-sm font-medium text-slate-900">{category.name}</p>
-            </div>
-        </div>
-    )
-}
-
-type IconPreviewProps = {
-    iconId: string
-    className?: string
-}
-
-const IconPreview = ({ iconId, className }: IconPreviewProps) => {
-    const [iconNode, setIconNode] = useState<React.ReactNode>(null)
-    const [isLoading, setIsLoading] = useState(true)
-
-    useEffect(() => {
-        const loadIcon = async () => {
-            setIsLoading(true)
-            try {
-                // getIconNode đã xử lý hardcoded map trước, sau đó database
-                const node = await getIconNode(iconId)
-                if (node) {
-                    setIconNode(node)
-                } else {
-                    // Fallback về hardcoded icon nếu có
-                    const hardcodedIcon = CATEGORY_ICON_MAP[iconId]
-                    if (hardcodedIcon?.icon) {
-                        const IconComponent = hardcodedIcon.icon
-                        setIconNode(<IconComponent className="h-6 w-6" />)
-                    } else {
-                        // Fallback cuối cùng: chữ cái đầu
-                        setIconNode(iconId?.[0]?.toUpperCase() || '?')
-                    }
-                }
-            } catch (error) {
-                // Chỉ log error nghiêm trọng, không log lỗi "not found"
-                if (error instanceof Error && !error.message.includes('not found') && !error.message.includes('PGRST116')) {
-                    console.error('Error loading icon preview:', iconId, error)
-                }
-                // Fallback về hardcoded icon hoặc chữ cái đầu
-                const hardcodedIcon = CATEGORY_ICON_MAP[iconId]
-                if (hardcodedIcon?.icon) {
-                    const IconComponent = hardcodedIcon.icon
-                    setIconNode(<IconComponent className="h-6 w-6" />)
-                } else {
-                    setIconNode(iconId?.[0]?.toUpperCase() || '?')
-                }
-            } finally {
-                setIsLoading(false)
-            }
-        }
-        void loadIcon()
-    }, [iconId])
-
-    if (isLoading) {
-        return (
-            <span className={`flex items-center justify-center ${className}`}>
-                <span className="text-xs text-slate-400">...</span>
-            </span>
-        )
-    }
-
-    if (!iconNode) {
-        return (
-            <span className={`flex items-center justify-center ${className}`}>
-                <span className="text-sm text-slate-400">?</span>
-            </span>
-        )
-    }
-
-    return (
-        <span className={`flex items-center justify-center ${className}`}>
-            {iconNode}
-        </span>
-    )
-}
 
 export default CategoriesPage

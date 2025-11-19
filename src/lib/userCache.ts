@@ -19,9 +19,12 @@ const SESSION_STORAGE_KEY = 'bofin_cached_user'
 /**
  * Get cached user hoặc fetch từ Supabase
  * Cache trong memory và session storage
+ * Có retry mechanism để đảm bảo user được fetch nếu cache trống
  */
-export const getCachedUser = async (): Promise<User | null> => {
+export const getCachedUser = async (retryCount = 0): Promise<User | null> => {
   const now = Date.now()
+  const MAX_RETRIES = 2
+  const RETRY_DELAY = 100 // 100ms
 
   // Kiểm tra memory cache trước
   if (cachedUser && (now - cachedUser.timestamp) < cachedUser.ttl) {
@@ -45,22 +48,41 @@ export const getCachedUser = async (): Promise<User | null> => {
 
   // Fetch từ Supabase
   const supabase = getSupabaseClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  // Cache kết quả
-  cachedUser = {
-    user,
-    timestamp: now,
-    ttl: USER_CACHE_TTL,
+  let user: User | null = null
+  
+  try {
+    const { data, error } = await supabase.auth.getUser()
+    
+    if (error) {
+      throw error
+    }
+    
+    user = data.user
+  } catch (error) {
+    // Nếu lỗi và chưa retry hết, thử lại sau một chút
+    if (retryCount < MAX_RETRIES) {
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY * (retryCount + 1)))
+      return getCachedUser(retryCount + 1)
+    }
+    
+    console.warn('Error fetching user from Supabase:', error)
+    return null
   }
 
-  // Lưu vào session storage
-  try {
-    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(cachedUser))
-  } catch (e) {
-    console.warn('Error saving user to session storage:', e)
+  // Cache kết quả
+  if (user) {
+    cachedUser = {
+      user,
+      timestamp: now,
+      ttl: USER_CACHE_TTL,
+    }
+
+    // Lưu vào session storage
+    try {
+      sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(cachedUser))
+    } catch (e) {
+      console.warn('Error saving user to session storage:', e)
+    }
   }
 
   return user
@@ -90,4 +112,23 @@ export const invalidateUserCache = (): void => {
  * Clear user cache khi logout
  */
 export const clearUserCache = invalidateUserCache
+
+/**
+ * Set user cache trực tiếp (dùng khi SIGNED_IN để populate ngay lập tức)
+ */
+export const setCachedUser = (user: User | null): void => {
+  const now = Date.now()
+  cachedUser = {
+    user,
+    timestamp: now,
+    ttl: USER_CACHE_TTL,
+  }
+  
+  // Lưu vào session storage
+  try {
+    sessionStorage.setItem(SESSION_STORAGE_KEY, JSON.stringify(cachedUser))
+  } catch (e) {
+    console.warn('Error saving user to session storage:', e)
+  }
+}
 

@@ -31,14 +31,14 @@ export const NotificationSettings = ({ className = '' }: NotificationSettingsPro
     const checkPermission = () => {
       setHasPermission(hasNotificationPermission())
     }
-    
+
     checkPermission()
     // Check permission periodically in case user changes it in browser settings
     const interval = setInterval(checkPermission, 2000)
-    
+
     // Load sound preference
     setSoundPreference(getSoundPreference())
-    
+
     return () => clearInterval(interval)
   }, [])
 
@@ -59,7 +59,7 @@ export const NotificationSettings = ({ className = '' }: NotificationSettingsPro
           showError('Vui lòng cho phép thông báo để nhận nhắc nhở')
         }
       }
-    } catch (error) {
+    } catch {
       showError('Không thể yêu cầu quyền thông báo. Vui lòng kiểm tra cài đặt trình duyệt.')
     } finally {
       setIsRequesting(false)
@@ -101,7 +101,7 @@ export const NotificationSettings = ({ className = '' }: NotificationSettingsPro
       saveSoundPreference(newPreference)
       playNotificationSound()
       success('Đã tải lên và áp dụng âm thanh mới!')
-    } catch (error) {
+    } catch {
       showError('Không thể tải lên file âm thanh')
     }
 
@@ -165,11 +165,10 @@ export const NotificationSettings = ({ className = '' }: NotificationSettingsPro
                       key={sound.id}
                       type="button"
                       onClick={() => handleSelectSyntheticSound(sound.id)}
-                      className={`rounded-lg border-2 px-3 py-2 text-xs font-medium transition ${
-                        isSelected
+                      className={`rounded-lg border-2 px-3 py-2 text-xs font-medium transition ${isSelected
                           ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
                           : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                      }`}
+                        }`}
                     >
                       {sound.name}
                     </button>
@@ -233,7 +232,7 @@ export const NotificationSettings = ({ className = '' }: NotificationSettingsPro
         <FaBellSlash className="h-4 w-4" />
         <span>{isRequesting ? 'Đang yêu cầu...' : 'Bật thông báo để nhận nhắc nhở'}</span>
       </button>
-      
+
       {Notification.permission === 'denied' && (
         <div className="rounded-xl bg-rose-50 p-3 text-xs text-rose-700">
           <div className="flex items-start gap-2">

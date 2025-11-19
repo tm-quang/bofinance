@@ -22,6 +22,7 @@ type HeaderBarProps =
     showIcon?: ReactNode
     onReload?: () => void | Promise<void>
     isReloading?: boolean
+    customContent?: ReactNode
   }
 
 const HeaderBar = (props: HeaderBarProps) => {
@@ -62,7 +63,7 @@ const HeaderBar = (props: HeaderBarProps) => {
   }, [])
 
   if (props.variant === 'page') {
-    const { title, onBack, showIcon, onReload, isReloading = false } = props
+    const { title, onBack, showIcon, onReload, isReloading = false, customContent } = props
     return (
       <header className="pointer-events-none relative z-40 flex-shrink-0 bg-[#F7F9FC]">
       {isScrolled && (
@@ -84,9 +85,11 @@ const HeaderBar = (props: HeaderBarProps) => {
           >
             <FaArrowLeft className="h-4 w-4" />
           </button>
+          {customContent || (
           <p className="flex-1 px-4 text-center text-base font-semibold uppercase tracking-[0.2em] text-slate-800">
             {title}
           </p>
+          )}
           <div className="flex items-center gap-2">
             {/* Reload Button */}
             {onReload && (

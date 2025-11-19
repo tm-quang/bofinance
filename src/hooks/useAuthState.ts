@@ -38,6 +38,12 @@ export const useAuthState = () => {
         }
 
         if (mounted) {
+          // Populate user cache ngay khi có session (kể cả khi refresh page)
+          if (session?.user) {
+            const { setCachedUser } = await import('../lib/userCache')
+            setCachedUser(session.user)
+          }
+          
           setAuthState({
             user: session?.user ?? null,
             session,
@@ -62,6 +68,12 @@ export const useAuthState = () => {
                 })
               }
             } else if (mounted && refreshedSession) {
+              // Populate user cache với refreshed session
+              if (refreshedSession?.user) {
+                const { setCachedUser } = await import('../lib/userCache')
+                setCachedUser(refreshedSession.user)
+              }
+              
               setAuthState({
                 user: refreshedSession.user,
                 session: refreshedSession,
@@ -95,6 +107,14 @@ export const useAuthState = () => {
       console.log('Auth state changed:', event, session?.user?.email)
 
       if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        // QUAN TRỌNG: Populate user cache NGAY LẬP TỨC khi SIGNED_IN
+        // Điều này đảm bảo user cache có sẵn trước khi các component load data
+        if (session?.user) {
+          const { setCachedUser } = await import('../lib/userCache')
+          setCachedUser(session.user)
+          console.log('✅ User cache populated immediately on SIGNED_IN')
+        }
+        
         setAuthState({
           user: session?.user ?? null,
           session,
@@ -121,13 +141,22 @@ export const useAuthState = () => {
             sessionStorage.removeItem('bofin_just_logged_in')
             
             // Clear toàn bộ cache và reload dữ liệu mới khi đăng nhập
+            // KHÔNG clear user cache và KHÔNG reset client để tránh lỗi "Bạn cần đăng nhập"
             try {
               const { clearAllCacheAndState } = await import('../utils/reloadData')
-              await clearAllCacheAndState()
+              await clearAllCacheAndState(false, false) // false, false = không clear user cache, không reset client
               // Re-initialize cache after clear
               const { cacheManager } = await import('../lib/cache')
               await cacheManager.initialize()
-              console.log('✅ Cache cleared after login - reloading fresh data')
+              
+              // Đảm bảo user cache vẫn còn sau khi clear cache
+              // (vì clearAllCacheAndState không clear user cache)
+              if (session?.user) {
+                const { setCachedUser } = await import('../lib/userCache')
+                setCachedUser(session.user)
+              }
+              
+              console.log('✅ Cache cleared after login - user cache preserved and reloading fresh data')
             } catch (e) {
               console.warn('Error clearing cache on login:', e)
               // Không block auth flow nếu clear cache thất bại

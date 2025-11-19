@@ -3,6 +3,15 @@
  * Make PWA behave exactly like a native Android app
  */
 
+interface BeforeInstallPromptEvent extends Event {
+  readonly platforms: string[]
+  readonly userChoice: Promise<{
+    outcome: 'accepted' | 'dismissed'
+    platform: string
+  }>
+  prompt(): Promise<void>
+}
+
 /**
  * Prevent zoom on double tap and pinch
  */
@@ -70,12 +79,12 @@ export const preventPullToRefresh = () => {
       const currentX = e.touches[0].pageX
       const deltaY = currentY - startY
       const deltaX = Math.abs(currentX - startX)
-      
+
       // Only prevent if it's clearly a vertical pull down (not horizontal swipe)
       // And only if we're at the very top of the page
       const isAtTop = window.scrollY === 0 && document.documentElement.scrollTop === 0
       const isVerticalPull = deltaY > 0 && deltaY > deltaX * 2
-      
+
       if (!isScrolling && isAtTop && isVerticalPull && deltaY > 10) {
         e.preventDefault()
         hasMoved = true
@@ -101,9 +110,9 @@ export const preventContextMenu = () => {
 export const preventTextSelection = () => {
   document.addEventListener('selectstart', (e) => {
     const target = e.target as HTMLElement
-    const isInput = target.tagName === 'INPUT' || 
-                    target.tagName === 'TEXTAREA' ||
-                    target.isContentEditable
+    const isInput = target.tagName === 'INPUT' ||
+      target.tagName === 'TEXTAREA' ||
+      target.isContentEditable
 
     if (!isInput) {
       e.preventDefault()
@@ -187,7 +196,7 @@ export const initNativeAppBehavior = () => {
   preventPullToRefresh()
   preventContextMenu()
   preventOverscroll()
-  
+
   // Optional: Uncomment if needed
   // preventTextSelection()
   // lockOrientation('portrait')
@@ -211,13 +220,12 @@ export const isInstalledPWA = (): boolean => {
 /**
  * Show install prompt for PWA
  */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let deferredPrompt: any = null
+let deferredPrompt: BeforeInstallPromptEvent | null = null
 
 export const setupInstallPrompt = () => {
   window.addEventListener('beforeinstallprompt', (e) => {
     e.preventDefault()
-    deferredPrompt = e
+    deferredPrompt = e as BeforeInstallPromptEvent
     // PWA install prompt ready (log removed for security)
   })
 }
@@ -230,7 +238,7 @@ export const showInstallPrompt = async (): Promise<boolean> => {
   deferredPrompt.prompt()
   const { outcome } = await deferredPrompt.userChoice
   deferredPrompt = null
-  
+
   return outcome === 'accepted'
 }
 
@@ -241,7 +249,7 @@ export const showInstallPrompt = async (): Promise<boolean> => {
 export const addHapticFeedback = () => {
   document.addEventListener('click', (e) => {
     const target = e.target as HTMLElement
-    
+
     // Skip haptic feedback for footer navigation and buttons with data-no-haptic
     if (
       target.closest('[class*="FooterNav"]') ||
@@ -251,7 +259,7 @@ export const addHapticFeedback = () => {
     ) {
       return
     }
-    
+
     if (
       target.tagName === 'BUTTON' ||
       target.closest('button') ||
@@ -271,7 +279,7 @@ export const optimizePerformance = () => {
   // Enable hardware acceleration
   document.body.style.transform = 'translateZ(0)'
   document.body.style.backfaceVisibility = 'hidden'
-  
+
   // Reduce motion if user prefers
   if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
     document.documentElement.style.scrollBehavior = 'auto'

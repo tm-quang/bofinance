@@ -1,11 +1,8 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react'
-import { FaTimes, FaChevronRight, FaFolder, FaSearch, FaStar, FaEdit, FaChevronUp } from 'react-icons/fa'
+import { FaTimes, FaChevronRight, FaFolder, FaSearch } from 'react-icons/fa'
 import { fetchCategoriesHierarchical, type CategoryWithChildren } from '../../lib/categoryService'
-import { getFavoriteCategories } from '../../lib/favoriteCategoriesService'
-import { getCachedUser } from '../../lib/userCache'
 import { CategoryIcon } from '../ui/CategoryIcon'
 import { CategoryListSkeleton } from '../skeletons'
-import { FavoriteCategoriesModal } from './FavoriteCategoriesModal'
 import HeaderBar from '../layout/HeaderBar'
 
 type CategoryPickerModalProps = {
@@ -26,11 +23,9 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
   // onEditCategory, // Reserved for future use
 }) => {
   const [hierarchicalCategories, setHierarchicalCategories] = useState<CategoryWithChildren[]>([])
-  const [favoriteCategories, setFavoriteCategories] = useState<CategoryWithChildren[]>([])
   const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set())
   const [isLoading, setIsLoading] = useState(false)
   const [searchTerm, setSearchTerm] = useState('')
-  const [isFavoriteModalOpen, setIsFavoriteModalOpen] = useState(false)
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   // Reset khi mở/đóng modal
@@ -42,56 +37,14 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
     }
   }, [isOpen])
 
-  // Load categories và favorites khi modal mở hoặc categoryType thay đổi
+  // Load categories khi modal mở hoặc categoryType thay đổi
   useEffect(() => {
     if (isOpen) {
       const loadCategories = async () => {
         setIsLoading(true)
         try {
-          // Invalidate cache khi categoryType thay đổi để đảm bảo load đúng favorites
-          try {
-            const user = await getCachedUser()
-            if (user) {
-              const { invalidateCache } = await import('../../lib/cache')
-              const { cacheManager } = await import('../../lib/cache')
-              const cacheKey = await cacheManager.generateKey('favoriteCategories', { categoryType, userId: user.id })
-              await invalidateCache(cacheKey)
-            }
-          } catch (cacheError) {
-            console.warn('Error invalidating cache:', cacheError)
-          }
-
-          const [categories, favoriteIdsArray] = await Promise.all([
-            fetchCategoriesHierarchical(categoryType),
-            getFavoriteCategories(categoryType),
-          ])
+          const categories = await fetchCategoriesHierarchical(categoryType)
           setHierarchicalCategories(categories)
-
-          // Extract favorite categories (limit to 7)
-          const favorites: CategoryWithChildren[] = []
-          const favoriteIdsSet = new Set(favoriteIdsArray.slice(0, 7))
-
-          // Helper to find category by ID in hierarchical structure
-          const findCategoryById = (cats: CategoryWithChildren[], id: string): CategoryWithChildren | null => {
-            for (const cat of cats) {
-              if (cat.id === id) return cat
-              if (cat.children) {
-                const found = findCategoryById(cat.children, id)
-                if (found) return found
-              }
-            }
-            return null
-          }
-
-          // Get favorite categories
-          favoriteIdsSet.forEach((id) => {
-            const category = findCategoryById(categories, id)
-            if (category) {
-              favorites.push(category)
-            }
-          })
-
-          setFavoriteCategories(favorites)
         } catch (error) {
           console.error('Error loading categories:', error)
         } finally {
@@ -100,7 +53,7 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
       }
       loadCategories()
     }
-  }, [isOpen, categoryType, isFavoriteModalOpen])
+  }, [isOpen, categoryType])
 
   // Không cần đóng khi click ra ngoài vì là full screen
 
@@ -180,18 +133,10 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
       <main className="flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex w-full max-w-md flex-col">
           {/* Top Actions Bar */}
-          <div className="shrink-0 flex items-center justify-between px-4 py-4">
-            <h3 className="text-base font-semibold text-slate-900">
+          <div className="shrink-0 px-3 py-2.5">
+            <h3 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
               {categoryType}
             </h3>
-            <button
-              type="button"
-              onClick={() => setSearchTerm('')}
-              className="flex items-center gap-1.5 px-3 text-sm font-semibold text-sky-600 hover:text-sky-700 transition"
-            >
-              <span>Tất cả</span>
-              <FaChevronRight className="h-3.5 w-3.5" />
-            </button>
           </div>
 
           {/* Search Bar */}
@@ -226,72 +171,6 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
             </div>
           ) : (
             <>
-              {/* Favorite Categories Section - Only show when not searching */}
-              {!searchTerm && (
-                <div className="px-4 pt-4 pb-4 mb-2 shadow-sm ring-1 rounded-2xl mx-4 mt-2 bg-white ring-slate-200">
-                  <div className="flex items-center gap-2 mb-4">
-                    <h4 className="text-base font-semibold text-slate-900">
-                      MỤC THƯỜNG DÙNG ({favoriteCategories.length})
-                    </h4>
-                    <FaChevronUp className="h-3.5 w-3.5 text-slate-400" />
-                  </div>
-                  {/* Favorite Categories Grid - Include Edit button as 8th item */}
-                  <div className="grid grid-cols-4 gap-2">
-                    {favoriteCategories.slice(0, 7).map((category) => {
-                      const isSelected = selectedCategoryId === category.id
-                      return (
-                        <button
-                          key={category.id}
-                          type="button"
-                          onClick={() => handleCategorySelect(category.id)}
-                          className={`relative flex flex-col items-center gap-1.5 p-2 rounded-xl transition-all active:scale-95 ${
-                            isSelected
-                              ? 'bg-gradient-to-br from-sky-50 to-blue-50 ring-2 ring-sky-500 shadow-md'
-                              : 'bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300'
-                          }`}
-                        >
-                          {/* Star Icon */}
-                          <FaStar className="absolute top-1.5 right-1.5 h-3 w-3 text-amber-500 fill-current drop-shadow-sm z-10" />
-                          {/* Category Icon */}
-                          <div className="flex h-20 w-20 items-center justify-center rounded-full transition-all">
-                            <CategoryIcon
-                              iconId={category.icon_id}
-                              className="h-14 w-14"
-                              fallback={
-                                <span className="text-3xl font-semibold text-slate-400">
-                                  {category.name[0]?.toUpperCase() || '?'}
-                                </span>
-                              }
-                            />
-                          </div>
-                          {/* Category Name */}
-                          <span
-                            className={`text-xs font-semibold text-center leading-tight line-clamp-2 ${
-                              isSelected ? 'text-sky-900' : 'text-slate-700'
-                            }`}
-                          >
-                            {category.name}
-                          </span>
-                        </button>
-                      )
-                    })}
-                    {/* Edit Button as 8th item */}
-                    <button
-                      type="button"
-                      onClick={() => setIsFavoriteModalOpen(true)}
-                      className="flex flex-col items-center gap-1.5 p-2 rounded-xl bg-white hover:bg-slate-50 border border-slate-200 hover:border-slate-300 transition-all active:scale-95"
-                    >
-                      <div className="flex h-14 w-14 mt-6 items-center justify-center rounded-full bg-sky-100 text-sky-600">
-                        <FaEdit className="h-8 w-8" />
-                      </div>
-                      <span className="text-xs font-semibold text-center text-slate-700 leading-tight">
-                        Chỉnh sửa
-                      </span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
               {/* All Categories List */}
               {filteredCategories.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 px-4">
@@ -358,6 +237,7 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
                       <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full transition-all">
                         <CategoryIcon
                           iconId={parent.icon_id}
+                          iconUrl={parent.icon_url}
                           className="h-14 w-14"
                           fallback={
                             <span className="text-3xl font-semibold text-slate-400">
@@ -414,6 +294,7 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
                               <div className="flex h-[72px] w-[72px] shrink-0 items-center justify-center rounded-full transition-all">
                                 <CategoryIcon
                                   iconId={child.icon_id}
+                                  iconUrl={child.icon_url}
                                   className="h-14 w-14"
                                   fallback={
                                     <span className="text-2xl font-semibold text-slate-400">
@@ -456,51 +337,6 @@ export const CategoryPickerModal: React.FC<CategoryPickerModalProps> = ({
           </div>
         </div>
       </main>
-
-      {/* Favorite Categories Modal */}
-      <FavoriteCategoriesModal
-        isOpen={isFavoriteModalOpen}
-        onClose={async () => {
-          setIsFavoriteModalOpen(false)
-          // Invalidate cache and reload favorites when modal closes
-          try {
-            const user = await getCachedUser()
-            if (user) {
-              const { invalidateCache } = await import('../../lib/cache')
-              const { cacheManager } = await import('../../lib/cache')
-              const cacheKey = await cacheManager.generateKey('favoriteCategories', { categoryType, userId: user.id })
-              await invalidateCache(cacheKey)
-            }
-            // Reload favorites
-            const favoriteIdsArray = await getFavoriteCategories(categoryType)
-            const favorites: CategoryWithChildren[] = []
-            const favoriteIdsSet = new Set(favoriteIdsArray.slice(0, 7))
-
-            const findCategoryById = (cats: CategoryWithChildren[], id: string): CategoryWithChildren | null => {
-              for (const cat of cats) {
-                if (cat.id === id) return cat
-                if (cat.children) {
-                  const found = findCategoryById(cat.children, id)
-                  if (found) return found
-                }
-              }
-              return null
-            }
-
-            favoriteIdsSet.forEach((id) => {
-              const category = findCategoryById(hierarchicalCategories, id)
-              if (category) {
-                favorites.push(category)
-              }
-            })
-
-            setFavoriteCategories(favorites)
-          } catch (error) {
-            console.error('Error reloading favorites:', error)
-          }
-        }}
-        categoryType={categoryType}
-      />
     </div>
   )
 }

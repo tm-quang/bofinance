@@ -2,6 +2,8 @@
  * Retry utility for failed API calls
  */
 
+import type { PostgrestError } from '@supabase/supabase-js'
+
 export interface RetryOptions {
   maxRetries?: number
   delay?: number
@@ -14,7 +16,7 @@ const DEFAULT_OPTIONS: Required<RetryOptions> = {
   maxRetries: 3,
   delay: 1000,
   backoff: 'exponential',
-  onRetry: () => {},
+  onRetry: () => { },
   shouldRetry: (error: Error) => {
     // Retry on network errors or 5xx errors
     const message = error.message.toLowerCase()
@@ -76,9 +78,9 @@ export async function retry<T>(
  * Wrapper for Supabase queries with retry logic
  */
 export async function retrySupabaseQuery<T>(
-  queryFn: () => Promise<{ data: T | null; error: any }>,
+  queryFn: () => Promise<{ data: T | null; error: PostgrestError | null }>,
   options: RetryOptions = {}
-): Promise<{ data: T | null; error: any }> {
+): Promise<{ data: T | null; error: PostgrestError | null }> {
   return retry(
     async () => {
       const result = await queryFn()

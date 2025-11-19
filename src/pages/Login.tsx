@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom'
 import { AuthFooter } from '../components/auth/AuthFooter'
 import { BrandBadge } from '../components/auth/BrandBadge'
 import { LoginForm } from '../components/auth/LoginForm'
-import { SocialLoginButtons } from '../components/auth/SocialLoginButtons'
 import { AuroraBackground } from '../components/layout/AuroraBackground'
 import { useSupabaseHealth } from '../hooks/useSupabaseHealth'
 
@@ -36,8 +35,6 @@ export const LoginPage = () => {
               // Error handling is done in LoginForm component
             }}
           />
-
-          <SocialLoginButtons />
         </div>
 
         <div className="flex w-full flex-shrink-0 items-center justify-center pb-4">

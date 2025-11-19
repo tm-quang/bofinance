@@ -1,11 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { FaCalendar, FaImage, FaWallet, FaArrowDown, FaArrowUp, FaChevronDown, FaTimes, FaClock, FaStar, FaEdit, FaPlus, FaChevronRight, FaChevronUp, FaCamera } from 'react-icons/fa'
+import { FaCalendar, FaImage, FaWallet, FaArrowDown, FaArrowUp, FaChevronDown, FaTimes, FaClock, FaStar, FaEdit, FaPlus, FaChevronRight, FaCamera, FaMapMarkerAlt, FaUser, FaPhone, FaMoneyBillWave, FaChartLine } from 'react-icons/fa'
 
 import HeaderBar from '../components/layout/HeaderBar'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
 import { CustomSelect } from '../components/ui/CustomSelect'
-import { getIconNode } from '../utils/iconLoader'
+import { getIconNodeFromCategory } from '../utils/iconLoader'
 import { NumberPadModal } from '../components/ui/NumberPadModal'
 import { CategoryPickerModal } from '../components/categories/CategoryPickerModal'
 import { FavoriteCategoriesModal } from '../components/categories/FavoriteCategoriesModal'
@@ -18,9 +18,11 @@ import { createTransaction, updateTransaction, type TransactionType } from '../l
 import { fetchWallets, getDefaultWallet, getTotalBalanceWalletIds, type WalletRecord } from '../lib/walletService'
 import { invalidateCache } from '../lib/cache'
 import { uploadMultipleToCloudinary } from '../lib/cloudinaryService'
+import { compressImageForTransaction } from '../utils/imageCompression'
 import { useNotification } from '../contexts/notificationContext.helpers'
 import { formatVNDInput, parseVNDInput } from '../utils/currencyInput'
 import { getSupabaseClient } from '../lib/supabaseClient'
+import { formatDateUTC7, getNowUTC7, getDateComponentsUTC7 } from '../utils/dateUtils'
 
 type TransactionFormState = {
   type: TransactionType
@@ -30,6 +32,13 @@ type TransactionFormState = {
   description: string
   transaction_date: string
   transaction_time?: string
+  location?: string
+  recipient_name?: string
+  is_borrowed?: boolean
+  lender_name?: string
+  lender_phone?: string
+  borrow_date?: string
+  exclude_from_reports?: boolean
 }
 
 const formatCurrency = (value: number) =>
@@ -54,7 +63,7 @@ export const AddTransactionPage = () => {
     category_id: '',
     amount: '',
     description: '',
-    transaction_date: new Date().toISOString().split('T')[0],
+    transaction_date: formatDateUTC7(getNowUTC7()),
   })
 
   const [wallets, setWallets] = useState<WalletRecord[]>([])
@@ -72,6 +81,8 @@ export const AddTransactionPage = () => {
   const [isDateTimePickerOpen, setIsDateTimePickerOpen] = useState(false)
   const [isFavoriteModalOpen, setIsFavoriteModalOpen] = useState(false)
   const [favoriteCategories, setFavoriteCategories] = useState<CategoryWithChildren[]>([])
+  const [isExpandedSectionOpen, setIsExpandedSectionOpen] = useState(false)
+  const [isGettingLocation, setIsGettingLocation] = useState(false)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
 
@@ -103,14 +114,14 @@ export const AddTransactionPage = () => {
           setDefaultWalletId(walletsData[0].id)
         }
 
-        // Load icons for all categories
+        // Load icons for all categories using icon_url from category
         const iconsMap: Record<string, React.ReactNode> = {}
         await Promise.all(
           categoriesData.map(async (category) => {
             try {
-              const iconNode = await getIconNode(category.icon_id)
+              const iconNode = await getIconNodeFromCategory(category.icon_id, category.icon_url, 'h-full w-full object-cover rounded-full')
               if (iconNode) {
-                iconsMap[category.id] = iconNode
+                iconsMap[category.id] = <span className="h-4 w-4 flex items-center justify-center rounded-full overflow-hidden">{iconNode}</span>
               } else {
                 const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
                 if (hardcodedIcon?.icon) {
@@ -174,9 +185,13 @@ export const AddTransactionPage = () => {
           const foundTransaction = transactions.find(t => t.id === transactionId)
           if (foundTransaction) {
             // transaction_date is YYYY-MM-DD format, parse to get date only
-            // Time is not stored in transaction_date, so we'll default to current time
-            const now = new Date()
-            const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+            // Time is not stored in transaction_date, so we'll default to current time in UTC+7
+            const now = getNowUTC7()
+            const components = getDateComponentsUTC7(now)
+            const currentTime = `${String(components.hour).padStart(2, '0')}:${String(components.minute).padStart(2, '0')}`
+
+            // Parse transaction_date (YYYY-MM-DD) - ensure it's treated as UTC+7
+            const dateStr = foundTransaction.transaction_date.split('T')[0]
 
             setFormState({
               type: foundTransaction.type,
@@ -184,8 +199,15 @@ export const AddTransactionPage = () => {
               category_id: foundTransaction.category_id,
               amount: formatVNDInput(foundTransaction.amount.toString()),
               description: foundTransaction.description || '',
-              transaction_date: foundTransaction.transaction_date.split('T')[0],
+              transaction_date: dateStr,
               transaction_time: currentTime,
+              location: foundTransaction.location || '',
+              recipient_name: foundTransaction.recipient_name || '',
+              is_borrowed: foundTransaction.is_borrowed || false,
+              lender_name: foundTransaction.lender_name || '',
+              lender_phone: foundTransaction.lender_phone || '',
+              borrow_date: foundTransaction.borrow_date || '',
+              exclude_from_reports: foundTransaction.exclude_from_reports || false,
             })
             setUploadedImageUrls(foundTransaction.image_urls || [])
           }
@@ -193,8 +215,9 @@ export const AddTransactionPage = () => {
           // Reset form when creating new transaction
           // For expense, use default wallet ID (will be set after wallets load)
           const initialWalletId = defaultType === 'Chi' ? '' : (defaultId || '')
-          const now = new Date()
-          const currentTime = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`
+          const now = getNowUTC7()
+          const components = getDateComponentsUTC7(now)
+          const currentTime = `${String(components.hour).padStart(2, '0')}:${String(components.minute).padStart(2, '0')}`
           
           setFormState({
             type: defaultType,
@@ -202,7 +225,7 @@ export const AddTransactionPage = () => {
             category_id: '',
             amount: '',
             description: '',
-            transaction_date: now.toISOString().split('T')[0],
+            transaction_date: formatDateUTC7(now),
             transaction_time: currentTime,
           })
           setUploadedFiles([])
@@ -414,6 +437,13 @@ export const AddTransactionPage = () => {
           description: formState.description.trim() || undefined,
           transaction_date: finalTransactionDate,
           image_urls: imageUrls.length > 0 ? imageUrls : undefined,
+          location: formState.location?.trim() || null,
+          recipient_name: formState.recipient_name?.trim() || null,
+          is_borrowed: formState.is_borrowed || false,
+          lender_name: formState.is_borrowed ? (formState.lender_name?.trim() || null) : null,
+          lender_phone: formState.is_borrowed ? (formState.lender_phone?.trim() || null) : null,
+          borrow_date: formState.is_borrowed ? (formState.borrow_date || null) : null,
+          exclude_from_reports: formState.exclude_from_reports || false,
         })
         success(`Đã cập nhật ${formState.type === 'Thu' ? 'khoản thu' : 'khoản chi'} thành công!`)
         // Navigate back after edit
@@ -427,6 +457,13 @@ export const AddTransactionPage = () => {
           description: formState.description.trim() || undefined,
           transaction_date: finalTransactionDate,
           image_urls: imageUrls.length > 0 ? imageUrls : undefined,
+          location: formState.location?.trim() || null,
+          recipient_name: formState.recipient_name?.trim() || null,
+          is_borrowed: formState.is_borrowed || false,
+          lender_name: formState.is_borrowed ? (formState.lender_name?.trim() || null) : null,
+          lender_phone: formState.is_borrowed ? (formState.lender_phone?.trim() || null) : null,
+          borrow_date: formState.is_borrowed ? (formState.borrow_date || null) : null,
+          exclude_from_reports: formState.exclude_from_reports || false,
         })
         
         // Show budget warning if exists (soft limit)
@@ -437,10 +474,9 @@ export const AddTransactionPage = () => {
         }
         
         // Reset form for continuous input instead of navigating back
-        const now = new Date()
-        const hours = String(now.getHours()).padStart(2, '0')
-        const minutes = String(now.getMinutes()).padStart(2, '0')
-        const currentTime = `${hours}:${minutes}`
+        const now = getNowUTC7()
+        const components = getDateComponentsUTC7(now)
+        const currentTime = `${String(components.hour).padStart(2, '0')}:${String(components.minute).padStart(2, '0')}`
         
         // Reload data (wallets, categories, favorites) to get updated balances
         // Invalidate cache first to ensure we get fresh data from database
@@ -491,7 +527,7 @@ export const AddTransactionPage = () => {
             category_id: '',
             description: '',
             wallet_id: resetWalletId,
-            transaction_date: now.toISOString().split('T')[0],
+            transaction_date: formatDateUTC7(now),
             transaction_time: currentTime,
           }))
           setUploadedFiles([])
@@ -504,8 +540,15 @@ export const AddTransactionPage = () => {
             amount: '',
             category_id: '',
             description: '',
-            transaction_date: now.toISOString().split('T')[0],
+            transaction_date: formatDateUTC7(now),
             transaction_time: currentTime,
+            location: '',
+            recipient_name: '',
+            is_borrowed: false,
+            lender_name: '',
+            lender_phone: '',
+            borrow_date: '',
+            exclude_from_reports: false,
           }))
           setUploadedFiles([])
           setUploadedImageUrls([])
@@ -525,15 +568,43 @@ export const AddTransactionPage = () => {
     setFormState((prev) => ({ ...prev, amount: formatted }))
   }
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || [])
-    setUploadedFiles((prev) => [...prev, ...files])
-    // Reset input value
-    if (e.target === cameraInputRef.current && cameraInputRef.current) {
-      cameraInputRef.current.value = ''
-    }
-    if (e.target === galleryInputRef.current && galleryInputRef.current) {
-      galleryInputRef.current.value = ''
+    if (files.length === 0) return
+
+    try {
+      // Compress all images before adding to state
+      const compressedFiles = await Promise.all(
+        files.map(async (file) => {
+          if (file.type.startsWith('image/')) {
+            try {
+              const compressed = await compressImageForTransaction(file, 1200, 1200, 50, 0.7)
+              console.log(`Compressed ${file.name}: ${(file.size / 1024).toFixed(2)}KB -> ${(compressed.size / 1024).toFixed(2)}KB`)
+              return compressed
+            } catch (error) {
+              console.error('Error compressing image:', error)
+              showError(`Không thể nén ảnh ${file.name}. Vui lòng thử lại.`)
+              return null
+            }
+          }
+          return file
+        })
+      )
+
+      // Filter out null values (failed compressions)
+      const validFiles = compressedFiles.filter((f): f is File => f !== null)
+      setUploadedFiles((prev) => [...prev, ...validFiles])
+    } catch (error) {
+      console.error('Error handling files:', error)
+      showError('Có lỗi xảy ra khi xử lý ảnh. Vui lòng thử lại.')
+    } finally {
+      // Reset input value
+      if (e.target === cameraInputRef.current && cameraInputRef.current) {
+        cameraInputRef.current.value = ''
+      }
+      if (e.target === galleryInputRef.current && galleryInputRef.current) {
+        galleryInputRef.current.value = ''
+      }
     }
   }
 
@@ -647,147 +718,170 @@ export const AddTransactionPage = () => {
               </div>
             </div>
 
-            {/* Category Selection Section - Like in the image */}
-            <div className="rounded-3xl bg-gradient-to-br from-white to-slate-50 shadow-md border border-slate-200/50 p-5">
-              {/* Selected Category Display or Add Button */}
-              <div className="flex items-center justify-between mb-2">
-                {formState.category_id ? (
-                  // Show selected category
-                  <button
-                    type="button"
-                    onClick={() => setIsCategoryPickerOpen(true)}
-                    className="flex items-center gap-3 px-4 py-2.5 rounded-2xl bg-gradient-to-br from-sky-50 to-blue-50 ring-2 ring-sky-400/30 hover:ring-sky-400/50 transition-all active:scale-95 flex-1 mr-3"
-                  >
-                    {/* Category Icon */}
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full shrink-0">
-                      {categoryIcons[formState.category_id] ? (
-                        <span className="text-xl">
-                          {categoryIcons[formState.category_id]}
-                        </span>
-                      ) : (
-                        <CategoryIcon
-                          iconId={categories.find(c => c.id === formState.category_id)?.icon_id || ''}
-                          className="h-5 w-5"
-                          fallback={
-                            <span className="text-lg font-bold text-slate-400">
-                              {categories.find(c => c.id === formState.category_id)?.name[0]?.toUpperCase() || '?'}
-                            </span>
-                          }
-                        />
-                      )}
-                    </div>
-                    {/* Category Info */}
-                    <div className="flex flex-col items-start flex-1">
-                      <span className="text-xs font-medium text-slate-500">Mục đang chọn</span>
-                      <span className="text-sm font-semibold text-slate-900">
+            {/* Category Selection Section - Redesigned */}
+            <div className="rounded-2xl bg-white shadow-lg border border-slate-200/60 overflow-hidden">
+              {/* Header Section */}
+              <div className="px-3 py-2.5 border-b border-slate-100">
+                <div className="flex items-center justify-between gap-2">
+                  {formState.category_id ? (
+                    // Show selected category - Compact Design
+                    <button
+                      type="button"
+                      onClick={() => setIsCategoryPickerOpen(true)}
+                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-sky-50 via-blue-50 to-indigo-50 border border-sky-200/50 hover:border-sky-300 transition-all active:scale-[0.98] flex-1 group"
+                    >
+                      {/* Category Icon */}
+                      <div className="flex h-10 w-10 items-center justify-center shrink-0">
+                        {categoryIcons[formState.category_id] ? (
+                          <span className="text-2xl">
+                            {categoryIcons[formState.category_id]}
+                          </span>
+                        ) : (
+                          <CategoryIcon
+                            iconId={categories.find(c => c.id === formState.category_id)?.icon_id || ''}
+                            iconUrl={categories.find(c => c.id === formState.category_id)?.icon_url}
+                            className="h-10 w-10"
+                            fallback={
+                              <span className="text-xl font-bold text-slate-400">
+                                {categories.find(c => c.id === formState.category_id)?.name[0]?.toUpperCase() || '?'}
+                              </span>
+                            }
+                          />
+                        )}
+                      </div>
+                      {/* Category Name */}
+                      <span className="text-sm font-semibold text-slate-900 truncate flex-1 min-w-0">
                         {categories.find(c => c.id === formState.category_id)?.name || 'Chưa chọn'}
                       </span>
-                    </div>
-                    <FaChevronRight className="h-4 w-4 text-slate-400 shrink-0" />
-                  </button>
-                ) : (
-                  // Show add button when no category selected
+                      <FaChevronRight className="h-3.5 w-3.5 text-sky-500 shrink-0 group-hover:translate-x-0.5 transition-transform" />
+                    </button>
+                  ) : (
+                    // Show add button when no category selected - Modern Design
+                    <button
+                      type="button"
+                      onClick={() => setIsCategoryPickerOpen(true)}
+                      className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-gradient-to-r from-slate-50 to-slate-100 border border-slate-200 hover:from-slate-100 hover:to-slate-200 transition-all active:scale-[0.98] flex-1 group"
+                    >
+                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-white shadow-sm shrink-0">
+                        <FaPlus className="h-4 w-4 text-slate-600 group-hover:text-sky-600 transition-colors" />
+                      </div>
+                      <span className="text-sm font-semibold text-slate-900 truncate flex-1 min-w-0">Chọn hạng mục</span>
+                      <FaChevronRight className="h-3.5 w-3.5 text-slate-400 shrink-0 group-hover:translate-x-0.5 group-hover:text-slate-600 transition-all" />
+                    </button>
+                  )}
                   <button
                     type="button"
                     onClick={() => setIsCategoryPickerOpen(true)}
-                    className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-slate-100 hover:bg-slate-200 transition-all active:scale-95 flex-1 mr-3"
+                    className="flex items-center gap-1 px-2.5 py-1.5 text-xs font-bold text-sky-600 hover:text-sky-700 hover:bg-sky-50 rounded-lg transition-all shrink-0"
                   >
-                    <FaPlus className="h-4 w-4 text-slate-600" />
-                    <span className="text-sm font-semibold text-slate-900">Chọn hạng mục</span>
+                    <span>Tất cả</span>
+                    <FaChevronRight className="h-3 w-3" />
                   </button>
-                )}
-                <button
-                  type="button"
-                  onClick={() => setIsCategoryPickerOpen(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-semibold text-sky-600 hover:text-sky-700 transition-all shrink-0"
-                >
-                  <span>Tất cả</span>
-                  <FaChevronRight className="h-3.5 w-3.5" />
-                </button>
+                </div>
               </div>
 
-              {/* Favorite Categories Section */}
-              {favoriteCategories.length > 0 && (
-                <div>
-                  {/* "Mục thường dùng" Title with Collapse Icon */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <h4 className="text-base font-semibold text-slate-900">
-                      Mục thường dùng
-                    </h4>
-                    <FaChevronUp className="h-3.5 w-3.5 text-slate-400" />
-                  </div>
-                  
-                  {/* Categories Grid */}
-                  <div className="grid grid-cols-4 gap-3">
-                    {favoriteCategories.slice(0, 7).map((category) => {
+              {/* Favorite Categories Section - Redesigned */}
+              <div className="px-3 py-3 bg-gradient-to-b from-slate-50/50 to-transparent">
+                {/* Section Header */}
+                <div className="flex items-center gap-2 mb-3">
+                  <div className="h-1 w-1 rounded-full bg-amber-400"></div>
+                  <h4 className="text-sm font-bold text-slate-900 uppercase tracking-wide">
+                    Mục thường dùng
+                  </h4>
+                </div>
+                
+                {/* Categories Grid - 4 columns, always 8 slots (7 categories + 1 edit button) */}
+                <div className="grid grid-cols-4 gap-2.5">
+                  {Array.from({ length: 8 }, (_, index) => {
+                    // Last slot (index 7) is always the Edit button
+                    if (index === 7) {
+                      return (
+                        <button
+                          key="edit-button"
+                          type="button"
+                          onClick={() => setIsFavoriteModalOpen(true)}
+                          className="flex flex-col items-center gap-1 p-1 rounded-xl border-2 border-dashed border-slate-300/60 bg-slate-50/30"                        >
+                          <div className="flex h-20 w-20 items-center justify-center">
+                            <div className="h-16 w-16 rounded-full border-2 border-dashed border-slate-300/60 flex items-center justify-center">
+                            <FaEdit className="h-7 w-7 text-slate-600" />
+                            </div>
+                          </div>
+                            
+                          <span className="text-[10px] font-bold text-center text-slate-700 leading-tight">
+                            Chỉnh sửa
+                          </span>
+                        </button>
+                      )
+                    }
+                    
+                    const category = favoriteCategories[index]
+                    if (category) {
                       const isSelected = formState.category_id === category.id
                       return (
                         <button
                           key={category.id}
                           type="button"
                           onClick={() => setFormState((prev) => ({ ...prev, category_id: category.id }))}
-                          className={`relative flex flex-col items-center gap-2 p-3 rounded-2xl transition-all active:scale-95 ${
+                          className={`relative flex flex-col items-center gap-1 p-1 rounded-xl transition-all active:scale-95 ${
                             isSelected
-                              ? 'bg-gradient-to-br from-sky-50 to-blue-50 ring-2 ring-sky-400 shadow-lg'
-                              : 'bg-white hover:bg-slate-50 shadow-md border border-slate-200/50'
+                              ? 'bg-gradient-to-br from-sky-100 via-blue-50 to-indigo-50 ring-2 ring-sky-400 shadow-md scale-105'
+                              : 'bg-white hover:bg-slate-50 shadow-sm border border-slate-200/60 hover:border-slate-300 hover:shadow-md'
                           }`}
                         >
-                          {/* Star Icon - Top Right Corner */}
-                          <FaStar className="absolute top-2 right-2 h-3 w-3 text-amber-500 fill-current drop-shadow-md z-10" />
+                          {/* Star Icon - Smaller, more subtle */}
+                          <FaStar className={`absolute top-1 right-1 h-4 w-4 ${
+                            isSelected ? 'text-amber-500' : 'text-amber-500'
+                          } fill-current drop-shadow-xl z-10`} />
                           
-                          {/* Category Icon */}
-                          <div className="flex h-14 w-14 items-center justify-center rounded-full transition-all">
-                            {categoryIcons[category.id] ? (
-                              <span className="text-2xl">
-                                {categoryIcons[category.id]}
-                              </span>
-                            ) : (
-                              <CategoryIcon
-                                iconId={category.icon_id}
-                                className="h-7 w-7"
-                                fallback={
-                                  <span className="text-xl font-bold text-slate-400">
-                                    {category.name[0]?.toUpperCase() || '?'}
-                                  </span>
-                                }
-                              />
-                            )}
+                          {/* Category Icon - Sized to fit content */}
+                          <div className="flex h-20 w-20 items-center justify-center transition-all">
+                            <CategoryIcon
+                              iconId={category.icon_id}
+                              iconUrl={category.icon_url}
+                              className="h-16 w-16"
+                              fallback={
+                                <span className="text-4xl font-bold text-slate-400">
+                                  {category.name[0]?.toUpperCase() || '?'}
+                                </span>
+                              }
+                            />
                           </div>
                           
-                          {/* Category Name */}
+                          {/* Category Name - Better typography */}
                           <span
-                            className={`text-xs font-medium text-center leading-tight line-clamp-2 ${
-                              isSelected ? 'text-sky-900 font-semibold' : 'text-slate-700'
+                            className={`text-[11px] font-semibold text-center leading-tight line-clamp-2 px-0.5 ${
+                              isSelected ? 'text-sky-900' : 'text-slate-700'
                             }`}
                           >
                             {category.name}
                           </span>
                         </button>
                       )
-                    })}
-                    
-                    {/* Edit Button as 8th item */}
-                    <button
-                      type="button"
-                      onClick={() => setIsFavoriteModalOpen(true)}
-                      className="flex flex-col items-center gap-2 p-3 rounded-2xl bg-white hover:bg-slate-50 shadow-md border border-slate-200/50 transition-all active:scale-95"
-                    >
-                      <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-slate-100 to-slate-200">
-                        <FaEdit className="h-6 w-6 text-slate-600" />
-                      </div>
-                      <span className="text-xs font-medium text-center text-slate-700 leading-tight">
-                        Chỉnh sửa
-                      </span>
-                    </button>
-                  </div>
+                    } else {
+                      // Empty placeholder with dashed border
+                      return (
+                        <div
+                          key={`empty-${index}`}
+                          className="flex flex-col items-center gap-1 p-1 rounded-xl border-2 border-dashed border-slate-300/60 bg-slate-50/30"
+                        >
+                          <div className="flex h-20 w-20 items-center justify-center">
+                            <div className="h-16 w-16 rounded-full border-2 border-dashed border-slate-300/60"></div>
+                          </div>
+                          <span className="text-[11px] font-semibold text-center text-slate-400 leading-tight">
+                            Trống
+                          </span>
+                        </div>
+                      )
+                    }
+                  })}
                 </div>
-              )}
+              </div>
             </div>
 
             {/* Date and Time */}
             <div>
-              <label className="mb-2 block text-xs font-semibold uppercase tracking-wider text-slate-500">
-                Ngày và giờ giao dịch <span className="text-rose-500">*</span>
+              <label className="mb-2 mt-3 block text-xs font-semibold uppercase tracking-wider text-slate-500">
+                Thời gian giao dịch <span className="text-rose-500">*</span>
               </label>
               <button
                 type="button"
@@ -798,19 +892,15 @@ export const AddTransactionPage = () => {
                 <div className="flex-1 flex items-center gap-3">
                   <div className="flex items-center gap-1.5 text-sm font-medium text-slate-900">
                     {(() => {
-                      const date = new Date(formState.transaction_date)
-                      const day = String(date.getDate()).padStart(2, '0')
-                      const month = String(date.getMonth() + 1).padStart(2, '0')
-                      const year = date.getFullYear()
-                      const dateStr = `${day}/${month}/${year}`
+                      // Parse date string YYYY-MM-DD directly (already in UTC+7 format)
+                      const [year, month, day] = formState.transaction_date.split('-').map(Number)
+                      const dateStr = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`
                       
-                      // Check if today
-                      const today = new Date()
-                      today.setHours(0, 0, 0, 0)
-                      const selectedDate = new Date(date)
-                      selectedDate.setHours(0, 0, 0, 0)
+                      // Check if today (in UTC+7)
+                      const today = getNowUTC7()
+                      const todayComponents = getDateComponentsUTC7(today)
                       
-                      if (selectedDate.getTime() === today.getTime()) {
+                      if (year === todayComponents.year && month === todayComponents.month && day === todayComponents.day) {
                         return `Hôm nay - ${dateStr}`
                       }
                       return dateStr
@@ -848,6 +938,7 @@ export const AddTransactionPage = () => {
                 Tải lên ảnh/hóa đơn (tùy chọn)
               </label>
               {/* Hidden file inputs */}
+              {/* Camera input - CỐ ĐỊNH: chỉ mở camera để chụp ảnh, không cho chọn từ thư viện */}
               <input
                 ref={cameraInputRef}
                 type="file"
@@ -857,28 +948,41 @@ export const AddTransactionPage = () => {
                 onChange={handleFileChange}
                 className="hidden"
               />
+              {/* Gallery input - CỐ ĐỊNH: chỉ mở thư viện/bộ sưu tập để chọn ảnh, không mở camera */}
               <input
                 ref={galleryInputRef}
                 type="file"
                 id="gallery-input"
-                accept="image/*,.pdf"
+                accept="image/*"
                 multiple
                 onChange={handleFileChange}
                 className="hidden"
               />
-              {/* Two buttons: Camera and Gallery */}
+              {/* Two buttons: Camera and Gallery - Chức năng cố định */}
               <div className="grid grid-cols-2 gap-3">
+                {/* Nút Chụp ảnh - CỐ ĐỊNH: luôn mở camera */}
                 <button
                   type="button"
-                  onClick={() => cameraInputRef.current?.click()}
+                  onClick={() => {
+                    // Đảm bảo chỉ mở camera
+                    if (cameraInputRef.current) {
+                      cameraInputRef.current.click()
+                    }
+                  }}
                   className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-2 text-sm font-medium text-slate-600 transition-all hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
                 >
                   <FaCamera className="h-6 w-6" />
                   <span>Chụp ảnh</span>
                 </button>
+                {/* Nút Chọn từ thư viện - CỐ ĐỊNH: luôn mở bộ sưu tập */}
                 <button
                   type="button"
-                  onClick={() => galleryInputRef.current?.click()}
+                  onClick={() => {
+                    // Đảm bảo chỉ mở thư viện
+                    if (galleryInputRef.current) {
+                      galleryInputRef.current.click()
+                    }
+                  }}
                   className="flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 p-2 text-sm font-medium text-slate-600 transition-all hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
                 >
                   <FaImage className="h-6 w-6" />
@@ -927,6 +1031,208 @@ export const AddTransactionPage = () => {
                       </button>
                     </div>
                   ))}
+                </div>
+              )}
+            </div>
+
+            {/* Expanded Section - Show for both income and expense transactions */}
+            <div className="rounded-2xl border-2 border-slate-200 bg-white p-4">
+              <button
+                type="button"
+                onClick={() => setIsExpandedSectionOpen(!isExpandedSectionOpen)}
+                className="flex w-full items-center justify-between"
+              >
+                <span className="text-sm font-semibold text-slate-900">Thông tin mở rộng</span>
+                <FaChevronDown
+                  className={`h-4 w-4 text-slate-400 transition-transform ${isExpandedSectionOpen ? 'rotate-180' : ''}`}
+                />
+              </button>
+
+              {isExpandedSectionOpen && (
+                <div className="mt-4 space-y-4">
+                  {/* Location */}
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold text-slate-700">
+                      Địa điểm, chuyến đi
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        type="text"
+                        value={formState.location || ''}
+                        onChange={(e) => setFormState((prev) => ({ ...prev, location: e.target.value }))}
+                        placeholder="Nhập địa điểm hoặc chuyến đi..."
+                        className="flex-1 rounded-xl border-2 border-slate-200 bg-white p-3 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+                      />
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (!navigator.geolocation) {
+                            showError('Trình duyệt không hỗ trợ định vị')
+                            return
+                          }
+                          setIsGettingLocation(true)
+                          try {
+                            const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+                              navigator.geolocation.getCurrentPosition(resolve, reject, {
+                                enableHighAccuracy: true,
+                                timeout: 10000,
+                                maximumAge: 0,
+                              })
+                            })
+                            
+                            // Reverse geocoding - có thể sử dụng API như OpenStreetMap Nominatim
+                            // Tạm thời hiển thị tọa độ
+                            const lat = position.coords.latitude
+                            const lng = position.coords.longitude
+                            setFormState((prev) => ({
+                              ...prev,
+                              location: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+                            }))
+                            success('Đã lấy vị trí thành công')
+                          } catch (error) {
+                            if (error instanceof GeolocationPositionError) {
+                              if (error.code === error.PERMISSION_DENIED) {
+                                showError('Bạn cần cấp quyền truy cập vị trí')
+                              } else {
+                                showError('Không thể lấy vị trí. Vui lòng thử lại.')
+                              }
+                            } else {
+                              showError('Không thể lấy vị trí')
+                            }
+                          } finally {
+                            setIsGettingLocation(false)
+                          }
+                        }}
+                        disabled={isGettingLocation}
+                        className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2 border-sky-200 bg-sky-50 text-sky-600 transition-all hover:border-sky-300 hover:bg-sky-100 disabled:opacity-50"
+                      >
+                        {isGettingLocation ? (
+                          <div className="h-5 w-5 animate-spin rounded-full border-2 border-sky-600 border-t-transparent" />
+                        ) : (
+                          <FaMapMarkerAlt className="h-5 w-5" />
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Recipient/Payer Name - Different label for income vs expense */}
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold text-slate-700">
+                      {formState.type === 'Chi' ? 'Chi cho ai' : 'Thu từ ai'}
+                    </label>
+                    <div className="relative">
+                      <FaUser className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <input
+                        type="text"
+                        value={formState.recipient_name || ''}
+                        onChange={(e) => setFormState((prev) => ({ ...prev, recipient_name: e.target.value }))}
+                        placeholder={formState.type === 'Chi' ? 'Nhập tên người nhận chi...' : 'Nhập tên người trả tiền...'}
+                        className="w-full rounded-xl border-2 border-slate-200 bg-white py-3 pl-10 pr-4 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Is Borrowed Toggle - Only for expense transactions */}
+                  {formState.type === 'Chi' && (
+                    <div>
+                      <label className="mb-2 flex items-center justify-between">
+                        <span className="text-xs font-semibold text-slate-700">Đi vay để chi cho khoản này</span>
+                        <button
+                          type="button"
+                          onClick={() => setFormState((prev) => ({ ...prev, is_borrowed: !prev.is_borrowed }))}
+                          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                            formState.is_borrowed ? 'bg-sky-500' : 'bg-slate-300'
+                          }`}
+                        >
+                          <span
+                            className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                              formState.is_borrowed ? 'translate-x-6' : 'translate-x-0.5'
+                            }`}
+                          />
+                        </button>
+                      </label>
+
+                      {formState.is_borrowed && (
+                        <div className="mt-3 space-y-3 rounded-xl border-2 border-sky-100 bg-sky-50 p-3">
+                          {/* Lender Name */}
+                          <div>
+                            <label className="mb-1.5 block text-xs font-medium text-slate-700">
+                              Người cho vay
+                            </label>
+                            <div className="relative">
+                              <FaMoneyBillWave className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                              <input
+                                type="text"
+                                value={formState.lender_name || ''}
+                                onChange={(e) => setFormState((prev) => ({ ...prev, lender_name: e.target.value }))}
+                                placeholder="Nhập tên người cho vay..."
+                                className="w-full rounded-lg border-2 border-sky-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/20"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Lender Phone */}
+                          <div>
+                            <label className="mb-1.5 block text-xs font-medium text-slate-700">
+                              Số điện thoại
+                            </label>
+                            <div className="relative">
+                              <FaPhone className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                              <input
+                                type="tel"
+                                value={formState.lender_phone || ''}
+                                onChange={(e) => setFormState((prev) => ({ ...prev, lender_phone: e.target.value }))}
+                                placeholder="Nhập số điện thoại..."
+                                className="w-full rounded-lg border-2 border-sky-200 bg-white py-2.5 pl-10 pr-4 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/20"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Borrow Date */}
+                          <div>
+                            <label className="mb-1.5 block text-xs font-medium text-slate-700">
+                              Ngày vay
+                            </label>
+                            <input
+                              type="date"
+                              value={formState.borrow_date || ''}
+                              onChange={(e) => setFormState((prev) => ({ ...prev, borrow_date: e.target.value }))}
+                              max={formState.transaction_date}
+                              className="w-full rounded-lg border-2 border-sky-200 bg-white py-2.5 px-4 text-sm text-slate-900 transition-all focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-400/20"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Exclude from Reports Toggle */}
+                  <div className="rounded-xl border-2 border-amber-100 bg-amber-50 p-3">
+                    <label className="flex items-center justify-between">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2">
+                          <FaChartLine className="h-4 w-4 text-amber-600" />
+                          <span className="text-xs font-semibold text-slate-900">Không tính vào báo cáo</span>
+                        </div>
+                        <p className="mt-1 text-xs text-slate-600">
+                          Chỉ ghi nhớ lịch sử, không tính vào báo cáo, số dư hoặc bất kỳ thống kê nào
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setFormState((prev) => ({ ...prev, exclude_from_reports: !prev.exclude_from_reports }))}
+                        className={`relative ml-3 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
+                          formState.exclude_from_reports ? 'bg-amber-500' : 'bg-slate-300'
+                        }`}
+                      >
+                        <span
+                          className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
+                            formState.exclude_from_reports ? 'translate-x-6' : 'translate-x-0.5'
+                          }`}
+                        />
+                      </button>
+                    </label>
+                  </div>
                 </div>
               )}
             </div>

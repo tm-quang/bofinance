@@ -3,8 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useDataPreloader } from '../hooks/useDataPreloader'
 import {
   FaSearch,
-  FaReceipt,
-  FaBars,
 } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
@@ -14,7 +12,7 @@ import { TransactionCard } from '../components/transactions/TransactionCard'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { TransactionListSkeleton } from '../components/skeletons'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
-import { getIconNode } from '../utils/iconLoader'
+import { getIconNodeFromCategory } from '../utils/iconLoader'
 import { fetchCategories, type CategoryRecord } from '../lib/categoryService'
 import { fetchTransactions, deleteTransaction, type TransactionRecord } from '../lib/transactionService'
 import { fetchWallets, type WalletRecord } from '../lib/walletService'
@@ -95,7 +93,7 @@ const TransactionsPage = () => {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [isEditConfirmOpen, setIsEditConfirmOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
-  
+
   // Long press handler refs
   const longPressTimerRef = useRef<number | null>(null)
   const longPressTargetRef = useRef<TransactionRecord | null>(null)
@@ -111,13 +109,13 @@ const TransactionsPage = () => {
           fetchCategories(),
           fetchWallets(false), // Chỉ lấy ví active, không lấy ví đã ẩn
         ])
-        
-        // Load icons for all categories
+
+        // Load icons for all categories using icon_url from category
         const iconsMap: Record<string, React.ReactNode> = {}
         await Promise.all(
           categoriesData.map(async (category) => {
             try {
-              const iconNode = await getIconNode(category.icon_id)
+              const iconNode = await getIconNodeFromCategory(category.icon_id, category.icon_url, 'h-full w-full object-cover rounded-full')
               if (iconNode) {
                 iconsMap[category.id] = <span className="h-14 w-14 flex items-center justify-center rounded-full overflow-hidden">{iconNode}</span>
               } else {
@@ -140,7 +138,7 @@ const TransactionsPage = () => {
           })
         )
         setCategoryIcons(iconsMap)
-        
+
         // Sort by date: newest first
         const sortedTransactions = [...transactionsData].sort((a, b) => {
           const dateA = new Date(a.transaction_date).getTime()
@@ -199,13 +197,13 @@ const TransactionsPage = () => {
         const notes = (t.notes || '').toLowerCase()
         const formattedAmount = formatCurrency(t.amount).toLowerCase().replace(/\s/g, '')
         const amountString = t.amount.toString()
-        
+
         // Tìm kiếm theo tên giao dịch
         if (description.includes(term) || notes.includes(term)) return true
-        
+
         // Tìm kiếm theo hạng mục
         if (categoryName.includes(term)) return true
-        
+
         // Tìm kiếm theo số tiền (hỗ trợ khoảng số tiền)
         if (formattedAmount.includes(term) || amountString.includes(term)) {
           // Hỗ trợ tìm kiếm khoảng số tiền (ví dụ: "100000-500000" hoặc "100k-500k")
@@ -217,7 +215,7 @@ const TransactionsPage = () => {
           }
           return true
         }
-        
+
         // Tìm kiếm theo ngày cập nhật (created_at)
         const createdDate = new Date(t.created_at).toLocaleDateString('vi-VN', {
           day: '2-digit',
@@ -229,9 +227,9 @@ const TransactionsPage = () => {
           month: '2-digit',
           year: 'numeric',
         }).toLowerCase()
-        
+
         if (createdDate.includes(term) || transactionDate.includes(term)) return true
-        
+
         return false
       })
     }
@@ -420,45 +418,44 @@ const TransactionsPage = () => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
-      <HeaderBar 
-        variant="page" 
-        title="Lịch sử ghi chép"
+      <HeaderBar
+        variant="page"
+        title={isSearchOpen ? '' : "Lịch sử ghi chép"}
         showIcon={
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsSearchOpen(!isSearchOpen)}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100 transition hover:scale-110 active:scale-95"
-              aria-label="Tìm kiếm"
-            >
-              <FaSearch className="h-4 w-4 text-slate-600" />
-            </button>
-            <button
-              type="button"
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100 transition hover:scale-110 active:scale-95"
-              aria-label="Menu"
-            >
-              <FaBars className="h-4 w-4 text-slate-600" />
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setIsSearchOpen(!isSearchOpen)}
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100 transition hover:scale-110 active:scale-95"
+            aria-label="Tìm kiếm"
+          >
+            <FaSearch className="h-4 w-4 text-slate-600" />
+          </button>
+        }
+        customContent={
+          isSearchOpen ? (
+            <div className="flex-1 px-4">
+              <div className="relative">
+                <FaSearch className="absolute left-4 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Tìm kiếm giao dịch..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  autoFocus
+                  className="w-full rounded-xl border-2 border-slate-200 bg-white py-2 pl-11 pr-4 text-sm 
+                  text-slate-900 placeholder-slate-400 transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
+                  onBlur={() => {
+                    // Không đóng search khi blur, chỉ đóng khi bấm nút search lại
+                  }}
+                />
+              </div>
+            </div>
+          ) : null
         }
       />
 
       <main className="flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 pt-2 pb-4 sm:pt-2 sm:pb-6">
-          {/* Search Bar (conditional) */}
-          {isSearchOpen && (
-            <div className="relative">
-              <FaSearch className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400" />
-              <input
-                type="text"
-                placeholder="Tìm kiếm giao dịch..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full rounded-2xl border-2 border-slate-200 bg-white py-3 pl-12 pr-4 text-sm text-slate-900 placeholder-slate-400 transition focus:border-sky-400 focus:outline-none focus:ring-2 focus:ring-sky-200"
-              />
-            </div>
-          )}
 
           {/* Period Selection */}
           <section className="flex gap-2">
@@ -475,11 +472,10 @@ const TransactionsPage = () => {
                   key={period}
                   type="button"
                   onClick={() => setPeriodType(period)}
-                  className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-semibold transition-all sm:text-sm ${
-                    isActive
+                  className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-semibold transition-all sm:text-sm ${isActive
                       ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-lg shadow-sky-500/30'
                       : 'bg-white text-slate-600 shadow-sm ring-1 ring-slate-200 hover:ring-slate-300'
-                  }`}
+                    }`}
                 >
                   {labels[period]}
                 </button>
@@ -509,11 +505,15 @@ const TransactionsPage = () => {
               <TransactionListSkeleton count={10} />
             ) : transactionsByDate.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-12 shadow-lg ring-1 ring-slate-100">
-                <div className="mb-4 rounded-full bg-slate-100 p-4">
+                <div className="mb-4 p-4 overflow-hidden">
                   {searchTerm || typeFilter !== 'all' || walletFilter !== 'all' ? (
                     <FaSearch className="h-8 w-8 text-slate-400" />
                   ) : (
-                    <FaReceipt className="h-8 w-8 text-slate-400" />
+                    <img
+                      src="/bg-giaodich.png"
+                      alt="Giao dịch"
+                      className="h-56 w-56 object-contain opacity-90"
+                    />
                   )}
                 </div>
                 <p className="text-sm font-semibold text-slate-600">
@@ -536,10 +536,10 @@ const TransactionsPage = () => {
                     today.setHours(0, 0, 0, 0)
                     const yesterday = new Date(today)
                     yesterday.setDate(yesterday.getDate() - 1)
-                    
+
                     const transactionDay = new Date(date)
                     transactionDay.setHours(0, 0, 0, 0)
-                    
+
                     if (transactionDay.getTime() === today.getTime()) {
                       return 'Hôm nay'
                     } else if (transactionDay.getTime() === yesterday.getTime()) {
@@ -567,7 +567,7 @@ const TransactionsPage = () => {
                           const yesterday = new Date(today)
                           yesterday.setDate(yesterday.getDate() - 1)
                           date.setHours(0, 0, 0, 0)
-                          
+
                           if (date.getTime() === today.getTime()) {
                             return <span className="text-xs text-slate-500">Hôm nay</span>
                           } else if (date.getTime() === yesterday.getTime()) {

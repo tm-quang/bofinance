@@ -1,0 +1,260 @@
+
+> bofin-app@0.0.0 lint
+> eslint .
+
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\components\ErrorBoundary.tsx
+  42:53  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  43:19  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\components\categories\IconPicker.tsx
+  148:8  warning  React Hook useEffect has a missing dependency: 'usedIconIds'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\components\charts\IncomeExpenseOverview.tsx
+  46:7  error  Unexpected lexical declaration in case block  no-case-declarations
+  47:7  error  Unexpected lexical declaration in case block  no-case-declarations
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\components\notifications\NotificationModal.tsx
+  139:6  warning  React Hook useEffect has a missing dependency: 'loadNotifications'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\components\quickActions\QuickActionsSettings.tsx
+  73:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\components\quickActions\QuickActionsSettings.tsx:73:7
+  71 |     if (isOpen) {
+  72 |       syncLocalActions(actions)
+> 73 |       setExpandedItems(new Set()) // Reset expanded items when modal opens
+     |       ^^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  74 |     }
+  75 |   }, [isOpen, actions])
+  76 |  react-hooks/set-state-in-effect
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\components\reminders\NotificationSettings.tsx
+   62:14  error  'error' is defined but never used  @typescript-eslint/no-unused-vars
+  104:14  error  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\components\reminders\ReminderModal.tsx
+  307:6  warning  React Hook useEffect has missing dependencies: 'filteredCategories' and 'formState.category_id'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\components\settings\DefaultCategoriesManagementModal.tsx
+  51:6  warning  React Hook useEffect has a missing dependency: 'loadCategories'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\components\settings\IconManagementModal.tsx
+   67:90  error    Unexpected any. Specify a different type                                                                      @typescript-eslint/no-explicit-any
+   81:52  error    Unexpected any. Specify a different type                                                                      @typescript-eslint/no-explicit-any
+   91:6   warning  React Hook useEffect has a missing dependency: 'loadIcons'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+   99:18  error    'error' is defined but never used                                                                             @typescript-eslint/no-unused-vars
+  114:14  error    'error' is defined but never used                                                                             @typescript-eslint/no-unused-vars
+  169:14  error    'error' is defined but never used                                                                             @typescript-eslint/no-unused-vars
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\components\settings\SupportModal.tsx
+  63:3  error  React Hook "useEffect" is called conditionally. React Hooks must be called in the exact same order in every component render. Did you accidentally call a React Hook after an early return?  react-hooks/rules-of-hooks
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\components\ui\DateTimePickerModal.tsx
+  79:11  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\components\ui\DateTimePickerModal.tsx:79:11
+  77 |         const date = parseDateString(initialDate)
+  78 |         if (!isNaN(date.getTime())) {
+> 79 |           setSelectedDate(date)
+     |           ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  80 |           const components = getDateComponentsUTC7(date)
+  81 |           setCurrentMonth(createDateUTC7(components.year, components.month, 1))
+  82 |         }  react-hooks/set-state-in-effect
+  92:7   error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\components\ui\DateTimePickerModal.tsx:92:7
+  90 |   useEffect(() => {
+  91 |     if (initialTime) {
+> 92 |       setSelectedTime(initialTime)
+     |       ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  93 |     }
+  94 |   }, [initialTime])
+  95 |                                                                                                                                                                          react-hooks/set-state-in-effect
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\components\ui\NumberPadModal.tsx
+  24:7  error  Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\components\ui\NumberPadModal.tsx:24:7
+  22 |   useEffect(() => {
+  23 |     if (isOpen) {
+> 24 |       setDisplayValue(getNumericValue(value))
+     |       ^^^^^^^^^^^^^^^ Avoid calling setState() directly within an effect
+  25 |     }
+  26 |   }, [isOpen, value, getNumericValue])
+  27 |  react-hooks/set-state-in-effect
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\components\wallets\WalletCard.tsx
+  119:6  warning  React Hook useEffect has a missing dependency: 'wallet'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\hooks\useCachedData.ts
+  131:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\hooks\useCachedData.ts:131:7
+  129 |   useEffect(() => {
+  130 |     if (fetchOnMount && enabled) {
+> 131 |       loadData(false).catch(console.error)
+      |       ^^^^^^^^ Avoid calling setState() directly within an effect
+  132 |     }
+  133 |
+  134 |     return () => {                                                                 react-hooks/set-state-in-effect
+  137:6   warning  React Hook useEffect has missing dependencies: 'enabled', 'fetchOnMount', and 'loadData'. Either include them or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          react-hooks/exhaustive-deps
+  142:7   error    Error: Calling setState synchronously within an effect can trigger cascading renders
+
+Effects are intended to synchronize state between React and external systems such as manually updating the DOM, state management libraries, or other platform APIs. In general, the body of an effect should do one or both of the following:
+* Update external systems with the latest state from React.
+* Subscribe for updates from some external system, calling setState in a callback function when external state changes.
+
+Calling setState synchronously within an effect body causes cascading renders that can hurt performance, and is not recommended. (https://react.dev/learn/you-might-not-need-an-effect).
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\hooks\useCachedData.ts:142:7
+  140 |   useEffect(() => {
+  141 |     if (refetchOnParamsChange && enabled) {
+> 142 |       loadData(false).catch(console.error)
+      |       ^^^^^^^^ Avoid calling setState() directly within an effect
+  143 |     }
+  144 |   }, [cacheKey, JSON.stringify(params), refetchOnParamsChange, enabled])
+  145 |  react-hooks/set-state-in-effect
+  144:6   warning  React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                           react-hooks/exhaustive-deps
+  144:17  warning  React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                              react-hooks/exhaustive-deps
+  171:20  error    React Hook "useCachedData" cannot be called inside a callback. React Hooks must be called in a React function component or a custom React Hook function                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               react-hooks/rules-of-hooks
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\hooks\useSystemSettings.ts
+  38:6  warning  React Hook useEffect has a missing dependency: 'keys'. Either include it or remove the dependency array                                   react-hooks/exhaustive-deps
+  38:7  warning  React Hook useEffect has a complex expression in the dependency array. Extract it to a separate variable so it can be statically checked  react-hooks/exhaustive-deps
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\lib\budgetService.ts
+  436:18  error  This branch can never execute. Its condition is a duplicate or covered by previous conditions in the if-else-if chain  no-dupe-else-if
+  536:18  error  This branch can never execute. Its condition is a duplicate or covered by previous conditions in the if-else-if chain  no-dupe-else-if
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\lib\cacheSync.ts
+  129:20  error  'e' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\lib\categoryService.ts
+  490:26  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\lib\notificationService.ts
+   27:28  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   38:29  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  181:21  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\lib\notificationSoundService.ts
+  60:65  error  Unexpected any. Specify a different type      @typescript-eslint/no-explicit-any
+  80:9   error  Unexpected lexical declaration in case block  no-case-declarations
+  81:9   error  Unexpected lexical declaration in case block  no-case-declarations
+  82:9   error  Unexpected lexical declaration in case block  no-case-declarations
+  83:9   error  Unexpected lexical declaration in case block  no-case-declarations
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\lib\reminderService.ts
+  267:18  error  This branch can never execute. Its condition is a duplicate or covered by previous conditions in the if-else-if chain  no-dupe-else-if
+  330:13  error  'status' is assigned a value but never used                                                                            @typescript-eslint/no-unused-vars
+  330:52  error  Unexpected any. Specify a different type                                                                               @typescript-eslint/no-explicit-any
+  408:18  error  This branch can never execute. Its condition is a duplicate or covered by previous conditions in the if-else-if chain  no-dupe-else-if
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\lib\serviceWorkerManager.ts
+  158:5   error  Use "@ts-expect-error" instead of "@ts-ignore", as "@ts-ignore" will do nothing if the following line is error-free  @typescript-eslint/ban-ts-comment
+  160:43  error  Unexpected any. Specify a different type                                                                             @typescript-eslint/no-explicit-any
+  177:5   error  Use "@ts-expect-error" instead of "@ts-ignore", as "@ts-ignore" will do nothing if the following line is error-free  @typescript-eslint/ban-ts-comment
+  179:58  error  Unexpected any. Specify a different type                                                                             @typescript-eslint/no-explicit-any
+  185:43  error  Unexpected any. Specify a different type                                                                             @typescript-eslint/no-explicit-any
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\lib\settingsService.ts
+   21:28  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+   37:29  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  218:29  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\lib\transactionService.ts
+  171:5   error  Unnecessary try/catch wrapper                      no-useless-catch
+  303:17  error  '_transaction' is assigned a value but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\pages\AddTransaction.tsx
+  273:6  warning  React Hook useEffect has missing dependencies: 'filteredCategories' and 'formState.category_id'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\pages\AdminCategoriesIcon.tsx
+  106:6   warning  React Hook useEffect has missing dependencies: 'checkAdminStatus' and 'loadCategories'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  131:6   warning  React Hook useEffect has a missing dependency: 'searchIcons'. Either include it or remove the dependency array                              react-hooks/exhaustive-deps
+  218:6   warning  React Hook useEffect has a missing dependency: 'loadCategories'. Either include it or remove the dependency array                           react-hooks/exhaustive-deps
+  302:18  error    'parentId' is assigned to itself                                                                                                            no-self-assign
+  682:13  error    'iconId' is never reassigned. Use 'const' instead                                                                                           prefer-const
+  740:13  error    'iconId' is never reassigned. Use 'const' instead                                                                                           prefer-const
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\pages\AdminIconImages.tsx
+   71:6   warning  React Hook useEffect has missing dependencies: 'checkAdminStatus' and 'loadIcons'. Either include them or remove the dependency array  react-hooks/exhaustive-deps
+  154:14  error    'error' is defined but never used                                                                                                      @typescript-eslint/no-unused-vars
+  310:14  error    'error' is defined but never used                                                                                                      @typescript-eslint/no-unused-vars
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\pages\Budgets.tsx
+   34:6   warning  React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  123:14  error    'error' is defined but never used                                                                            @typescript-eslint/no-unused-vars
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\pages\Categories.tsx
+  290:22  error  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\pages\Dashboard.tsx
+  548:24  error  'error' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\pages\Notifications.tsx
+  133:6  warning  React Hook useEffect has a missing dependency: 'loadNotifications'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\pages\Reminders.tsx
+   55:6   warning  React Hook useEffect has a missing dependency: 'loadData'. Either include it or remove the dependency array  react-hooks/exhaustive-deps
+  243:14  error    'error' is defined but never used                                                                            @typescript-eslint/no-unused-vars
+  256:14  error    'error' is defined but never used                                                                            @typescript-eslint/no-unused-vars
+  266:14  error    'error' is defined but never used                                                                            @typescript-eslint/no-unused-vars
+  388:14  error    'error' is defined but never used                                                                            @typescript-eslint/no-unused-vars
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\pages\Settings.tsx
+   10:3   error  'FaMoon' is defined but never used                     @typescript-eslint/no-unused-vars
+   12:3   error  'FaSun' is defined but never used                      @typescript-eslint/no-unused-vars
+   53:7   error  'themeOptions' is assigned a value but never used      @typescript-eslint/no-unused-vars
+  113:10  error  'darkMode' is assigned a value but never used          @typescript-eslint/no-unused-vars
+  113:20  error  'setDarkMode' is assigned a value but never used       @typescript-eslint/no-unused-vars
+  123:10  error  'selectedTheme' is assigned a value but never used     @typescript-eslint/no-unused-vars
+  123:25  error  'setSelectedTheme' is assigned a value but never used  @typescript-eslint/no-unused-vars
+  195:11  error  'confirmed' is assigned a value but never used         @typescript-eslint/no-unused-vars
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\pages\Transactions.tsx
+  6:3  error  'FaReceipt' is defined but never used  @typescript-eslint/no-unused-vars
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\utils\iconLoader.ts
+   35:22  error  '_' is assigned a value but never used  @typescript-eslint/no-unused-vars
+   76:12  error  'error' is defined but never used       @typescript-eslint/no-unused-vars
+  196:12  error  'error' is defined but never used       @typescript-eslint/no-unused-vars
+
+C:\Users\minhq\Desktop\PROJECT-RUN\BOfin_app\src\utils\retry.ts
+  79:51  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+  81:37  error  Unexpected any. Specify a different type  @typescript-eslint/no-explicit-any
+
+✖ 90 problems (71 errors, 19 warnings)
+  2 errors and 0 warnings potentially fixable with the `--fix` option.
+

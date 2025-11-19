@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { IconType } from 'react-icons'
 import {
@@ -41,6 +41,22 @@ export const FooterNav = ({ onAddClick }: FooterNavProps) => {
     return pathname === cleanPath || pathname.startsWith(cleanPath)
   }
 
+  // Check for animation trigger from navigation state
+  useEffect(() => {
+    if (location.state?.animateTab) {
+      const tabId = location.state.animateTab
+      // Small delay to ensure DOM is ready and transition can happen
+      requestAnimationFrame(() => {
+        setAnimatingTab(tabId)
+        setTimeout(() => {
+          setAnimatingTab(null)
+          // Optional: Clear state to prevent re-animation on refresh (though harmless)
+          // window.history.replaceState({}, document.title)
+        }, 600)
+      })
+    }
+  }, [location.state])
+
   const handleClick = (tab: TabItem) => {
     if (tab.prominent) {
       if (onAddClick) {
@@ -52,20 +68,22 @@ export const FooterNav = ({ onAddClick }: FooterNavProps) => {
       }
       return
     }
-    
+
     // Trigger animation when clicking on a menu item
     if (tab.path) {
-      // Reset animation state first to force re-render, then trigger animation
-      setAnimatingTab(null)
-      // Use requestAnimationFrame to ensure the reset happens before setting the new animation
-      requestAnimationFrame(() => {
-        setAnimatingTab(tab.id)
-        // Reset animation state after animation completes (0.6s)
-        setTimeout(() => {
-          setAnimatingTab(null)
-        }, 600)
-      })
-      navigate(tab.path)
+      // If staying on same page, animate locally
+      if (location.pathname === tab.path) {
+        setAnimatingTab(null)
+        requestAnimationFrame(() => {
+          setAnimatingTab(tab.id)
+          setTimeout(() => {
+            setAnimatingTab(null)
+          }, 600)
+        })
+      } else {
+        // If navigating, pass state to trigger animation on next mount
+        navigate(tab.path, { state: { animateTab: tab.id } })
+      }
     }
   }
 
@@ -103,16 +121,14 @@ export const FooterNav = ({ onAddClick }: FooterNavProps) => {
                   onClick={() => handleClick(tab)}
                   aria-current={active ? 'page' : undefined}
                   data-no-haptic="true"
-                  className={`relative z-20 flex flex-1 flex-col items-center gap-0.5 text-[10px] font-medium transition-colors ${
-                    active ? 'text-blue-800' : 'text-slate-600'
-                  }`}
+                  className={`relative z-20 flex flex-1 flex-col items-center gap-0.5 text-[10px] font-medium transition-colors ${active ? 'text-blue-800' : 'text-slate-600'
+                    }`}
                 >
                   <span
-                    className={`flex h-10 w-10 items-center justify-center rounded-full text-lg transition-all ${
-                      active
-                        ? 'bg-blue-800 text-white shadow-md'
-                        : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-                    } ${shouldAnimate ? 'animate-zoom-once' : ''}`}
+                    className={`flex h-10 w-10 items-center justify-center rounded-full text-lg transition-all ${active
+                      ? 'bg-blue-800 text-white shadow-md'
+                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      } ${shouldAnimate ? 'animate-zoom-once' : ''}`}
                   >
                     <Icon className={`h-6 w-6 ${shouldAnimate ? 'animate-zoom-once' : ''}`} />
                   </span>

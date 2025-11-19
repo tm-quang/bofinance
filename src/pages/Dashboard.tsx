@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useDataPreloader } from '../hooks/useDataPreloader'
-import { FaPlus, FaCalendar, FaExchangeAlt, FaHandHoldingHeart, FaPaperPlane, FaCog, FaFolder, FaChevronLeft, FaChevronRight, FaReceipt, FaArrowRight, FaClock } from 'react-icons/fa'
+import { FaPlus, FaCalendar, FaHandHoldingHeart, FaPaperPlane, FaCog, FaFolder, FaChevronLeft, FaChevronRight, FaArrowRight, FaClock, FaTasks } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
 import { QuickActionsSettings } from '../components/quickActions/QuickActionsSettings'
 import { IncomeExpenseOverview } from '../components/charts/IncomeExpenseOverview'
 import { TransactionActionModal } from '../components/transactions/TransactionActionModal'
+import { TransactionDetailModal } from '../components/transactions/TransactionDetailModal'
 import { TransactionCard } from '../components/transactions/TransactionCard'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { WelcomeModal } from '../components/ui/WelcomeModal'
@@ -17,7 +18,7 @@ import { TransactionListSkeleton } from '../components/skeletons'
 import { NetAssetsCard } from '../components/dashboard/NetAssetsCard'
 import { getAllNotifications } from '../lib/notificationService'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
-import { getIconNode } from '../utils/iconLoader'
+import { getIconNodeFromCategory } from '../utils/iconLoader'
 import { fetchCategories, type CategoryRecord } from '../lib/categoryService'
 import { fetchTransactions, deleteTransaction, type TransactionRecord } from '../lib/transactionService'
 import { fetchWallets, type WalletRecord } from '../lib/walletService'
@@ -34,17 +35,17 @@ const formatCurrency = (value: number) =>
   }).format(value)
 
 // Component for Quick Action Button with image support
-const QuickActionButton = ({ 
-  action, 
-  Icon, 
-  onNavigate 
-}: { 
+const QuickActionButton = ({
+  action,
+  Icon,
+  onNavigate
+}: {
   action: { id: string; label: string; icon: React.ComponentType<{ className?: string }>; image?: string; color: string; bgColor: string; textColor: string }
   Icon: React.ComponentType<{ className?: string }>
   onNavigate: (id: string) => void
 }) => {
   const [imageError, setImageError] = useState(false)
-  
+
   return (
     <button
       type="button"
@@ -74,54 +75,54 @@ const QuickActionButton = ({
 }
 
 const ALL_QUICK_ACTIONS = [
-  { 
+  {
+    id: 'tasks',
+    label: 'Theo dõi công việc',
+    icon: FaTasks,
+    image: '/images/heoBO/heo-di-lam.png', // Thêm link ảnh ở đây (tùy chọn)
+    color: 'from-purple-500 to-pink-500',
+    bgColor: 'bg-purple-50',
+    textColor: 'text-purple-700',
+  },
+  {
     id: 'send-money',
-    label: 'Chi tiền', 
+    label: 'Chi tiêu',
     icon: FaPaperPlane,
     image: '/images/heoBO/heo2.png', // Thêm link ảnh ở đây (tùy chọn)
     color: 'from-blue-500 to-cyan-500',
     bgColor: 'bg-blue-50',
     textColor: 'text-blue-700',
   },
-  { 
+  {
     id: 'add-transaction',
-    label: 'Thêm thu/chi', 
+    label: 'Thêm giao dịch',
     icon: FaPlus,
     image: '/images/heoBO/heo1.png', // Thêm link ảnh ở đây (tùy chọn)
     color: 'from-emerald-500 to-teal-500',
     bgColor: 'bg-emerald-50',
     textColor: 'text-emerald-700',
   },
-  { 
+  {
     id: 'categories',
-    label: 'Hạng mục', 
+    label: 'Hạng mục',
     icon: FaFolder,
     image: '/images/heoBO/heo4.png', // Thêm link ảnh ở đây (tùy chọn)
     color: 'from-indigo-500 to-purple-500',
     bgColor: 'bg-indigo-50',
     textColor: 'text-indigo-700',
   },
-  { 
-    id: 'split-bill',
-    label: 'Chia khoản', 
-    icon: FaExchangeAlt,
-    image: '/images/heoBO/heo5.png', // Thêm link ảnh ở đây (tùy chọn)
-    color: 'from-purple-500 to-pink-500',
-    bgColor: 'bg-purple-50',
-    textColor: 'text-purple-700',
-  },
-  { 
+  {
     id: 'reminder',
-    label: 'Nhắc thu/chi', 
+    label: 'Nhắc nhở',
     icon: FaHandHoldingHeart,
     image: '/images/heoBO/heo6.png', // Thêm link ảnh ở đây (tùy chọn)
     color: 'from-amber-500 to-orange-500',
     bgColor: 'bg-amber-50',
     textColor: 'text-amber-700',
   },
-  { 
+  {
     id: 'settings',
-    label: 'Cài đặt', 
+    label: 'Cài đặt',
     icon: FaCog,
     image: '/images/quick-actions/settings.png', // Thêm link ảnh ở đây (tùy chọn)
     color: 'from-slate-500 to-slate-600',
@@ -164,6 +165,7 @@ export const DashboardPage = () => {
   const [isLoadingTransactions, setIsLoadingTransactions] = useState(true)
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionRecord | null>(null)
   const [isActionModalOpen, setIsActionModalOpen] = useState(false)
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [isEditConfirmOpen, setIsEditConfirmOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -177,7 +179,7 @@ export const DashboardPage = () => {
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
   const [isReloading, setIsReloading] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
-  
+
   // Long press handler refs
   const longPressTimerRef = useRef<number | null>(null)
   const longPressTargetRef = useRef<TransactionRecord | null>(null)
@@ -230,7 +232,7 @@ export const DashboardPage = () => {
     } else {
       setQuickActionsSettings(updatedActions)
     }
-    
+
     // Save to localStorage (không lưu settings vì đã được filter)
     const settingsMap: Record<string, boolean> = {}
     updatedActions.forEach((action) => {
@@ -311,7 +313,7 @@ export const DashboardPage = () => {
         }
       } catch (error) {
         console.error('Error loading profile:', error)
-        
+
         // Retry logic for transient errors
         if (retryCount < maxRetries && mounted) {
           retryCount++
@@ -417,15 +419,16 @@ export const DashboardPage = () => {
           fetchCategories(),
           fetchWallets(false), // Chỉ lấy ví active, không lấy ví đã ẩn
         ])
-        
+
         // Load icons for all categories
         const iconsMap: Record<string, React.ReactNode> = {}
         await Promise.all(
           categoriesData.map(async (category) => {
             try {
-              const iconNode = await getIconNode(category.icon_id)
+              // Sử dụng getIconNodeFromCategory để ưu tiên icon_url nếu có
+              const iconNode = await getIconNodeFromCategory(category.icon_id, category.icon_url, 'h-full w-full object-cover rounded-full')
               if (iconNode) {
-                // Clone the node and wrap it to apply className
+                // Wrap icon với kích thước phù hợp
                 iconsMap[category.id] = <span className="h-14 w-14 flex items-center justify-center rounded-full overflow-hidden">{iconNode}</span>
               } else {
                 // Fallback to hardcoded icon
@@ -447,7 +450,7 @@ export const DashboardPage = () => {
           })
         )
         setCategoryIcons(iconsMap)
-        
+
         // Sort by date: newest first (transaction_date desc, then created_at desc)
         const sortedTransactions = [...transactionsData].sort((a, b) => {
           const dateA = new Date(a.transaction_date).getTime()
@@ -481,12 +484,12 @@ export const DashboardPage = () => {
   const handleTransactionSuccess = () => {
     // Trigger refresh for NetAssetsCard
     setRefreshTrigger(prev => prev + 1)
-    
+
     const loadTransactions = async () => {
       try {
         // Đợi một chút để đảm bảo wallet balance đã được sync
         await new Promise(resolve => setTimeout(resolve, 500))
-        
+
         const transactionsData = await fetchTransactions({ limit: 5 })
         // Sort by date: newest first (transaction_date desc, then created_at desc)
         const sortedTransactions = [...transactionsData].sort((a, b) => {
@@ -535,7 +538,8 @@ export const DashboardPage = () => {
           await Promise.all(
             categoriesData.map(async (category) => {
               try {
-                const iconNode = await getIconNode(category.icon_id)
+                // Sử dụng getIconNodeFromCategory để ưu tiên icon_url nếu có
+                const iconNode = await getIconNodeFromCategory(category.icon_id, category.icon_url, 'h-full w-full object-cover rounded-full')
                 if (iconNode) {
                   iconsMap[category.id] = <span className="h-14 w-14 flex items-center justify-center rounded-full overflow-hidden">{iconNode}</span>
                 } else {
@@ -545,7 +549,7 @@ export const DashboardPage = () => {
                     iconsMap[category.id] = <IconComponent className="h-14 w-14" />
                   }
                 }
-              } catch (error) {
+              } catch {
                 const hardcodedIcon = CATEGORY_ICON_MAP[category.icon_id]
                 if (hardcodedIcon?.icon) {
                   const IconComponent = hardcodedIcon.icon
@@ -682,11 +686,13 @@ export const DashboardPage = () => {
   // Get category info for a transaction
   const getCategoryInfo = (categoryId: string) => {
     const category = categories.find((cat) => cat.id === categoryId)
-    if (!category) return { name: 'Khác', icon: null }
-    
+    if (!category) return { name: 'Khác', icon: null, iconId: undefined, iconUrl: undefined }
+
     return {
       name: category.name,
       icon: categoryIcons[category.id] || null,
+      iconId: category.icon_id,
+      iconUrl: category.icon_url || null,
     }
   }
 
@@ -707,16 +713,16 @@ export const DashboardPage = () => {
   // Load reminders for selected date
   useEffect(() => {
     let isCancelled = false
-    
+
     const loadDateData = async () => {
       setIsLoadingDateData(true)
       try {
         const dateStr = formatDateToString(selectedDate)
-        
+
         // Fetch reminders for selected date
         const allReminders = await fetchReminders({ is_active: true })
         if (isCancelled) return
-        
+
         const dateReminders = allReminders.filter(
           (r) => r.reminder_date === dateStr && !r.completed_at
         )
@@ -730,9 +736,9 @@ export const DashboardPage = () => {
         }
       }
     }
-    
+
     loadDateData()
-    
+
     return () => {
       isCancelled = true
     }
@@ -742,7 +748,7 @@ export const DashboardPage = () => {
   // Use ref to track if we're viewing today to avoid infinite loops
   const isViewingTodayRef = useRef(true)
   const selectedDateRef = useRef(selectedDate)
-  
+
   // Update refs when selectedDate changes
   useEffect(() => {
     selectedDateRef.current = selectedDate
@@ -762,11 +768,11 @@ export const DashboardPage = () => {
       const now = new Date()
       const today = new Date(now.getFullYear(), now.getMonth(), now.getDate())
       const todayStr = formatDateToString(today)
-      
+
       // Get last checked date from localStorage
       const lastChecked = localStorage.getItem('lastDateCheck')
       const lastCheckedStr = lastChecked ? formatDateToString(new Date(lastChecked)) : null
-      
+
       // Only update if date actually changed and we're still viewing today
       if (lastCheckedStr !== todayStr && isViewingTodayRef.current) {
         // Date changed, update to new today
@@ -776,15 +782,15 @@ export const DashboardPage = () => {
         isViewingTodayRef.current = true
       }
     }
-    
+
     // Don't check immediately, wait a bit to avoid initial loop
     const initialTimeout = setTimeout(() => {
       checkDateChange()
     }, 2000)
-    
+
     // Then check every minute
     const interval = setInterval(checkDateChange, 60000) // Check every minute
-    
+
     return () => {
       clearTimeout(initialTimeout)
       clearInterval(interval)
@@ -799,10 +805,10 @@ export const DashboardPage = () => {
     yesterday.setDate(yesterday.getDate() - 1)
     const tomorrow = new Date(today)
     tomorrow.setDate(tomorrow.getDate() + 1)
-    
+
     const selected = new Date(date)
     selected.setHours(0, 0, 0, 0)
-    
+
     if (selected.getTime() === today.getTime()) {
       return 'Hôm nay'
     } else if (selected.getTime() === yesterday.getTime()) {
@@ -864,8 +870,8 @@ export const DashboardPage = () => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
-      <HeaderBar 
-        userName={profile?.full_name || 'Người dùng'} 
+      <HeaderBar
+        userName={profile?.full_name || 'Người dùng'}
         avatarUrl={profile?.avatar_url || undefined}
         badgeColor="bg-sky-500"
         unreadNotificationCount={unreadNotificationCount}
@@ -882,282 +888,301 @@ export const DashboardPage = () => {
           {/* Wallet Card Carousel - Đã ẩn */}
           {/* <WalletCarousel onWalletChange={handleWalletChange} onAddWallet={handleAddWallet} /> */}
 
-        {/* Income Expense Overview - Sử dụng ví mặc định */}
-        <IncomeExpenseOverview walletId={defaultWalletId || undefined} />
+          {/* Income Expense Overview - Sử dụng ví mặc định */}
+          <IncomeExpenseOverview walletId={defaultWalletId || undefined} />
 
-        {/* Date Navigation and Plan Section */}
-        <section className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100">
-          {/* Date Navigation Header */}
-          <div className="flex items-center justify-between mb-4">
-            <button
-              type="button"
-              onClick={goToPreviousDay}
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-600 transition hover:bg-slate-100 active:scale-95"
-            >
-              <FaChevronLeft className="h-4 w-4" />
-            </button>
-            
-            <div className="flex-1 text-center">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">
-                Kế hoạch {formatSelectedDate(selectedDate)}
-              </h3>
-              <div className="mt-1 flex items-center justify-center gap-2">
-                <button
-                  type="button"
-                  onClick={goToToday}
-                  className="rounded-lg bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:bg-amber-200"
-                >
-                  Hôm nay
-                </button>
-                <p className="text-xs text-slate-500">
-                  {selectedDateReminders.length} sự kiện
-                </p>
-              </div>
-            </div>
-            
-            <button
-              type="button"
-              onClick={goToNextDay}
-              className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-600 transition hover:bg-slate-100 active:scale-95"
-            >
-              <FaChevronRight className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Reminders List */}
-          {isLoadingDateData ? (
-            <div className="py-8 flex items-center justify-center">
-              <LoadingRing size="md" />
-            </div>
-          ) : selectedDateReminders.length === 0 ? (
-            <div className="py-0 text-center">
-              <img 
-                src="/bofin-calender.png" 
-                alt="Calendar" 
-                className="mx-auto h-64 w-64 object-contain opacity-60"
-              />
-              <p className="mt-3 mb-3 text-sm font-medium text-slate-400">
-                Chưa có kế hoạch, ghi chú, thu chi
-              </p>
+          {/* Date Navigation and Plan Section */}
+          <section className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100">
+            {/* Date Navigation Header */}
+            <div className="flex items-center justify-between mb-4">
               <button
                 type="button"
-                onClick={() => navigate('/reminders')}
-                className="rounded-xl bg-amber-100 px-4 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-200"
+                onClick={goToPreviousDay}
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-600 transition hover:bg-slate-100 active:scale-95"
               >
-                Tạo nhắc nhở
+                <FaChevronLeft className="h-4 w-4" />
+              </button>
+
+              <div className="flex-1 text-center">
+                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">
+                  Kế hoạch {formatSelectedDate(selectedDate)}
+                </h3>
+                <div className="mt-1 flex items-center justify-center gap-2">
+                  <button
+                    type="button"
+                    onClick={goToToday}
+                    className="rounded-lg bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:bg-amber-200"
+                  >
+                    Hôm nay
+                  </button>
+                  <p className="text-xs text-slate-500">
+                    {selectedDateReminders.length} sự kiện
+                  </p>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={goToNextDay}
+                className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-600 transition hover:bg-slate-100 active:scale-95"
+              >
+                <FaChevronRight className="h-4 w-4" />
               </button>
             </div>
-          ) : (
-            <div className="space-y-2">
-              {selectedDateReminders.map((reminder) => {
-                const categoryInfo = getCategoryInfo(reminder.category_id || '')
-                const isNote = !reminder.amount && !reminder.category_id && !reminder.wallet_id
-                const isIncome = reminder.type === 'Thu'
-                const reminderColor = reminder.color || (isNote ? 'amber' : isIncome ? 'emerald' : 'rose')
-                const colorClasses: Record<string, { bg: string; icon: string }> = {
-                  amber: { bg: 'bg-amber-500', icon: 'bg-amber-500' },
-                  emerald: { bg: 'bg-emerald-500', icon: 'bg-emerald-500' },
-                  rose: { bg: 'bg-rose-500', icon: 'bg-rose-500' },
-                  sky: { bg: 'bg-sky-500', icon: 'bg-sky-500' },
-                  blue: { bg: 'bg-blue-500', icon: 'bg-blue-500' },
-                  purple: { bg: 'bg-purple-500', icon: 'bg-purple-500' },
-                  indigo: { bg: 'bg-indigo-500', icon: 'bg-indigo-500' },
-                  pink: { bg: 'bg-pink-500', icon: 'bg-pink-500' },
-                  orange: { bg: 'bg-orange-500', icon: 'bg-orange-500' },
-                  teal: { bg: 'bg-teal-500', icon: 'bg-teal-500' },
-                }
-                const colorClass = colorClasses[reminderColor] || colorClasses.amber
-                
-                return (
-                  <div
-                    key={reminder.id}
-                    onClick={() => navigate('/reminders')}
-                    className={`rounded-2xl p-3 cursor-pointer transition hover:shadow-md ${colorClass.bg} bg-opacity-10`}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
-                        {categoryInfo.icon ? (
-                          <span>{categoryInfo.icon}</span>
-                        ) : (
-                          <FaCalendar className="h-5 w-5 text-slate-400" />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <h4 className="font-semibold text-slate-900 text-sm truncate">
-                            {reminder.title}
-                          </h4>
-                          {isNote && (
-                            <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-xs font-medium text-slate-600">
-                              Ghi chú
-                            </span>
+
+            {/* Reminders List */}
+            {isLoadingDateData ? (
+              <div className="py-8 flex items-center justify-center">
+                <LoadingRing size="md" />
+              </div>
+            ) : selectedDateReminders.length === 0 ? (
+              <div className="py-0 text-center">
+                <img
+                  src="/bofin-calender.png"
+                  alt="Calendar"
+                  className="mx-auto h-64 w-64 object-contain opacity-60"
+                />
+                <p className="mt-3 mb-3 text-sm font-medium text-slate-400">
+                  Chưa có kế hoạch, ghi chú, thu chi
+                </p>
+                <button
+                  type="button"
+                  onClick={() => navigate('/reminders')}
+                  className="rounded-xl bg-amber-100 px-4 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-200"
+                >
+                  Tạo nhắc nhở
+                </button>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {selectedDateReminders.map((reminder) => {
+                  const categoryInfo = getCategoryInfo(reminder.category_id || '')
+                  const isNote = !reminder.amount && !reminder.category_id && !reminder.wallet_id
+                  const isIncome = reminder.type === 'Thu'
+                  const reminderColor = reminder.color || (isNote ? 'amber' : isIncome ? 'emerald' : 'rose')
+                  const colorClasses: Record<string, { bg: string; icon: string }> = {
+                    amber: { bg: 'bg-amber-500', icon: 'bg-amber-500' },
+                    emerald: { bg: 'bg-emerald-500', icon: 'bg-emerald-500' },
+                    rose: { bg: 'bg-rose-500', icon: 'bg-rose-500' },
+                    sky: { bg: 'bg-sky-500', icon: 'bg-sky-500' },
+                    blue: { bg: 'bg-blue-500', icon: 'bg-blue-500' },
+                    purple: { bg: 'bg-purple-500', icon: 'bg-purple-500' },
+                    indigo: { bg: 'bg-indigo-500', icon: 'bg-indigo-500' },
+                    pink: { bg: 'bg-pink-500', icon: 'bg-pink-500' },
+                    orange: { bg: 'bg-orange-500', icon: 'bg-orange-500' },
+                    teal: { bg: 'bg-teal-500', icon: 'bg-teal-500' },
+                  }
+                  const colorClass = colorClasses[reminderColor] || colorClasses.amber
+
+                  return (
+                    <div
+                      key={reminder.id}
+                      onClick={() => navigate('/reminders')}
+                      className={`rounded-2xl p-3 cursor-pointer transition hover:shadow-md ${colorClass.bg} bg-opacity-10`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
+                          {categoryInfo.icon ? (
+                            <span>{categoryInfo.icon}</span>
+                          ) : (
+                            <FaCalendar className="h-5 w-5 text-slate-400" />
                           )}
                         </div>
-                        {reminder.amount && (
-                          <p className="text-xs text-slate-600 mt-0.5">
-                            {formatCurrency(reminder.amount)}
-                          </p>
-                        )}
-                        {reminder.reminder_time && (
-                          <p className="text-xs text-slate-500 mt-0.5">
-                            {reminder.reminder_time}
-                          </p>
-                        )}
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold text-slate-900 text-sm truncate">
+                              {reminder.title}
+                            </h4>
+                            {isNote && (
+                              <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-xs font-medium text-slate-600">
+                                Ghi chú
+                              </span>
+                            )}
+                          </div>
+                          {reminder.amount && (
+                            <p className="text-xs text-slate-600 mt-0.5">
+                              {formatCurrency(reminder.amount)}
+                            </p>
+                          )}
+                          {reminder.reminder_time && (
+                            <p className="text-xs text-slate-500 mt-0.5">
+                              {reminder.reminder_time}
+                            </p>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )
+                })}
+              </div>
+            )}
+
+            {/* View All Button */}
+            {selectedDateReminders.length > 0 && (
+              <div className="mt-4 text-center">
+                <button
+                  type="button"
+                  onClick={() => navigate('/reminders')}
+                  className="text-xs font-semibold text-amber-600 transition hover:text-amber-700 hover:underline"
+                >
+                  Xem tất cả
+                </button>
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-white p-5 shadow-lg ring-1 ring-slate-100">
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">Tiện ích khác</h3>
+                <p className="mt-1 text-xs text-slate-500">Truy cập nhanh các tiện ích thường dùng</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsSettingsOpen(true)}
+                className="flex items-center gap-1.5 text-xs font-semibold text-sky-600 transition hover:text-sky-700 hover:underline"
+              >
+                <FaCog className="h-3.5 w-3.5" />
+                <span>Cài đặt</span>
+              </button>
+            </div>
+            <div className={`grid gap-2.5 sm:gap-3 ${enabledQuickActions.length === 1 ? 'grid-cols-1' :
+                enabledQuickActions.length === 2 ? 'grid-cols-2' :
+                  enabledQuickActions.length === 3 ? 'grid-cols-3' :
+                    enabledQuickActions.length === 4 ? 'grid-cols-4' :
+                      enabledQuickActions.length === 5 ? 'grid-cols-5' :
+                        'grid-cols-6'
+              }`}>
+              {enabledQuickActions.map((action) => {
+                const Icon = action.icon
+                return (
+                  <QuickActionButton
+                    key={action.id}
+                    action={action}
+                    Icon={Icon}
+                    onNavigate={(id) => {
+                      if (id === 'add-transaction') {
+                        navigate('/add-transaction')
+                      } else if (id === 'settings') {
+                        setIsSettingsOpen(true)
+                      } else if (id === 'categories') {
+                        navigate('/categories')
+                      } else if (id === 'reminder') {
+                        navigate('/reminders')
+                      } else if (id === 'tasks') {
+                        navigate('/tasks')
+                      }
+                      // Các chức năng khác sẽ được implement sau
+                    }}
+                  />
                 )
               })}
             </div>
-          )}
+          </section>
 
-          {/* View All Button */}
-          {selectedDateReminders.length > 0 && (
-            <div className="mt-4 text-center">
+          <section className="space-y-4">
+            <header className="flex items-center justify-between mb-4">
+              <div className="flex-1">
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-md">
+                    <FaClock className="h-4 w-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-bold text-slate-900">Giao dịch gần đây</h3>
+                    <p className="text-xs text-slate-500 mt-0.5">Lịch sử thu chi mới nhất</p>
+                  </div>
+                </div>
+              </div>
               <button
-                type="button"
-                onClick={() => navigate('/reminders')}
-                className="text-xs font-semibold text-amber-600 transition hover:text-amber-700 hover:underline"
+                onClick={() => navigate('/transactions')}
+                className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all hover:from-sky-600 hover:to-blue-700 hover:shadow-lg active:scale-95"
               >
-                Xem tất cả
+                <span>Xem thêm</span>
+                <FaArrowRight className="h-3.5 w-3.5" />
               </button>
-            </div>
-          )}
-        </section>
+            </header>
+            <div className="space-y-3">
+              {isLoadingTransactions ? (
+                <TransactionListSkeleton count={5} />
+              ) : transactions.length === 0 ? (
+                <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-8 shadow-[0_20px_55px_rgba(15,40,80,0.1)] ring-1 ring-slate-100">
+                  <div className="mb-3 p-3 overflow-hidden">
+                    <img
+                      src="/bg-giaodich.png"
+                      alt="Giao dịch"
+                      className="h-56 w-56 object-contain opacity-90"
+                    />
+                  </div>
+                  <p className="text-sm text-slate-500">Chưa có giao dịch nào</p>
+                </div>
+              ) : (
+                transactions.slice(0, 5).map((transaction) => {
+                  const categoryInfo = getCategoryInfo(transaction.category_id)
+                  const walletColor = getWalletColor(transaction.wallet_id)
 
-        <section className="rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-white p-5 shadow-lg ring-1 ring-slate-100">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">Tiện ích khác</h3>
-              <p className="mt-1 text-xs text-slate-500">Truy cập nhanh các tiện ích thường dùng</p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setIsSettingsOpen(true)}
-              className="flex items-center gap-1.5 text-xs font-semibold text-sky-600 transition hover:text-sky-700 hover:underline"
-            >
-              <FaCog className="h-3.5 w-3.5" />
-              <span>Cài đặt</span>
-            </button>
-          </div>
-          <div className={`grid gap-2.5 sm:gap-3 ${
-            enabledQuickActions.length === 1 ? 'grid-cols-1' :
-            enabledQuickActions.length === 2 ? 'grid-cols-2' :
-            enabledQuickActions.length === 3 ? 'grid-cols-3' :
-            enabledQuickActions.length === 4 ? 'grid-cols-4' :
-            enabledQuickActions.length === 5 ? 'grid-cols-5' :
-            'grid-cols-6'
-          }`}>
-            {enabledQuickActions.map((action) => {
-              const Icon = action.icon
-              return (
-                <QuickActionButton
-                  key={action.id}
-                  action={action}
-                  Icon={Icon}
-                  onNavigate={(id) => {
-                    if (id === 'add-transaction') {
-                      navigate('/add-transaction')
-                    } else if (id === 'settings') {
-                      setIsSettingsOpen(true)
-                    } else if (id === 'categories') {
-                      navigate('/categories')
-                    } else if (id === 'reminder') {
-                      navigate('/reminders')
+                  // Format date with relative time (Hôm nay, Hôm qua, etc.)
+                  const formatTransactionDate = (date: Date) => {
+                    const today = new Date()
+                    today.setHours(0, 0, 0, 0)
+                    const yesterday = new Date(today)
+                    yesterday.setDate(yesterday.getDate() - 1)
+
+                    const transactionDay = new Date(date)
+                    transactionDay.setHours(0, 0, 0, 0)
+
+                    if (transactionDay.getTime() === today.getTime()) {
+                      return 'Hôm nay'
+                    } else if (transactionDay.getTime() === yesterday.getTime()) {
+                      return 'Hôm qua'
+                    } else {
+                      return date.toLocaleDateString('vi-VN', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                      })
                     }
-                    // Các chức năng khác sẽ được implement sau
-                  }}
-                />
-              )
-            })}
-          </div>
-        </section>
-
-        <section className="space-y-4">
-          <header className="flex items-center justify-between mb-4">
-            <div className="flex-1">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-md">
-                  <FaClock className="h-4 w-4" />
-                </div>
-                <div>
-                  <h3 className="text-base font-bold text-slate-900">Giao dịch gần đây</h3>
-                  <p className="text-xs text-slate-500 mt-0.5">Lịch sử thu chi mới nhất</p>
-                </div>
-              </div>
-            </div>
-            <button 
-              onClick={() => navigate('/transactions')}
-              className="flex items-center gap-1.5 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-md transition-all hover:from-sky-600 hover:to-blue-700 hover:shadow-lg active:scale-95"
-            >
-              <span>Xem thêm</span>
-              <FaArrowRight className="h-3.5 w-3.5" />
-            </button>
-          </header>
-          <div className="space-y-3">
-            {isLoadingTransactions ? (
-              <TransactionListSkeleton count={5} />
-            ) : transactions.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-8 shadow-[0_20px_55px_rgba(15,40,80,0.1)] ring-1 ring-slate-100">
-                <div className="mb-3 rounded-full bg-slate-100 p-3">
-                  <FaReceipt className="h-6 w-6 text-slate-400" />
-                </div>
-                <p className="text-sm text-slate-500">Chưa có giao dịch nào</p>
-              </div>
-            ) : (
-              transactions.slice(0, 5).map((transaction) => {
-                const categoryInfo = getCategoryInfo(transaction.category_id)
-                const walletColor = getWalletColor(transaction.wallet_id)
-                
-                // Format date with relative time (Hôm nay, Hôm qua, etc.)
-                const formatTransactionDate = (date: Date) => {
-                  const today = new Date()
-                  today.setHours(0, 0, 0, 0)
-                  const yesterday = new Date(today)
-                  yesterday.setDate(yesterday.getDate() - 1)
-                  
-                  const transactionDay = new Date(date)
-                  transactionDay.setHours(0, 0, 0, 0)
-                  
-                  if (transactionDay.getTime() === today.getTime()) {
-                    return 'Hôm nay'
-                  } else if (transactionDay.getTime() === yesterday.getTime()) {
-                    return 'Hôm qua'
-                  } else {
-                    return date.toLocaleDateString('vi-VN', {
-                      day: '2-digit',
-                      month: '2-digit',
-                      year: 'numeric',
-                    })
                   }
-                }
-                
-                return (
-                  <TransactionCard
-                    key={transaction.id}
-                    transaction={transaction}
-                    categoryInfo={categoryInfo}
-                    walletInfo={{
-                      name: getWalletName(transaction.wallet_id),
-                      color: walletColor,
-                    }}
-                    onLongPressStart={handleLongPressStart}
-                    onLongPressEnd={handleLongPressEnd}
-                    onLongPressCancel={handleLongPressCancel}
-                    formatCurrency={formatCurrency}
-                    formatDate={formatTransactionDate}
-                  />
-                )
-              })
-            )}
-          </div>
-        </section>
+
+                  return (
+                    <TransactionCard
+                      key={transaction.id}
+                      transaction={transaction}
+                      categoryInfo={categoryInfo}
+                      walletInfo={{
+                        name: getWalletName(transaction.wallet_id),
+                        color: walletColor,
+                      }}
+                      onLongPressStart={handleLongPressStart}
+                      onLongPressEnd={handleLongPressEnd}
+                      onLongPressCancel={handleLongPressCancel}
+                      onClick={(transaction) => {
+                        setSelectedTransaction(transaction)
+                        setIsDetailModalOpen(true)
+                      }}
+                      formatCurrency={formatCurrency}
+                      formatDate={formatTransactionDate}
+                    />
+                  )
+                })
+              )}
+            </div>
+          </section>
 
         </div>
       </main>
 
       <FooterNav onAddClick={handleAddClick} />
 
+      <TransactionDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false)
+          setSelectedTransaction(null)
+        }}
+        transaction={selectedTransaction}
+        categoryInfo={selectedTransaction ? getCategoryInfo(selectedTransaction.category_id) : undefined}
+        walletInfo={selectedTransaction ? { name: getWalletName(selectedTransaction.wallet_id) } : undefined}
+      />
 
       <TransactionActionModal
         isOpen={isActionModalOpen}

@@ -6,7 +6,6 @@ import { CategoryIcon } from '../ui/CategoryIcon'
 import { CategoryListSkeleton } from '../skeletons'
 import { useNotification } from '../../contexts/notificationContext.helpers'
 import HeaderBar from '../layout/HeaderBar'
-import { ModalFooterButtons } from '../ui/ModalFooterButtons'
 
 interface FavoriteCategoriesModalProps {
   isOpen: boolean
@@ -82,6 +81,24 @@ export const FavoriteCategoriesModal: React.FC<FavoriteCategoriesModalProps> = (
       onClose()
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Không thể lưu danh sách'
+      showError(message)
+    } finally {
+      setIsSaving(false)
+    }
+  }
+
+  const handleReset = async () => {
+    const confirmed = window.confirm('Bạn có chắc muốn đặt lại danh sách mục hay dùng về mặc định?')
+    if (!confirmed) return
+
+    setIsSaving(true)
+    try {
+      // Reset về danh sách rỗng
+      await saveFavoriteCategories(categoryType, [])
+      setFavoriteIds(new Set())
+      success('Đã đặt lại danh sách mục hay dùng')
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Không thể đặt lại danh sách'
       showError(message)
     } finally {
       setIsSaving(false)
@@ -269,6 +286,7 @@ export const FavoriteCategoriesModal: React.FC<FavoriteCategoriesModalProps> = (
                       <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full transition-all">
                         <CategoryIcon
                           iconId={parentIconId}
+                          iconUrl={parent.icon_url}
                           className="h-6 w-6"
                           fallback={
                             <span className="text-lg font-semibold text-slate-400">
@@ -327,6 +345,7 @@ export const FavoriteCategoriesModal: React.FC<FavoriteCategoriesModalProps> = (
                             >
                               <CategoryIcon
                                 iconId={child.icon_id}
+                                iconUrl={child.icon_url}
                                 className={`h-5 w-5 ${favoriteIds.has(child.id) ? 'text-white' : ''}`}
                                 fallback={
                                   <span className={`text-base font-semibold ${
@@ -374,15 +393,27 @@ export const FavoriteCategoriesModal: React.FC<FavoriteCategoriesModalProps> = (
         </div>
       </main>
 
-      {/* Footer - Fixed bottom with Save button */}
-      <ModalFooterButtons
-        onCancel={onClose}
-        onConfirm={handleSave}
-        confirmText={isSaving ? 'Đang lưu...' : 'Lưu lại'}
-        isSubmitting={isSaving}
-              disabled={isSaving}
-        fixed={true}
-      />
+      {/* Footer - Fixed bottom with Save and Reset buttons */}
+      <div className="fixed bottom-0 left-0 right-0 z-40 shrink-0 bg-[#F7F9FC] px-4 py-4 shadow-lg sm:px-6">
+        <div className="mx-auto flex w-full max-w-md gap-3">
+          <button
+            type="button"
+            onClick={handleReset}
+            className="flex-1 rounded-xl border-2 border-red-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 hover:border-red-300 disabled:opacity-50 sm:py-3 sm:text-base"
+            disabled={isSaving}
+          >
+            Đặt lại
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={isSaving}
+            className="flex-1 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:bg-blue-700 disabled:opacity-50 sm:py-3 sm:text-base"
+          >
+            {isSaving ? 'Đang lưu...' : 'Lưu lại'}
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

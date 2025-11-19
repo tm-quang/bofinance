@@ -5,6 +5,7 @@ import { useNotification } from '../../contexts/notificationContext.helpers'
 import { ColorPicker } from './ColorPicker'
 import { DateTimePickerModal } from '../ui/DateTimePickerModal'
 import { IconPicker } from '../categories/IconPicker'
+import { formatDateUTC7, getNowUTC7 } from '../../utils/dateUtils'
 
 type NoteModalProps = {
   isOpen: boolean
@@ -30,7 +31,7 @@ export const NoteModal = ({ isOpen, onClose, onSuccess, note, defaultDate }: Not
 
   const [formState, setFormState] = useState<NoteFormState>({
     title: '',
-    reminder_date: new Date().toISOString().split('T')[0],
+    reminder_date: formatDateUTC7(getNowUTC7()),
     reminder_time: '',
     notes: '',
     color: 'amber',
@@ -187,7 +188,7 @@ export const NoteModal = ({ isOpen, onClose, onSuccess, note, defaultDate }: Not
       // Reset form
       setFormState({
         title: '',
-        reminder_date: new Date().toISOString().split('T')[0],
+        reminder_date: formatDateUTC7(getNowUTC7()),
         reminder_time: '',
         notes: '',
         color: 'amber',

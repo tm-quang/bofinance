@@ -32,7 +32,8 @@ const getIconLibrary = async (library: string): Promise<Record<string, IconType>
         return null
     }
     // Remove default export and return only icon components
-    const { default: _, ...icons } = module
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { default: _unused, ...icons } = module
     return icons as unknown as Record<string, IconType>
   } catch {
     return null
@@ -47,7 +48,7 @@ export const getCachedIconLibrary = async (library: string): Promise<Record<stri
   if (libraryCache[library]) {
     return libraryCache[library]
   }
-  
+
   const lib = await getIconLibrary(library)
   if (lib) {
     libraryCache[library] = lib
@@ -62,7 +63,7 @@ export const getIconComponent = async (iconId: string): Promise<IconType | null>
   try {
     // Try to get from database first
     const icon = await getIconByName(iconId)
-    
+
     if (icon) {
       if (icon.icon_type === 'react-icon' && icon.react_icon_name && icon.react_icon_library) {
         const library = await getCachedIconLibrary(icon.react_icon_library)
@@ -73,7 +74,7 @@ export const getIconComponent = async (iconId: string): Promise<IconType | null>
       // If image type, return null (will be handled by image rendering)
       return null
     }
-  } catch (error) {
+  } catch {
     // Fallback to hardcoded icons
   }
 
@@ -125,16 +126,16 @@ export const getIconNodeFromCategory = async (
 export const getIconNode = async (iconId: string, className?: string): Promise<React.ReactNode> => {
   // Sử dụng className được truyền vào hoặc default (fill vừa vặn container)
   const imgClassName = className || 'h-full w-full object-cover rounded-full'
-  
+
   // Load từ database - chỉ lấy icons có icon_type = 'image' hoặc 'svg'
   try {
     // iconId có thể là UUID (từ bảng icons) hoặc name (legacy)
     // Thử getIconById trước (UUID), nếu không có thì thử getIconByName (name)
     let icon: IconRecord | null = null
-    
+
     // Kiểm tra xem iconId có phải là UUID không (format: xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx)
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(iconId)
-    
+
     if (isUUID) {
       // Lấy từ bảng icons bằng id
       const { getIconById } = await import('../lib/iconService')
@@ -143,7 +144,7 @@ export const getIconNode = async (iconId: string, className?: string): Promise<R
       // Fallback: thử getIconByName (legacy support)
       icon = await getIconByName(iconId)
     }
-    
+
     if (icon) {
       // Chỉ sử dụng icons có icon_type = 'image' hoặc 'svg'
       if ((icon.icon_type === 'svg' || icon.icon_type === 'image') && icon.image_url) {
@@ -187,13 +188,13 @@ export const loadIconsGrouped = async (): Promise<Record<string, IconRecord[]>> 
 
     // Sắp xếp icons trong mỗi group theo display_order
     Object.keys(grouped).forEach((groupId) => {
-      grouped[groupId].sort((a, b) => 
+      grouped[groupId].sort((a, b) =>
         (a.display_order || 0) - (b.display_order || 0)
       )
     })
 
     return grouped
-  } catch (error) {
+  } catch {
     // Fallback to empty
     return {}
   }
@@ -210,7 +211,7 @@ export const getAvailableIconLibraries = async () => {
     getCachedIconLibrary('hi2'),
     getCachedIconLibrary('md'),
   ])
-  
+
   return [
     { value: 'fa', label: 'Font Awesome 5 (Fa)', icons: fa ? Object.keys(fa).slice(0, 50) : [] },
     { value: 'bs', label: 'Bootstrap Icons (Bs)', icons: bs ? Object.keys(bs).slice(0, 50) : [] },

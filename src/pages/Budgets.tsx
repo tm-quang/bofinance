@@ -17,7 +17,7 @@ import { fetchWallets, type WalletRecord } from '../lib/walletService'
 import { useNotification } from '../contexts/notificationContext.helpers'
 import { useDialog } from '../contexts/dialogContext.helpers'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
-import { getIconNode } from '../utils/iconLoader'
+import { getIconNodeFromCategory } from '../utils/iconLoader'
 
 export const BudgetsPage = () => {
   const navigate = useNavigate()
@@ -58,12 +58,12 @@ export const BudgetsPage = () => {
         })
         .filter((budget): budget is BudgetWithSpending => budget !== null)
 
-      // Load icons for all categories
+      // Load icons for all categories using icon_url from category
       const iconsMap: Record<string, React.ReactNode> = {}
       await Promise.all(
         categoriesData.map(async (category) => {
           try {
-            const iconNode = await getIconNode(category.icon_id)
+            const iconNode = await getIconNodeFromCategory(category.icon_id, category.icon_url, 'h-full w-full object-cover rounded-full')
             if (iconNode) {
               iconsMap[category.id] = <span className="h-14 w-14 flex items-center justify-center rounded-full overflow-hidden">{iconNode}</span>
             } else {
@@ -120,7 +120,7 @@ export const BudgetsPage = () => {
       await deleteBudget(budget.id)
       success('Đã xóa ngân sách thành công!')
       loadData()
-    } catch (error) {
+    } catch {
       showError('Không thể xóa ngân sách.')
     }
   }
@@ -221,20 +221,24 @@ export const BudgetsPage = () => {
           {isLoading ? (
             <BudgetListSkeleton count={3} />
           ) : budgets.length === 0 ? (
-            <div className="rounded-3xl bg-gradient-to-br from-slate-50 to-white p-12 text-center shadow-sm border border-slate-100">
-              <div className="mx-auto mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-sky-100 to-blue-100">
-                <FaChartPie className="h-10 w-10 text-sky-600" />
+            <div className="rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-white p-8 sm:p-12 text-center shadow-lg ring-1 ring-slate-100">
+              <div className="mx-auto mb-6 sm:mb-8 flex items-center justify-center">
+                <img
+                  src="/ngan-sach.png"
+                  alt="Ngân sách"
+                  className="h-48 w-48 sm:h-56 sm:w-56 md:h-64 md:w-64 object-contain max-w-full"
+                />
               </div>
-              <h3 className="mb-2 text-xl font-bold text-slate-900">Chưa có ngân sách nào</h3>
-              <p className="mb-1 text-sm text-slate-600">
+              <h3 className="mb-3 text-xl sm:text-2xl font-bold text-slate-900">Chưa có ngân sách nào</h3>
+              <p className="mb-2 text-sm sm:text-base text-slate-600 max-w-md mx-auto">
                 Tạo ngân sách để kiểm soát chi tiêu hiệu quả
               </p>
-              <p className="mb-6 text-xs text-slate-500">
+              <p className="mb-8 text-xs sm:text-sm text-slate-500 max-w-lg mx-auto">
                 Thiết lập giới hạn cứng hoặc mềm để tự động từ chối hoặc cảnh báo khi vượt quá
               </p>
               <button
                 onClick={handleCreate}
-                className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-6 py-3.5 text-white font-semibold shadow-lg shadow-sky-500/30 hover:from-sky-600 hover:to-blue-700 transition-all active:scale-95"
+                className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-6 py-3.5 sm:px-8 sm:py-4 text-white font-semibold text-sm sm:text-base shadow-lg shadow-sky-500/30 hover:from-sky-600 hover:to-blue-700 transition-all active:scale-95"
               >
                 <FaPlus className="h-5 w-5" />
                 Tạo ngân sách đầu tiên

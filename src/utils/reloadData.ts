@@ -12,23 +12,33 @@ import { resetSupabaseClient } from '../lib/supabaseClient'
  * Clear tất cả cache và reset trạng thái
  * Bao gồm:
  * - Cache manager (memory + localStorage)
- * - User cache (session storage)
+ * - User cache (session storage) - CHỈ khi shouldClearUserCache = true
  * - Preload timestamp
- * - Supabase client (nếu cần)
+ * - Supabase client (nếu shouldResetClient = true)
+ * 
+ * @param shouldClearUserCache - Nếu true, sẽ clear user cache. Mặc định false để tránh lỗi khi login
+ * @param shouldResetClient - Nếu true, sẽ reset Supabase client. Mặc định false để tránh mất session khi login
  */
-export const clearAllCacheAndState = async (): Promise<void> => {
+export const clearAllCacheAndState = async (
+  shouldClearUserCache: boolean = false,
+  shouldResetClient: boolean = false
+): Promise<void> => {
   try {
     // 1. Clear tất cả cache từ cache manager
     await clearAllCache()
 
-    // 2. Clear user cache (session storage)
-    clearUserCache()
+    // 2. Clear user cache (session storage) - CHỈ khi được yêu cầu (thường là khi logout)
+    if (shouldClearUserCache) {
+      clearUserCache()
+    }
 
     // 3. Clear preload timestamp
     await clearPreloadTimestamp()
 
-    // 4. Reset Supabase client để đảm bảo kết nối mới
-    resetSupabaseClient()
+    // 4. Reset Supabase client - CHỈ khi được yêu cầu (thường là khi logout hoặc debug)
+    if (shouldResetClient) {
+      resetSupabaseClient()
+    }
 
     // 5. Clear các localStorage keys khác nếu có
     try {

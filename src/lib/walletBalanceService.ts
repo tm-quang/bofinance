@@ -17,7 +17,8 @@ export const calculateWalletBalanceFromTransactions = async (
   initialBalance: number = 0
 ): Promise<number> => {
   try {
-    const transactions = await fetchTransactions({ wallet_id: walletId })
+    // Only get transactions that are included in reports (exclude_from_reports = false)
+    const transactions = await fetchTransactions({ wallet_id: walletId, exclude_from_reports: false })
     
     const totalIncome = transactions
       .filter((t) => t.type === 'Thu')
@@ -91,8 +92,9 @@ export const getWalletCashFlowStats = async (
 
   const fetchStats = async (): Promise<WalletCashFlowStats> => {
     try {
-      const filters: { wallet_id: string; start_date?: string; end_date?: string } = {
+      const filters: { wallet_id: string; start_date?: string; end_date?: string; exclude_from_reports?: boolean } = {
         wallet_id: wallet.id,
+        exclude_from_reports: false, // Only get transactions included in reports
       }
       
       if (startDate) filters.start_date = startDate
@@ -247,8 +249,8 @@ export const syncWalletBalanceFromTransactions = async (
     throw new Error('Không tìm thấy ví.')
   }
 
-  // Lấy tất cả giao dịch để tính số dư
-  const transactions = await fetchTransactions({ wallet_id: walletId })
+  // Lấy tất cả giao dịch để tính số dư (chỉ lấy những giao dịch không bị exclude)
+  const transactions = await fetchTransactions({ wallet_id: walletId, exclude_from_reports: false })
   
   const totalIncome = transactions
     .filter((t) => t.type === 'Thu')
