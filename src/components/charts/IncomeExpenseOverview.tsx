@@ -107,6 +107,7 @@ export const IncomeExpenseOverview = ({ walletId }: IncomeExpenseOverviewProps) 
             start_date: dateRange.start,
             end_date: dateRange.end,
             wallet_id: walletId,
+            exclude_from_reports: false, // Only get transactions included in reports
           }),
           fetchCategories(),
           fetchCategoriesHierarchical(),

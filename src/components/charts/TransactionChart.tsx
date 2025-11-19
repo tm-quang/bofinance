@@ -188,6 +188,7 @@ export const TransactionChart = ({ walletId }: TransactionChartProps) => {
             end_date: dateRange.end,
             type: selectedType,
             wallet_id: walletId,
+            exclude_from_reports: false, // Only get transactions included in reports
           }),
           fetchCategories(),
         ])

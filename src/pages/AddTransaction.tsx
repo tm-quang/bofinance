@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { FaCalendar, FaImage, FaWallet, FaArrowDown, FaArrowUp, FaChevronDown, FaTimes, FaClock, FaStar, FaEdit, FaPlus, FaChevronRight, FaCamera, FaMapMarkerAlt, FaUser, FaPhone, FaMoneyBillWave, FaChartLine } from 'react-icons/fa'
+import { FaCalendar, FaImage, FaWallet, FaArrowDown, FaArrowUp, FaChevronDown, FaTimes, FaClock, FaStar, FaEdit, FaPlus, FaChevronRight, FaCamera, FaMapMarkerAlt, FaUser, FaPhone, FaMoneyBillWave, FaChartLine, FaExternalLinkAlt } from 'react-icons/fa'
 
 import HeaderBar from '../components/layout/HeaderBar'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
@@ -23,6 +23,7 @@ import { useNotification } from '../contexts/notificationContext.helpers'
 import { formatVNDInput, parseVNDInput } from '../utils/currencyInput'
 import { getSupabaseClient } from '../lib/supabaseClient'
 import { formatDateUTC7, getNowUTC7, getDateComponentsUTC7 } from '../utils/dateUtils'
+import { reverseGeocode, isCoordinates, parseCoordinates, getMapsUrl } from '../utils/geocoding'
 
 type TransactionFormState = {
   type: TransactionType
@@ -83,6 +84,7 @@ export const AddTransactionPage = () => {
   const [favoriteCategories, setFavoriteCategories] = useState<CategoryWithChildren[]>([])
   const [isExpandedSectionOpen, setIsExpandedSectionOpen] = useState(false)
   const [isGettingLocation, setIsGettingLocation] = useState(false)
+  const [locationCoordinates, setLocationCoordinates] = useState<{ lat: number; lng: number } | null>(null)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
 
@@ -193,6 +195,25 @@ export const AddTransactionPage = () => {
             // Parse transaction_date (YYYY-MM-DD) - ensure it's treated as UTC+7
             const dateStr = foundTransaction.transaction_date.split('T')[0]
 
+            // Parse location to extract coordinates if stored
+            const savedLocation = foundTransaction.location || ''
+            let coords: { lat: number; lng: number } | null = null
+            
+            // Check if location contains coordinates (format: "address|lat,lng")
+            if (savedLocation.includes('|')) {
+              const parts = savedLocation.split('|')
+              if (parts[1]) {
+                coords = parseCoordinates(parts[1])
+              }
+            } else if (isCoordinates(savedLocation)) {
+              // If it's just coordinates, parse them
+              coords = parseCoordinates(savedLocation)
+            }
+            
+            if (coords) {
+              setLocationCoordinates(coords)
+            }
+            
             setFormState({
               type: foundTransaction.type,
               wallet_id: foundTransaction.wallet_id,
@@ -201,7 +222,7 @@ export const AddTransactionPage = () => {
               description: foundTransaction.description || '',
               transaction_date: dateStr,
               transaction_time: currentTime,
-              location: foundTransaction.location || '',
+              location: savedLocation, // Keep original format for saving
               recipient_name: foundTransaction.recipient_name || '',
               is_borrowed: foundTransaction.is_borrowed || false,
               lender_name: foundTransaction.lender_name || '',
@@ -529,7 +550,9 @@ export const AddTransactionPage = () => {
             wallet_id: resetWalletId,
             transaction_date: formatDateUTC7(now),
             transaction_time: currentTime,
+            location: '',
           }))
+          setLocationCoordinates(null)
           setUploadedFiles([])
           setUploadedImageUrls([])
         } catch (reloadError) {
@@ -550,6 +573,7 @@ export const AddTransactionPage = () => {
             borrow_date: '',
             exclude_from_reports: false,
           }))
+          setLocationCoordinates(null)
           setUploadedFiles([])
           setUploadedImageUrls([])
         }
@@ -1056,13 +1080,85 @@ export const AddTransactionPage = () => {
                       Địa điểm, chuyến đi
                     </label>
                     <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={formState.location || ''}
-                        onChange={(e) => setFormState((prev) => ({ ...prev, location: e.target.value }))}
-                        placeholder="Nhập địa điểm hoặc chuyến đi..."
-                        className="flex-1 rounded-xl border-2 border-slate-200 bg-white p-3 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
-                      />
+                      {(() => {
+                        // Parse location to display address only (hide coordinates)
+                        let displayLocation = formState.location || ''
+                        let hasCoordinates = false
+                        
+                        if (displayLocation.includes('|')) {
+                          const parts = displayLocation.split('|')
+                          displayLocation = parts[0]
+                          hasCoordinates = !!parts[1] && parseCoordinates(parts[1]) !== null
+                        } else if (locationCoordinates) {
+                          hasCoordinates = true
+                        } else if (isCoordinates(displayLocation)) {
+                          hasCoordinates = true
+                        }
+                        
+                        // Check if location can open maps (has coordinates or is an address)
+                        const canOpenMaps = hasCoordinates || (displayLocation && displayLocation.trim().length > 0 && !isCoordinates(displayLocation))
+                        
+                        return (
+                          <>
+                            <input
+                              type="text"
+                              value={displayLocation}
+                              onChange={(e) => {
+                                const newValue = e.target.value
+                                setFormState((prev) => {
+                                  // If location had coordinates format, keep coordinates
+                                  if (prev.location?.includes('|')) {
+                                    const parts = prev.location.split('|')
+                                    return { ...prev, location: `${newValue}|${parts[1] || ''}` }
+                                  }
+                                  // If new value is coordinates, parse them
+                                  if (isCoordinates(newValue)) {
+                                    const coords = parseCoordinates(newValue)
+                                    if (coords) {
+                                      setLocationCoordinates(coords)
+                                    }
+                                  } else {
+                                    // Clear coordinates if manual text input
+                                    setLocationCoordinates(null)
+                                  }
+                                  return { ...prev, location: newValue }
+                                })
+                              }}
+                              placeholder="Nhập địa điểm hoặc chuyến đi..."
+                              className="flex-1 rounded-xl border-2 border-slate-200 bg-white p-3 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+                            />
+                            {canOpenMaps && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const locationToUse = formState.location || ''
+                                  let mapsUrl = ''
+                                  
+                                  // Check if location has coordinates in format "address|lat,lng"
+                                  if (locationToUse.includes('|')) {
+                                    const parts = locationToUse.split('|')
+                                    if (parts[1]) {
+                                      mapsUrl = getMapsUrl(parts[1])
+                                    } else {
+                                      mapsUrl = getMapsUrl(locationToUse)
+                                    }
+                                  } else if (locationCoordinates) {
+                                    mapsUrl = getMapsUrl(`${locationCoordinates.lat},${locationCoordinates.lng}`)
+                                  } else {
+                                    mapsUrl = getMapsUrl(locationToUse)
+                                  }
+                                  
+                                  window.open(mapsUrl, '_blank', 'noopener,noreferrer')
+                                }}
+                                className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2 border-emerald-200 bg-emerald-50 text-emerald-600 transition-all hover:border-emerald-300 hover:bg-emerald-100"
+                                title="Mở bản đồ"
+                              >
+                                <FaExternalLinkAlt className="h-5 w-5" />
+                              </button>
+                            )}
+                          </>
+                        )
+                      })()}
                       <button
                         type="button"
                         onClick={async () => {
@@ -1080,15 +1176,40 @@ export const AddTransactionPage = () => {
                               })
                             })
                             
-                            // Reverse geocoding - có thể sử dụng API như OpenStreetMap Nominatim
-                            // Tạm thời hiển thị tọa độ
+                            // Get coordinates
                             const lat = position.coords.latitude
                             const lng = position.coords.longitude
-                            setFormState((prev) => ({
-                              ...prev,
-                              location: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
-                            }))
-                            success('Đã lấy vị trí thành công')
+                            
+                            // Save coordinates for map opening
+                            setLocationCoordinates({ lat, lng })
+                            
+                            // Reverse geocoding to get address
+                            try {
+                              const address = await reverseGeocode(lat, lng)
+                              if (address && !isCoordinates(address)) {
+                                // Save address with coordinates for map access
+                                setFormState((prev) => ({
+                                  ...prev,
+                                  location: `${address}|${lat.toFixed(6)},${lng.toFixed(6)}`,
+                                }))
+                                success('Đã lấy địa chỉ thành công')
+                              } else {
+                                // Fallback to coordinates if geocoding fails
+                                setFormState((prev) => ({
+                                  ...prev,
+                                  location: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+                                }))
+                                success('Đã lấy vị trí thành công')
+                              }
+                            } catch (geocodeError) {
+                              console.error('Reverse geocoding error:', geocodeError)
+                              // Fallback to coordinates
+                              setFormState((prev) => ({
+                                ...prev,
+                                location: `${lat.toFixed(6)}, ${lng.toFixed(6)}`,
+                              }))
+                              success('Đã lấy vị trí thành công')
+                            }
                           } catch (error) {
                             if (error instanceof GeolocationPositionError) {
                               if (error.code === error.PERMISSION_DENIED) {
