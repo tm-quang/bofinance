@@ -1,6 +1,6 @@
 import { getSupabaseClient } from './supabaseClient'
 import { getCachedUser } from './userCache'
-import { cacheManager, cacheFirstWithRefresh, invalidateCache } from './cache'
+import { queryClient } from './react-query'
 
 const TABLE_NAME = 'favorite_categories'
 
@@ -21,7 +21,7 @@ export type FavoriteCategoriesRecord = {
  */
 export const getFavoriteCategories = async (categoryType: FavoriteCategoryType): Promise<string[]> => {
   const user = await getCachedUser()
-  
+
   if (!user) {
     // Fallback to localStorage if not logged in
     try {
@@ -32,50 +32,41 @@ export const getFavoriteCategories = async (categoryType: FavoriteCategoryType):
     }
   }
 
-  const cacheKey = await cacheManager.generateKey('favoriteCategories', { categoryType, userId: user.id })
-  
-  return cacheFirstWithRefresh(
-    cacheKey,
-    async () => {
-      const supabase = getSupabaseClient()
-      
-      const { data, error } = await supabase
-        .from(TABLE_NAME)
-        .select('category_ids')
-        .eq('user_id', user.id)
-        .eq('category_type', categoryType)
-        .maybeSingle()
+  const supabase = getSupabaseClient()
 
-      if (error) {
-        // If table doesn't exist, fallback to localStorage
-        if (error.message?.includes('does not exist') || error.message?.includes('schema cache')) {
-          console.warn('Favorite categories table may not exist, using localStorage:', error.message)
-          return getFromLocalStorage(categoryType)
-        }
-        console.error('Error fetching favorite categories:', error)
-        return getFromLocalStorage(categoryType)
-      }
+  const { data, error } = await supabase
+    .from(TABLE_NAME)
+    .select('category_ids')
+    .eq('user_id', user.id)
+    .eq('category_type', categoryType)
+    .maybeSingle()
 
-      if (data && data.category_ids) {
-        return data.category_ids
-      }
+  if (error) {
+    // If table doesn't exist, fallback to localStorage
+    if (error.message?.includes('does not exist') || error.message?.includes('schema cache')) {
+      console.warn('Favorite categories table may not exist, using localStorage:', error.message)
+      return getFromLocalStorage(categoryType)
+    }
+    console.error('Error fetching favorite categories:', error)
+    return getFromLocalStorage(categoryType)
+  }
 
-      // If no data in database, try localStorage and migrate if found
-      const localData = getFromLocalStorage(categoryType)
-      if (localData.length > 0) {
-        // Migrate from localStorage to database
-        try {
-          await saveFavoriteCategories(categoryType, localData)
-        } catch (migrateError) {
-          console.warn('Error migrating from localStorage:', migrateError)
-        }
-      }
+  if (data && data.category_ids) {
+    return data.category_ids
+  }
 
-      return localData
-    },
-    24 * 60 * 60 * 1000, // 24 hours
-    12 * 60 * 60 * 1000  // 12 hours stale threshold
-  )
+  // If no data in database, try localStorage and migrate if found
+  const localData = getFromLocalStorage(categoryType)
+  if (localData.length > 0) {
+    // Migrate from localStorage to database
+    try {
+      await saveFavoriteCategories(categoryType, localData)
+    } catch (migrateError) {
+      console.warn('Error migrating from localStorage:', migrateError)
+    }
+  }
+
+  return localData
 }
 
 /**
@@ -87,7 +78,7 @@ export const saveFavoriteCategories = async (
   categoryIds: string[]
 ): Promise<void> => {
   const user = await getCachedUser()
-  
+
   // Save to localStorage immediately (optimistic update)
   saveToLocalStorage(categoryType, categoryIds)
 
@@ -121,7 +112,7 @@ export const saveFavoriteCategories = async (
     }
 
     // Invalidate cache
-    await invalidateCache(await cacheManager.generateKey('favoriteCategories', { categoryType, userId: user.id }))
+    await queryClient.invalidateQueries({ queryKey: ['favoriteCategories', { categoryType }] })
   } catch (error) {
     console.error('Error in saveFavoriteCategories:', error)
     // Already saved to localStorage, so continue
@@ -158,7 +149,7 @@ function saveToLocalStorage(categoryType: FavoriteCategoryType, categoryIds: str
  */
 export const initializeDefaultFavorites = async (categoryType: FavoriteCategoryType): Promise<void> => {
   const user = await getCachedUser()
-  
+
   if (!user) {
     return
   }
@@ -212,13 +203,13 @@ export const initializeDefaultFavorites = async (categoryType: FavoriteCategoryT
 
   // Find matching categories by name
   const favoriteIds: string[] = []
-  
+
   for (const name of defaultNames) {
     const category = userCategories.find((cat) => cat.name === name)
     if (category) {
       favoriteIds.push(category.id)
     }
-    
+
     // Stop if we have 7 favorites
     if (favoriteIds.length >= 7) {
       break
@@ -235,5 +226,3 @@ export const initializeDefaultFavorites = async (categoryType: FavoriteCategoryT
     }
   }
 }
-
-

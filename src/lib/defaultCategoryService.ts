@@ -1,7 +1,7 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 import { getSupabaseClient } from './supabaseClient'
 import { getCachedUser } from './userCache'
-import { invalidateCache } from './cache'
+import { queryClient } from './react-query'
 
 export type DefaultCategoryType = 'Chi tiêu' | 'Thu nhập'
 
@@ -57,8 +57,6 @@ export const fetchDefaultCategories = async (): Promise<DefaultCategoryRecord[]>
     throw new Error('Bạn cần đăng nhập để xem hạng mục mặc định.')
   }
 
-  // const cacheKey = await cacheManager.generateKey('default_categories', {})
-
   const { data, error } = await supabase
     .from(TABLE_NAME)
     .select('*')
@@ -76,11 +74,11 @@ export const fetchDefaultCategories = async (): Promise<DefaultCategoryRecord[]>
  */
 export const fetchDefaultCategoriesHierarchical = async (): Promise<DefaultCategoryWithChildren[]> => {
   const allCategories = await fetchDefaultCategories()
-  
+
   // Tách hạng mục cha và con
   const parentCategories = allCategories.filter(cat => !cat.parent_id)
   const childCategories = allCategories.filter(cat => cat.parent_id)
-  
+
   // Nhóm con theo parent_id
   const childrenByParent = new Map<string, DefaultCategoryRecord[]>()
   childCategories.forEach(child => {
@@ -90,7 +88,7 @@ export const fetchDefaultCategoriesHierarchical = async (): Promise<DefaultCateg
     }
     childrenByParent.get(parentId)!.push(child)
   })
-  
+
   // Tạo cấu trúc phân cấp
   return parentCategories.map(parent => ({
     ...parent,
@@ -152,7 +150,7 @@ export const createDefaultCategory = async (payload: DefaultCategoryInsert): Pro
     throw new Error('Không nhận được dữ liệu hạng mục mặc định sau khi tạo.')
   }
 
-  await invalidateCache('default_categories')
+  await queryClient.invalidateQueries({ queryKey: ['default_categories'] })
 
   return data
 }
@@ -225,7 +223,7 @@ export const updateDefaultCategory = async (
     throw new Error('Không nhận được dữ liệu hạng mục mặc định sau khi cập nhật.')
   }
 
-  await invalidateCache('default_categories')
+  await queryClient.invalidateQueries({ queryKey: ['default_categories'] })
 
   return data
 }
@@ -259,6 +257,5 @@ export const deleteDefaultCategory = async (id: string): Promise<void> => {
 
   throwIfError(error, 'Không thể xoá hạng mục mặc định.')
 
-  await invalidateCache('default_categories')
+  await queryClient.invalidateQueries({ queryKey: ['default_categories'] })
 }
-

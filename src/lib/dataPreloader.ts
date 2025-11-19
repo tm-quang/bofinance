@@ -4,14 +4,13 @@
  * Cache tồn tại trong suốt phiên đăng nhập và lưu vào localStorage
  */
 
-import { fetchWallets } from './walletService'
+import { fetchWallets, getDefaultWallet } from './walletService'
 import { fetchTransactions } from './transactionService'
 import { fetchCategories, fetchCategoriesHierarchical } from './categoryService'
 import { fetchIcons } from './iconService'
 import { getCurrentProfile } from './profileService'
-import { getDefaultWallet } from './walletService'
-import { cacheManager } from './cache'
 import { getCachedUser } from './userCache'
+import { queryClient } from './react-query'
 
 export type PreloadStatus = {
   isPreloading: boolean
@@ -48,47 +47,66 @@ export const preloadAllData = async (onProgress?: (status: PreloadStatus) => voi
   try {
     // Step 1: Load Profile (persistent cache - lưu vào thiết bị)
     updateProgress('Đang tải thông tin cá nhân...')
-    const profileKey = await cacheManager.generateKey('getCurrentProfile', {})
-    const profileData = await getCurrentProfile()
-    // Cache profile với TTL 24 giờ (persistent)
-    await cacheManager.set(profileKey, profileData, 24 * 60 * 60 * 1000)
+    await queryClient.prefetchQuery({
+      queryKey: ['getCurrentProfile'],
+      queryFn: () => getCurrentProfile(),
+      staleTime: 24 * 60 * 60 * 1000,
+    })
 
     // Step 2: Load Wallets (active và inactive)
     updateProgress('Đang tải danh sách ví...')
-    const [activeWallets, allWallets] = await Promise.all([
-      fetchWallets(false), // Active wallets
-      fetchWallets(true),  // All wallets (active + inactive)
+    await Promise.all([
+      queryClient.prefetchQuery({
+        queryKey: ['fetchWallets', { includeInactive: false }],
+        queryFn: () => fetchWallets(false),
+        staleTime: 24 * 60 * 60 * 1000,
+      }),
+      queryClient.prefetchQuery({
+        queryKey: ['fetchWallets', { includeInactive: true }],
+        queryFn: () => fetchWallets(true),
+        staleTime: 24 * 60 * 60 * 1000,
+      }),
     ])
-    // Cache đã được set trong fetchWallets, nhưng đảm bảo TTL dài
-    const activeWalletsKey = await cacheManager.generateKey('fetchWallets', { includeInactive: false })
-    const allWalletsKey = await cacheManager.generateKey('fetchWallets', { includeInactive: true })
-    await cacheManager.set(activeWalletsKey, activeWallets, 24 * 60 * 60 * 1000) // 24 giờ
-    await cacheManager.set(allWalletsKey, allWallets, 24 * 60 * 60 * 1000) // 24 giờ
 
     // Step 3: Load Default Wallet
     updateProgress('Đang tải ví mặc định...')
-    const defaultWalletId = await getDefaultWallet()
-    if (defaultWalletId) {
-      const defaultWalletKey = await cacheManager.generateKey('getDefaultWallet', {})
-      await cacheManager.set(defaultWalletKey, defaultWalletId, 24 * 60 * 60 * 1000)
-    }
+    await queryClient.prefetchQuery({
+      queryKey: ['getDefaultWallet'],
+      queryFn: getDefaultWallet,
+      staleTime: 24 * 60 * 60 * 1000,
+    })
 
     // Step 4: Load Categories (flat và hierarchical) và Icons
     updateProgress('Đang tải hạng mục...')
     await Promise.all([
-      fetchCategories(), // Cache đã được set trong fetchCategories
-      fetchCategoriesHierarchical(), // Cache đã được set trong fetchCategoriesHierarchical
-      fetchIcons({ is_active: true }), // Preload icons để populate iconCacheMap
+      queryClient.prefetchQuery({
+        queryKey: ['categories'],
+        queryFn: fetchCategories,
+        staleTime: 24 * 60 * 60 * 1000,
+      }),
+      queryClient.prefetchQuery({
+        queryKey: ['categories_hierarchical'],
+        queryFn: () => fetchCategoriesHierarchical(),
+        staleTime: 24 * 60 * 60 * 1000,
+      }),
+      queryClient.prefetchQuery({
+        queryKey: ['icons', { is_active: true }],
+        queryFn: () => fetchIcons({ is_active: true }),
+        staleTime: 24 * 60 * 60 * 1000,
+      }),
     ])
 
     // Step 5: Load Recent Transactions (limit để không quá nặng)
     updateProgress('Đang tải giao dịch gần đây...')
-    await fetchTransactions({ limit: 50 })
-    // Cache đã được set trong fetchTransactions
+    await queryClient.prefetchQuery({
+      queryKey: ['transactions', { limit: 50 }],
+      queryFn: () => fetchTransactions({ limit: 50 }),
+      staleTime: 5 * 60 * 1000, // Short stale time for transactions
+    })
 
     // Mark preload as complete
     updateProgress('Hoàn tất!')
-    
+
     // Lưu timestamp preload để biết khi nào cần refresh
     const preloadTimestampKey = `bofin_preload_timestamp_${userId}`
     localStorage.setItem(preloadTimestampKey, Date.now().toString())
@@ -140,4 +158,3 @@ export const clearPreloadTimestamp = async (): Promise<void> => {
     localStorage.removeItem(preloadTimestampKey)
   }
 }
-

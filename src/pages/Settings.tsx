@@ -1,7 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import {
-  FaChevronRight,
   FaBell,
   FaCloud,
   FaDownload,
@@ -10,6 +9,8 @@ import {
   FaExclamationCircle,
   FaSignOutAlt,
   FaCog,
+  FaChevronRight,
+  FaQrcode,
 } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
@@ -17,6 +18,7 @@ import HeaderBar from '../components/layout/HeaderBar'
 import { IconManagementModal } from '../components/settings/IconManagementModal'
 import { NotificationSettingsModal } from '../components/settings/NotificationSettingsModal'
 import { AdminSettingsModal } from '../components/settings/AdminSettingsModal'
+import { QRScannerModal } from '../components/settings/QRScannerModal'
 import { getCurrentProfile, type ProfileRecord } from '../lib/profileService'
 import { useDialog } from '../contexts/dialogContext.helpers'
 import { getSupabaseClient } from '../lib/supabaseClient'
@@ -27,74 +29,29 @@ import { getCachedAdminStatus } from '../lib/adminService'
 const financeToggleSettings = [
   {
     id: 'autoCategorize',
-    title: 'Tự động phân loại giao dịch',
-    description: 'Sử dụng AI để tự động phân loại giao dịch dựa trên mô tả.',
+    title: 'Tự động phân loại',
+    description: 'AI phân loại giao dịch',
     icon: <FaWallet className="h-5 w-5" />,
+    color: 'text-emerald-600',
+    bg: 'bg-emerald-100',
   },
   {
     id: 'budgetSuggestion',
     title: 'Gợi ý ngân sách',
-    description: 'Nhận gợi ý ngân sách dựa trên lịch sử chi tiêu của bạn.',
+    description: 'Dựa trên lịch sử chi tiêu',
     icon: <FaExclamationCircle className="h-5 w-5" />,
+    color: 'text-amber-600',
+    bg: 'bg-amber-100',
   },
   {
     id: 'autoBackup',
     title: 'Tự động sao lưu',
-    description: 'Sao lưu dữ liệu cá nhân mỗi ngày vào 02:00 sáng.',
+    description: '02:00 sáng mỗi ngày',
     icon: <FaCloud className="h-5 w-5" />,
+    color: 'text-blue-600',
+    bg: 'bg-blue-100',
   },
 ]
-
-// const themeOptions = [
-//   {
-//     id: 'classic',
-//     label: 'Giao diện sáng tối giản',
-//     description: 'Nền trắng, card rõ ràng, phù hợp môi trường văn phòng.',
-//     icon: <FaPalette className="h-5 w-5" />,
-//   },
-//   {
-//     id: 'vivid',
-//     label: 'Giao diện đa sắc',
-//     description: 'Dải màu gradient cho nav và thẻ, tạo cảm hứng sử dụng.',
-//     icon: <FaFilter className="h-5 w-5" />,
-//   },
-//   {
-//     id: 'focus',
-//     label: 'Giao diện tập trung',
-//     description: 'Nhấn mạnh dữ liệu tài chính với card tối, chữ sáng.',
-//     icon: <FaSmile className="h-5 w-5" />,
-//   },
-// ]
-
-// Reserved for future use
-// const accountShortcuts = [
-//   {
-//     title: 'Thông tin cá nhân',
-//     icon: <RiUser3Line className="h-5 w-5 text-sky-500" />,
-//   },
-//   {
-//     title: 'Bảo mật & xác thực',
-//     icon: <RiLock2Line className="h-5 w-5 text-emerald-500" />,
-//   },
-//   {
-//     title: 'Xuất dữ liệu',
-//     icon: <RiDownloadLine className="h-5 w-5 text-indigo-500" />,
-//   },
-// ]
-
-// Reserved for future use
-// const supportLinks = [
-//   {
-//     title: 'Chính sách cảnh báo nợ xấu',
-//     description: 'Thiết lập ngưỡng cảnh báo, kịch bản khi vượt hạn mức.',
-//     icon: <RiAlertLine className="h-5 w-5 text-rose-500" />,
-//   },
-//   {
-//     title: 'Gói thành viên BoFin+',
-//     description: 'Tăng giới hạn ngân sách, báo cáo chuyên sâu và AI gợi ý.',
-//     icon: <RiTrophyLine className="h-5 w-5 text-amber-500" />,
-//   },
-// ]
 
 const SettingsPage = () => {
   const navigate = useNavigate()
@@ -105,7 +62,7 @@ const SettingsPage = () => {
   const [isIconManagementOpen, setIsIconManagementOpen] = useState(false)
   const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false)
   const [isAdminSettingsModalOpen, setIsAdminSettingsModalOpen] = useState(false)
-  // const [darkMode, setDarkMode] = useState(false)
+  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true)
 
@@ -114,8 +71,6 @@ const SettingsPage = () => {
     budgetSuggestion: true,
     autoBackup: true,
   })
-
-  // const [selectedTheme, setSelectedTheme] = useState('classic')
 
   // Load profile and check admin status
   useEffect(() => {
@@ -126,32 +81,15 @@ const SettingsPage = () => {
         setIsLoadingProfile(true)
       }
       try {
-        // Force refresh on mount to ensure fresh data
-        const profileData = await getCurrentProfile(true)
+        const profileData = await getCurrentProfile()
         if (mounted) {
           setProfile(profileData)
           setIsLoadingProfile(false)
         }
       } catch (error) {
-        // Log detailed error information
         const errorMessage = error instanceof Error ? error.message : String(error)
-        const errorDetails = error instanceof Error ? {
-          name: error.name,
-          message: error.message,
-          stack: error.stack
-        } : error
-        
-        console.error('Error loading profile:', {
-          message: errorMessage,
-          details: errorDetails,
-          timestamp: new Date().toISOString()
-        })
-        
-        // If it's a 406 error, it likely means the profiles table doesn't exist
-        if (errorMessage.includes('406') || errorMessage.includes('Not Acceptable')) {
-          console.warn('Profile table may not exist. Please run the migration: create_profiles_table.sql')
-        }
-        
+        console.error('Error loading profile:', errorMessage)
+
         if (mounted) {
           setProfile(null)
           setIsLoadingProfile(false)
@@ -189,27 +127,23 @@ const SettingsPage = () => {
   const handleLogout = async () => {
     await showConfirm('Bạn có chắc chắn muốn đăng xuất?', async () => {
       const supabase = getSupabaseClient()
-      
-      // Clear welcome modal flag when logging out
+
       sessionStorage.removeItem('showWelcomeModal')
-      
-      // Clear cache và preload timestamp khi logout
+
       try {
-      const { clearAllCache } = await import('../lib/cache')
-      const { clearPreloadTimestamp } = await import('../lib/dataPreloader')
-      await clearAllCache()
-      await clearPreloadTimestamp()
+        const { clearPreloadTimestamp } = await import('../lib/dataPreloader')
+        const { queryClient } = await import('../lib/react-query')
+
+        await clearPreloadTimestamp()
+        queryClient.clear()
       } catch (error) {
         console.warn('Error clearing cache:', error)
       }
-      
-      // Clear user cache khi logout
+
       clearUserCache()
-      
-      // Clear auth token từ localStorage
+
       try {
         localStorage.removeItem('bofin-auth-token')
-        // Clear tất cả keys liên quan đến auth
         Object.keys(localStorage).forEach(key => {
           if (key.includes('supabase') || key.includes('auth')) {
             localStorage.removeItem(key)
@@ -218,17 +152,13 @@ const SettingsPage = () => {
       } catch (error) {
         console.warn('Error clearing auth storage:', error)
       }
-      
-      // Sign out với scope local (không cần server confirmation)
-      // Bỏ qua lỗi nếu có vì chúng ta đã clear local storage
+
       try {
         await supabase.auth.signOut({ scope: 'local' })
       } catch (error) {
         console.warn('SignOut error (ignored):', error)
       }
-      
-      // Luôn reload trang sau khi logout, bất kể có lỗi hay không
-      // Dùng replace thay vì href để không lưu vào history và đảm bảo reload ngay
+
       window.location.replace('/login')
     })
   }
@@ -236,265 +166,201 @@ const SettingsPage = () => {
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
       <HeaderBar variant="page" title="Cài đặt" />
-      <main className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 pt-2 pb-4 sm:pt-2 sm:pb-4">
-        {/* Account Info Section */}
-        <section className="rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
-          <div className="flex items-center gap-4">
-            {isLoadingProfile ? (
-              <>
-                <div className="h-16 w-16 animate-pulse rounded-full bg-slate-200 ring-4 ring-slate-100 sm:h-20 sm:w-20" />
-                <div className="flex-1 space-y-2">
-                  <div className="h-5 w-32 animate-pulse rounded bg-slate-200 sm:h-6" />
-                  <div className="h-4 w-48 animate-pulse rounded bg-slate-200" />
-                </div>
-              </>
-            ) : profile?.avatar_url ? (
-              <img
-                src={profile.avatar_url}
-                alt="Avatar"
-                className="h-16 w-16 rounded-full object-cover ring-4 ring-slate-100 sm:h-20 sm:w-20"
-              />
-            ) : profile?.full_name && profile.full_name !== 'Người dùng' ? (
-              <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-blue-600 text-white ring-4 ring-slate-100 sm:h-20 sm:w-20">
-                <FaUser className="h-8 w-8 sm:h-10 sm:w-10" />
-              </div>
-            ) : null}
-            {!isLoadingProfile && profile?.full_name && profile.full_name !== 'Người dùng' && (
-              <div className="flex-1">
-                <h3 className="text-base font-bold text-slate-900 sm:text-lg">
-                  {profile.full_name}
-                </h3>
-                <p className="text-xs text-slate-500 sm:text-sm">{profile?.email || ''}</p>
-              </div>
-            )}
-            {!isLoadingProfile && (!profile?.full_name || profile.full_name === 'Người dùng') && (
-              <div className="flex-1">
-                <p className="text-xs text-slate-500 sm:text-sm">{profile?.email || ''}</p>
-              </div>
-            )}
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="flex h-10 w-10 items-center justify-center rounded-xl text-rose-600 transition hover:bg-rose-50 hover:text-rose-700 active:scale-95 sm:h-12 sm:w-12"
-              title="Đăng xuất"
-            >
-              <FaSignOutAlt className="h-6 w-6 sm:h-6 sm:w-6" />
-            </button>
-          </div>
-        </section>
+      <main className="flex-1 overflow-y-auto overscroll-contain p-4 pb-24">
+        <div className="mx-auto max-w-2xl space-y-6">
 
-        {/* Admin Settings - Only show for admin */}
-        {!isCheckingAdmin && isAdmin && (
-          <section className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
-            <h2 className="mb-4 text-base font-bold text-slate-900 sm:text-lg">Quản trị hệ thống</h2>
-            <button
-              type="button"
-              onClick={async () => {
-                const adminStatus = await getCachedAdminStatus()
-                if (!adminStatus) {
-                  showError('Bạn không có quyền truy cập. Chỉ admin mới có thể quản lý hệ thống.')
-                  return
-                }
-                setIsAdminSettingsModalOpen(true)
-              }}
-              className="flex w-full items-center justify-between gap-3 rounded-xl bg-gradient-to-r from-sky-50 to-blue-50 p-4 text-left transition hover:from-sky-100 hover:to-blue-100 hover:shadow-md border-2 border-sky-200"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500 text-white">
-                  <FaCog className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">Quản trị hệ thống</p>
-                  <p className="text-xs text-slate-500">Quản lý icons, hạng mục, cài đặt hệ thống</p>
-                </div>
-              </div>
-              <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
-            </button>
-          </section>
-        )}
+          {/* Profile Section - Hero Card */}
+          <section className="relative overflow-hidden rounded-3xl bg-white p-6 shadow-lg border border-slate-100 transition-all hover:shadow-xl">
+            <div className="absolute top-0 right-0 -mt-4 -mr-4 h-24 w-24 rounded-full bg-gradient-to-br from-sky-100 to-blue-50 opacity-50 blur-2xl" />
 
-        {/* Account Management */}
-        <section className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
-          <h2 className="mb-4 text-base font-bold text-slate-900 sm:text-lg">Quản lý tài khoản</h2>
-          <div className="space-y-2">
-            <button
-              type="button"
-              onClick={() => navigate('/account-info')}
-              className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
-                  <FaUser className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">Thông tin cá nhân</p>
-                  <p className="text-xs text-slate-500">Cập nhật họ tên, số điện thoại, ngày sinh</p>
-                </div>
-              </div>
-              <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
-            </button>
-            <button
-              type="button"
-              className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md"
-            >
-              <div className="flex items-center gap-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-100 text-indigo-600">
-                  <FaDownload className="h-5 w-5" />
-                </span>
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">Xuất dữ liệu</p>
-                  <p className="text-xs text-slate-500">Tải xuống dữ liệu tài chính của bạn</p>
-                </div>
-              </div>
-              <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
-            </button>
-          </div>
-        </section>
-
-        {/* Notifications */}
-        <section className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
-          <h2 className="mb-4 text-base font-bold text-slate-900 sm:text-lg">Thông báo & nhắc nhở</h2>
-          <p className="mb-4 text-xs text-slate-500 sm:text-sm">
-            Chủ động kiểm soát thông báo tài chính quan trọng
-          </p>
-          <button
-            type="button"
-            onClick={() => setIsNotificationSettingsOpen(true)}
-            className="flex w-full items-center justify-between gap-3 rounded-xl bg-slate-50 p-4 text-left transition hover:bg-slate-100 hover:shadow-md"
-                >
-            <div className="flex items-center gap-3">
-              <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-100 text-sky-600">
-                <FaBell className="h-5 w-5" />
-                    </span>
-              <div>
-                <p className="text-sm font-semibold text-slate-800">Cài đặt thông báo hệ thống</p>
-                <p className="text-xs text-slate-500">Chỉnh sửa các loại thông báo bạn muốn nhận</p>
-              </div>
-                    </div>
-            <FaChevronRight className="h-5 w-5 shrink-0 text-slate-400" />
-          </button>
-        </section>
-
-        {/* Finance Settings */}
-        <section className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
-          <h2 className="mb-4 text-base font-bold text-slate-900 sm:text-lg">Cài đặt tài chính</h2>
-          <p className="mb-4 text-xs text-slate-500 sm:text-sm">
-            Tùy chỉnh cách quản lý thu chi và ngân sách
-          </p>
-          <div className="space-y-3">
-            {financeToggleSettings.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-start justify-between gap-3 rounded-xl bg-slate-50 p-4 ring-1 ring-slate-100"
-              >
-                <div className="flex min-w-0 flex-1 items-start gap-3">
-                  <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white text-slate-600">
-                    {item.icon}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-semibold text-slate-800">{item.title}</p>
-                    <p className="mt-0.5 text-xs text-slate-500">{item.description}</p>
+            <div className="relative z-10 flex items-center gap-5">
+              {isLoadingProfile ? (
+                <>
+                  <div className="h-20 w-20 animate-pulse rounded-full bg-slate-100 ring-4 ring-slate-50" />
+                  <div className="space-y-2">
+                    <div className="h-6 w-32 animate-pulse rounded bg-slate-100" />
+                    <div className="h-4 w-48 animate-pulse rounded bg-slate-100" />
                   </div>
+                </>
+              ) : (
+                <>
+                  <div className="relative">
+                    {profile?.avatar_url ? (
+                      <img
+                        src={profile.avatar_url}
+                        alt="Avatar"
+                        className="h-20 w-20 rounded-full object-cover ring-4 ring-slate-50 shadow-sm"
+                      />
+                    ) : (
+                      <div className="flex h-20 w-20 items-center justify-center rounded-full bg-gradient-to-br from-sky-400 to-blue-600 text-white ring-4 ring-slate-50 shadow-md">
+                        <FaUser className="h-8 w-8" />
+                      </div>
+                    )}
+                    <div className="absolute bottom-0 right-0 h-5 w-5 rounded-full bg-emerald-500 ring-2 ring-white" />
+                  </div>
+
+                  <div className="flex-1">
+                    <h3 className="text-xl font-bold text-slate-800">
+                      {profile?.full_name && profile.full_name !== 'Người dùng'
+                        ? profile.full_name
+                        : 'Người dùng BoFin'}
+                    </h3>
+                    <p className="text-sm font-medium text-slate-500">{profile?.email || 'Chưa cập nhật email'}</p>
+                    <button
+                      onClick={() => navigate('/account-info')}
+                      className="mt-2 flex items-center gap-1 text-xs font-semibold text-sky-600 hover:text-sky-700 hover:underline"
+                    >
+                      Chỉnh sửa hồ sơ <FaChevronRight className="h-2 w-2" />
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </section>
+
+          {/* Main Grid Menu */}
+          <section>
+            <h2 className="mb-3 px-1 text-lg font-bold text-slate-800">Quản lý chung</h2>
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+
+              {/* Admin Settings */}
+              {!isCheckingAdmin && isAdmin && (
+                <button
+                  onClick={async () => {
+                    const adminStatus = await getCachedAdminStatus()
+                    if (!adminStatus) {
+                      showError('Bạn không có quyền truy cập.')
+                      return
+                    }
+                    setIsAdminSettingsModalOpen(true)
+                  }}
+                  className="group flex flex-col items-center justify-center gap-3 rounded-2xl bg-white p-4 text-center shadow-lg border border-slate-100 transition-all hover:-translate-y-1 hover:shadow-xl active:scale-95"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600 shadow-sm group-hover:scale-110 transition-transform">
+                    <FaCog className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <p className="font-bold text-slate-800">Admin</p>
+                    <p className="text-xs text-slate-500">Hệ thống</p>
+                  </div>
+                </button>
+              )}
+
+              {/* Notification Settings */}
+              <button
+                onClick={() => setIsNotificationSettingsOpen(true)}
+                className="group flex flex-col items-center justify-center gap-3 rounded-2xl bg-white p-4 text-center shadow-lg border border-slate-100 transition-all hover:-translate-y-1 hover:shadow-xl active:scale-95"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-rose-100 text-rose-600 shadow-sm group-hover:scale-110 transition-transform">
+                  <FaBell className="h-6 w-6" />
                 </div>
-                <label className="relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center">
+                <div>
+                  <p className="font-bold text-slate-800">Thông báo</p>
+                  <p className="text-xs text-slate-500">Nhắc nhở</p>
+                </div>
+              </button>
+
+              {/* QR Scanner */}
+              <button
+                onClick={() => setIsQRScannerOpen(true)}
+                className="group flex flex-col items-center justify-center gap-3 rounded-2xl bg-white p-4 text-center shadow-lg border border-slate-100 transition-all hover:-translate-y-1 hover:shadow-xl active:scale-95"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-100 text-purple-600 shadow-sm group-hover:scale-110 transition-transform">
+                  <FaQrcode className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-800">Quét QR</p>
+                  <p className="text-xs text-slate-500">Tiện ích</p>
+                </div>
+              </button>
+
+              {/* Export Data */}
+              <button
+                className="group flex flex-col items-center justify-center gap-3 rounded-2xl bg-white p-4 text-center shadow-lg border border-slate-100 transition-all hover:-translate-y-1 hover:shadow-xl active:scale-95"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-teal-100 text-teal-600 shadow-sm group-hover:scale-110 transition-transform">
+                  <FaDownload className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-800">Xuất dữ liệu</p>
+                  <p className="text-xs text-slate-500">Excel/PDF</p>
+                </div>
+              </button>
+
+              {/* Account Info (Redundant with header but good for quick access) */}
+              <button
+                onClick={() => navigate('/account-info')}
+                className="group flex flex-col items-center justify-center gap-3 rounded-2xl bg-white p-4 text-center shadow-lg border border-slate-100 transition-all hover:-translate-y-1 hover:shadow-xl active:scale-95"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-sky-100 text-sky-600 shadow-sm group-hover:scale-110 transition-transform">
+                  <FaUser className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-800">Tài khoản</p>
+                  <p className="text-xs text-slate-500">Bảo mật</p>
+                </div>
+              </button>
+
+            </div>
+          </section>
+
+          {/* Finance Utilities */}
+          <section>
+            <h2 className="mb-3 px-1 text-lg font-bold text-slate-800">Tiện ích tài chính</h2>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              {financeToggleSettings.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between gap-4 rounded-2xl bg-white p-4 shadow-lg border border-slate-100 transition-all hover:shadow-xl"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${item.bg} ${item.color} shadow-sm`}>
+                      {item.icon}
+                    </div>
+                    <div>
+                      <p className="font-bold text-slate-800">{item.title}</p>
+                      <p className="text-xs text-slate-500">{item.description}</p>
+                    </div>
+                  </div>
+
+                  <label className="relative inline-flex cursor-pointer items-center">
                     <input
                       type="checkbox"
-                    checked={financeToggles[item.id]}
+                      checked={financeToggles[item.id]}
                       onChange={() =>
-                      setFinanceToggles((prev) => ({
+                        setFinanceToggles((prev) => ({
                           ...prev,
                           [item.id]: !prev[item.id],
                         }))
                       }
                       className="peer sr-only"
                     />
-                    <span className="absolute h-full w-full rounded-full bg-slate-200 transition peer-checked:bg-sky-500" />
-                  <span className="absolute left-1/2 h-4 w-4 -translate-x-1/2 rounded-full bg-white transition peer-checked:left-[calc(100%-1.25rem)] peer-checked:-translate-x-0" />
+                    <div className="peer h-6 w-11 rounded-full bg-slate-200 after:absolute after:top-[2px] after:left-[2px] after:h-5 after:w-5 after:rounded-full after:border after:border-gray-300 after:bg-white after:transition-all after:content-[''] peer-checked:bg-sky-500 peer-checked:after:translate-x-full peer-checked:after:border-white peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-sky-300"></div>
                   </label>
-              </div>
+                </div>
               ))}
-          </div>
-        </section>
-
-        {/* System Settings - Tạm ẩn */}
-        {/* <section className="grid gap-4 sm:gap-6 lg:grid-cols-2">
-          <div className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
-            <h2 className="mb-4 text-base font-bold text-slate-900 sm:text-lg">Giao diện</h2>
-            <p className="mb-4 text-xs text-slate-500 sm:text-sm">
-              Lựa chọn bảng màu và cảm hứng hiển thị
-            </p>
-            <div className="space-y-2">
-              {themeOptions.map((theme) => {
-                const isActive = selectedTheme === theme.id
-                return (
-                  <button
-                    key={theme.id}
-                    type="button"
-                    onClick={() => setSelectedTheme(theme.id)}
-                    className={`flex w-full items-start gap-3 rounded-xl p-3 text-left transition ${
-                      isActive
-                        ? 'bg-sky-50 ring-2 ring-sky-400 shadow-md'
-                        : 'bg-slate-50 ring-1 ring-slate-100 hover:ring-sky-200'
-                    }`}
-                  >
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-sky-100 text-sky-500">
-                      {theme.icon}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-slate-800">{theme.label}</p>
-                      <p className="mt-0.5 text-xs text-slate-500">{theme.description}</p>
-                    </div>
-                  </button>
-                )
-              })}
             </div>
+          </section>
+
+          {/* Logout Button */}
+          <button
+            onClick={handleLogout}
+            className="mt-4 flex w-full items-center justify-center gap-2 rounded-2xl bg-rose-50 p-4 text-rose-600 shadow-lg border border-rose-100 transition-all hover:bg-rose-100 hover:shadow-xl active:scale-95"
+          >
+            <FaSignOutAlt className="h-5 w-5" />
+            <span className="font-bold">Đăng xuất khỏi thiết bị</span>
+          </button>
+
+          <div className="text-center text-xs text-slate-400 pt-4">
+            <p>BO fin App v1.0.2</p>
+            <p>Designed by MWang</p>
           </div>
-
-          <div className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100 sm:p-6">
-            <h2 className="mb-4 text-base font-bold text-slate-900 sm:text-lg">Chế độ hiển thị</h2>
-            <p className="mb-4 text-xs text-slate-500 sm:text-sm">
-              Chọn chế độ sáng hoặc tối
-            </p>
-            <div className="flex gap-3">
-              <button
-                type="button"
-                onClick={() => setDarkMode(false)}
-                className={`flex flex-1 items-center justify-center gap-2 rounded-xl p-4 transition ${
-                  !darkMode
-                    ? 'bg-sky-50 ring-2 ring-sky-400 shadow-md'
-                    : 'bg-slate-50 ring-1 ring-slate-100 hover:ring-sky-200'
-                }`}
-              >
-                <FaSun className={`h-5 w-5 ${!darkMode ? 'text-sky-600' : 'text-slate-400'}`} />
-                <span className={`text-sm font-semibold ${!darkMode ? 'text-sky-700' : 'text-slate-600'}`}>
-                  Sáng
-                </span>
-              </button>
-                <button
-                  type="button"
-                onClick={() => setDarkMode(true)}
-                className={`flex flex-1 items-center justify-center gap-2 rounded-xl p-4 transition ${
-                  darkMode
-                    ? 'bg-slate-800 ring-2 ring-slate-600 shadow-md'
-                    : 'bg-slate-50 ring-1 ring-slate-100 hover:ring-slate-200'
-                }`}
-                >
-                <FaMoon className={`h-5 w-5 ${darkMode ? 'text-slate-300' : 'text-slate-400'}`} />
-                <span className={`text-sm font-semibold ${darkMode ? 'text-slate-200' : 'text-slate-600'}`}>
-                  Tối
-                  </span>
-                </button>
-            </div>
-          </div>
-        </section> */}
-
-
 
         </div>
       </main>
 
       <FooterNav onAddClick={() => navigate('/add-transaction')} />
+
       <IconManagementModal
         isOpen={isIconManagementOpen}
         onClose={() => setIsIconManagementOpen(false)}
@@ -510,9 +376,13 @@ const SettingsPage = () => {
         onClose={() => setIsAdminSettingsModalOpen(false)}
         onIconManagementClick={() => setIsIconManagementOpen(true)}
       />
+
+      <QRScannerModal
+        isOpen={isQRScannerOpen}
+        onClose={() => setIsQRScannerOpen(false)}
+      />
     </div>
   )
 }
 
 export default SettingsPage
-

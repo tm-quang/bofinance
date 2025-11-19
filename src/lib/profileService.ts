@@ -2,8 +2,8 @@ import type { PostgrestError, AuthError } from '@supabase/supabase-js'
 
 import { getSupabaseClient } from './supabaseClient'
 import { uploadToCloudinary } from './cloudinaryService'
-import { invalidateCache } from './cache'
 import { getCachedUser } from './userCache'
+import { queryClient } from './react-query'
 
 export type ProfileRecord = {
   id: string
@@ -33,6 +33,10 @@ const throwIfError = (error: PostgrestError | AuthError | null, fallbackMessage:
 
 // Lấy thông tin profile của user hiện tại
 export const getCurrentProfile = async (forceRefresh = false): Promise<ProfileRecord | null> => {
+  if (forceRefresh) {
+    const { invalidateUserCache } = await import('./userCache')
+    invalidateUserCache()
+  }
   const supabase = getSupabaseClient()
   const user = await getCachedUser()
 
@@ -40,43 +44,7 @@ export const getCurrentProfile = async (forceRefresh = false): Promise<ProfileRe
     return null
   }
 
-  // If force refresh, invalidate cache first
-  if (forceRefresh) {
-    await invalidateCache('getCurrentProfile')
-  }
-
-  // Try to get from cache first (unless force refresh)
-  if (!forceRefresh) {
-    try {
-      const { cacheFirstWithRefresh } = await import('./cache')
-      const cachedResult = await cacheFirstWithRefresh<ProfileRecord>(
-        'getCurrentProfile',
-        async () => {
-          const { data, error } = await supabase
-            .from(TABLE_NAME)
-            .select('*')
-            .eq('id', user.id)
-            .single()
-
-          if (error) {
-            throw error
-          }
-
-          return data
-        },
-        5 * 60 * 1000 // 5 minutes cache
-      )
-
-      if (cachedResult) {
-        return cachedResult
-      }
-    } catch (cacheError) {
-      console.warn('Cache error, fetching fresh profile:', cacheError)
-      // Fall through to direct fetch
-    }
-  }
-
-  // Direct fetch (bypass cache or if cache failed)
+  // Direct fetch
   const { data, error } = await supabase
     .from(TABLE_NAME)
     .select('*')
@@ -93,7 +61,7 @@ export const getCurrentProfile = async (forceRefresh = false): Promise<ProfileRe
       table: TABLE_NAME,
       userId: user.id
     })
-    
+
     // If profile doesn't exist (PGRST116), try to create it
     if (error.code === 'PGRST116') {
       console.warn('Profile not found, attempting to create default profile...')
@@ -107,33 +75,23 @@ export const getCurrentProfile = async (forceRefresh = false): Promise<ProfileRe
           })
           .select()
           .single()
-        
+
         if (insertError) {
           console.error('Failed to create profile:', insertError)
           throwIfError(insertError, 'Không thể tạo thông tin cá nhân.')
         }
-        
+
         // Invalidate cache after creating profile
-        await invalidateCache('getCurrentProfile')
-        
+        await queryClient.invalidateQueries({ queryKey: ['getCurrentProfile'] })
+
         return newProfile
       } catch (createError) {
         console.error('Failed to bootstrap profile record after missing profile error:', createError)
         throwIfError(error, 'Không thể tải thông tin cá nhân.')
       }
     }
-    
-    throwIfError(error, 'Không thể tải thông tin cá nhân.')
-  }
 
-  // Update cache with fresh data
-  if (data) {
-    try {
-      const { cacheManager } = await import('./cache')
-      await cacheManager.set('getCurrentProfile', data, 5 * 60 * 1000)
-    } catch (cacheError) {
-      console.warn('Failed to update profile cache:', cacheError)
-    }
+    throwIfError(error, 'Không thể tải thông tin cá nhân.')
   }
 
   return data
@@ -162,7 +120,7 @@ export const updateProfile = async (updates: ProfileUpdate): Promise<ProfileReco
   }
 
   // Invalidate cache khi profile được cập nhật
-  await invalidateCache('getCurrentProfile')
+  await queryClient.invalidateQueries({ queryKey: ['getCurrentProfile'] })
 
   return data
 }
@@ -240,8 +198,7 @@ export const deleteAvatar = async (): Promise<void> => {
   // Note: Cloudinary deletion should be done server-side for security
   // For now, we just remove the URL from the profile
   // The actual image will remain on Cloudinary until manually deleted or expired
-  
+
   // Cập nhật profile để xóa avatar_url
   await updateProfile({ avatar_url: null })
 }
-

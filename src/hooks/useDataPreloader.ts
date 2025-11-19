@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { useLocation } from 'react-router-dom'
 import { preloadAllData, isDataPreloaded, type PreloadStatus } from '../lib/dataPreloader'
 import { getCachedUser } from '../lib/userCache'
-import { cacheManager } from '../lib/cache'
+
 
 /**
  * Hook để preload dữ liệu khi user đăng nhập
@@ -33,8 +33,7 @@ export const useDataPreloader = () => {
 
         if (!user) return
 
-        // Load cache từ localStorage cho user hiện tại
-        await cacheManager.loadFromStorage()
+
 
         // Kiểm tra xem đã preload chưa
         const alreadyPreloaded = await isDataPreloaded()

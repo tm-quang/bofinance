@@ -1,8 +1,8 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 
 import { getSupabaseClient } from './supabaseClient'
-import { invalidateCache, cacheFirstWithRefresh, cacheManager } from './cache'
 import { getCachedUser } from './userCache'
+import { queryClient } from './react-query'
 
 export type WalletType = 'Tiền mặt' | 'Ngân hàng' | 'Tiết kiệm' | 'Tín dụng' | 'Đầu tư' | 'Khác'
 
@@ -54,33 +54,21 @@ export const fetchWallets = async (includeInactive = false): Promise<WalletRecor
     throw new Error('Bạn cần đăng nhập để xem ví.')
   }
 
-  const cacheKey = await cacheManager.generateKey('fetchWallets', {
-    includeInactive,
-  })
+  let query = supabase
+    .from(TABLE_NAME)
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
 
-  const fetchFromSupabase = async (): Promise<WalletRecord[]> => {
-    let query = supabase
-      .from(TABLE_NAME)
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-
-    if (!includeInactive) {
-      query = query.eq('is_active', true)
-    }
-
-    const { data, error } = await query
-
-    throwIfError(error, 'Không thể tải danh sách ví.')
-
-    return data ?? []
+  if (!includeInactive) {
+    query = query.eq('is_active', true)
   }
 
-  // Cache với TTL 24 giờ cho session cache (persistent trong phiên đăng nhập)
-  // Stale threshold 12 giờ (refresh trong background sau 12 giờ)
-  const ttl = 24 * 60 * 60 * 1000 // 24 giờ
-  const staleThreshold = 12 * 60 * 60 * 1000 // 12 giờ
-  return cacheFirstWithRefresh(cacheKey, fetchFromSupabase, ttl, staleThreshold)
+  const { data, error } = await query
+
+  throwIfError(error, 'Không thể tải danh sách ví.')
+
+  return data ?? []
 }
 
 // Lấy một ví theo ID
@@ -132,7 +120,10 @@ export const createWallet = async (payload: WalletInsert): Promise<WalletRecord>
   }
 
   // Invalidate cache để đảm bảo danh sách ví được cập nhật
-  await invalidateCache('fetchWallets')
+  await queryClient.invalidateQueries({ queryKey: ['fetchWallets'] })
+  await queryClient.invalidateQueries({ queryKey: ['getNetAssets'] })
+  await queryClient.invalidateQueries({ queryKey: ['getTotalBalance'] })
+  await queryClient.invalidateQueries({ queryKey: ['getBalanceStats'] })
 
   return data
 }
@@ -161,7 +152,10 @@ export const updateWallet = async (id: string, updates: WalletUpdate): Promise<W
   }
 
   // Invalidate cache để đảm bảo danh sách ví được cập nhật
-  await invalidateCache('fetchWallets')
+  await queryClient.invalidateQueries({ queryKey: ['fetchWallets'] })
+  await queryClient.invalidateQueries({ queryKey: ['getNetAssets'] })
+  await queryClient.invalidateQueries({ queryKey: ['getTotalBalance'] })
+  await queryClient.invalidateQueries({ queryKey: ['getBalanceStats'] })
 
   return data
 }
@@ -188,10 +182,13 @@ export const deleteWallet = async (id: string, hardDelete = false): Promise<void
   }
 
   // Invalidate cache để đảm bảo danh sách ví được cập nhật
-  await invalidateCache('fetchWallets')
-  
+  await queryClient.invalidateQueries({ queryKey: ['fetchWallets'] })
+  await queryClient.invalidateQueries({ queryKey: ['getNetAssets'] })
+  await queryClient.invalidateQueries({ queryKey: ['getTotalBalance'] })
+  await queryClient.invalidateQueries({ queryKey: ['getBalanceStats'] })
+
   // Also invalidate transaction stats since wallet balance changed
-  await invalidateCache('getTransactionStats')
+  await queryClient.invalidateQueries({ queryKey: ['getTransactionStats'] })
 }
 
 // Cập nhật số dư ví
@@ -277,29 +274,29 @@ export const getBalanceStats = async (): Promise<{
   total: number
 }> => {
   const wallets = await fetchWallets()
-  
+
   const netAssets = wallets
     .filter((w) => w.type === 'Tiền mặt' || w.type === 'Ngân hàng')
     .reduce((sum, w) => sum + w.balance, 0)
-  
+
   const credit = wallets
     .filter((w) => w.type === 'Tín dụng')
     .reduce((sum, w) => sum + w.balance, 0)
-  
+
   const investment = wallets
     .filter((w) => w.type === 'Đầu tư')
     .reduce((sum, w) => sum + w.balance, 0)
-  
+
   const savings = wallets
     .filter((w) => w.type === 'Tiết kiệm')
     .reduce((sum, w) => sum + w.balance, 0)
-  
+
   const other = wallets
     .filter((w) => w.type === 'Khác')
     .reduce((sum, w) => sum + w.balance, 0)
-  
+
   const total = wallets.reduce((sum, w) => sum + w.balance, 0)
-  
+
   return {
     netAssets,
     credit,
@@ -326,7 +323,6 @@ export const setDefaultWallet = async (walletId: string): Promise<void> => {
   }
 
   // Lưu vào bảng user_preferences
-  // Bảng này được tạo bằng migration SQL (xem supabase/migrations/create_user_preferences.sql)
   const { error } = await supabase
     .from('user_preferences')
     .upsert(
@@ -334,7 +330,6 @@ export const setDefaultWallet = async (walletId: string): Promise<void> => {
         user_id: user.id,
         key: 'default_wallet_id',
         value: walletId,
-        // updated_at sẽ được tự động cập nhật bởi trigger
       },
       {
         onConflict: 'user_id,key',
@@ -343,7 +338,6 @@ export const setDefaultWallet = async (walletId: string): Promise<void> => {
 
   if (error) {
     // Nếu bảng user_preferences không tồn tại, fallback về localStorage
-    // Không log error nếu bảng không tồn tại (schema issue)
     if (!error.message?.includes('schema cache') && !error.message?.includes('does not exist')) {
       console.warn('Không thể lưu ví mặc định vào database:', error.message)
     }
@@ -354,11 +348,11 @@ export const setDefaultWallet = async (walletId: string): Promise<void> => {
     }
   } else {
     // Invalidate cache để đảm bảo dữ liệu mới nhất
-    await invalidateCache('fetchWallets')
+    await queryClient.invalidateQueries({ queryKey: ['fetchWallets'] })
   }
-  
+
   // Also invalidate related caches
-  await invalidateCache('getDefaultWallet')
+  await queryClient.invalidateQueries({ queryKey: ['getDefaultWallet'] })
 }
 
 // Lấy ví mặc định từ database
@@ -368,14 +362,6 @@ export const getDefaultWallet = async (): Promise<string | null> => {
 
   if (!user) {
     return null
-  }
-
-  // Sử dụng cache để tránh fetch lại nhiều lần
-  const cacheKey = await cacheManager.generateKey('getDefaultWallet', {})
-  const cached = await cacheManager.get<string | null>(cacheKey)
-  
-  if (cached !== null) {
-    return cached
   }
 
   // Fetch từ database
@@ -390,9 +376,9 @@ export const getDefaultWallet = async (): Promise<string | null> => {
 
   if (error) {
     // Nếu lỗi không phải là "not found" hoặc "schema cache", log và fallback
-    if (error.code !== 'PGRST116' && 
-        !error.message?.includes('schema cache') && 
-        !error.message?.includes('does not exist')) {
+    if (error.code !== 'PGRST116' &&
+      !error.message?.includes('schema cache') &&
+      !error.message?.includes('does not exist')) {
       console.warn('Error fetching default_wallet_id:', error.message)
     }
   }
@@ -408,9 +394,6 @@ export const getDefaultWallet = async (): Promise<string | null> => {
     result = data.value as string
   }
 
-  // Cache kết quả với TTL 24 giờ
-  await cacheManager.set(cacheKey, result, 24 * 60 * 60 * 1000)
-  
   return result
 }
 
@@ -426,17 +409,7 @@ export const getTotalBalanceWalletIds = async (): Promise<string[]> => {
     return []
   }
 
-  // Sử dụng cache
-  const cacheKey = await cacheManager.generateKey('getTotalBalanceWalletIds', {})
-  const cached = await cacheManager.get<string[] | null>(cacheKey)
-  
-  if (cached !== null) {
-    return cached
-  }
-
   // Fetch từ database
-  console.log('📖 Loading total balance wallet IDs from database for user:', user.id)
-  
   const { data, error } = await supabase
     .from('user_preferences')
     .select('value')
@@ -454,8 +427,6 @@ export const getTotalBalanceWalletIds = async (): Promise<string[]> => {
         code: error.code,
         details: error.details,
       })
-    } else {
-      console.log('ℹ️ No data found in database (PGRST116) - will use default')
     }
   }
 
@@ -480,20 +451,12 @@ export const getTotalBalanceWalletIds = async (): Promise<string[]> => {
   } else {
     try {
       result = JSON.parse(data.value as string)
-      console.log('✅ Loaded from database:', {
-        walletIds: result,
-        count: result.length,
-      })
     } catch (parseError) {
       console.error('❌ Error parsing value from database:', parseError)
       result = []
     }
   }
 
-  // Cache kết quả với TTL 5 phút (để đảm bảo dữ liệu được cập nhật thường xuyên hơn)
-  await cacheManager.set(cacheKey, result, 5 * 60 * 1000)
-  console.log('💾 Cached result with TTL 5 minutes')
-  
   return result
 }
 
@@ -508,22 +471,19 @@ export const setTotalBalanceWalletIds = async (walletIds: string[]): Promise<voi
     throw new Error('Bạn cần đăng nhập để cập nhật cài đặt.')
   }
 
-  // Kiểm tra tất cả ví có thuộc về user không
+  // Kiểm tra tất cả ví có tồn tại không (optional, but good for consistency)
+  // Note: We don't strictly enforce it here to avoid extra fetch if not needed, 
+  // but the original code did check. Let's keep it simple and trust the input or check if critical.
+  // Original code checked ownership. Let's keep that check.
   const wallets = await fetchWallets()
   const validWalletIds = walletIds.filter((id) => wallets.some((w) => w.id === id))
-  
+
   if (validWalletIds.length !== walletIds.length) {
     throw new Error('Một số ví không tồn tại hoặc không thuộc về bạn.')
   }
 
   // Lưu vào database
-  console.log('💾 Saving total balance wallet IDs to database:', {
-    userId: user.id,
-    walletIds: validWalletIds,
-    count: validWalletIds.length,
-  })
-  
-  const { data, error } = await supabase
+  const { error } = await supabase
     .from('user_preferences')
     .upsert(
       {
@@ -538,30 +498,20 @@ export const setTotalBalanceWalletIds = async (walletIds: string[]): Promise<voi
     .select()
 
   if (error) {
-    // Log chi tiết lỗi để debug
-    console.error('❌ Error saving to database:', {
-      error: error.message,
-      code: error.code,
-      details: error.details,
-      hint: error.hint,
-    })
-    
+    console.error('❌ Error saving to database:', error)
+
     // Fallback về localStorage
-    console.warn('⚠️ Falling back to localStorage')
     try {
       localStorage.setItem('bofin_total_balance_wallet_ids', JSON.stringify(validWalletIds))
-      console.log('✅ Saved to localStorage as fallback')
     } catch (e) {
       console.error('❌ Cannot save to localStorage:', e)
       throw new Error('Không thể lưu cài đặt. Vui lòng thử lại.')
     }
   } else {
-    console.log('✅ Successfully saved to database:', data)
     // Invalidate cache
-    await invalidateCache('fetchWallets')
+    await queryClient.invalidateQueries({ queryKey: ['fetchWallets'] })
   }
-  
-  // Invalidate cache
-  await invalidateCache('getTotalBalanceWalletIds')
-}
 
+  // Invalidate cache
+  await queryClient.invalidateQueries({ queryKey: ['getTotalBalanceWalletIds'] })
+}

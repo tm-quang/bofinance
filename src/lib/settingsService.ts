@@ -1,7 +1,7 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 import { getSupabaseClient } from './supabaseClient'
-import { cacheFirstWithRefresh, invalidateCache } from './cache'
 import { getCachedUser } from './userCache'
+import { queryClient } from './react-query'
 
 const TABLE_NAME = 'system_settings'
 
@@ -56,45 +56,36 @@ export const fetchSettings = async (options?: {
   is_active?: boolean
   is_public?: boolean
 }): Promise<SystemSettingRecord[]> => {
-  const cacheKey = `settings_${JSON.stringify(options || {})}`
-  
-  return cacheFirstWithRefresh<SystemSettingRecord[]>(
-    cacheKey,
-    async () => {
-      const supabase = getSupabaseClient()
-      let query = supabase.from(TABLE_NAME).select('*')
+  const supabase = getSupabaseClient()
+  let query = supabase.from(TABLE_NAME).select('*')
 
-      if (options?.category) {
-        query = query.eq('category', options.category)
-      }
-      if (options?.is_active !== undefined) {
-        query = query.eq('is_active', options.is_active)
-      }
-      if (options?.is_public !== undefined) {
-        query = query.eq('is_public', options.is_public)
-      }
+  if (options?.category) {
+    query = query.eq('category', options.category)
+  }
+  if (options?.is_active !== undefined) {
+    query = query.eq('is_active', options.is_active)
+  }
+  if (options?.is_public !== undefined) {
+    query = query.eq('is_public', options.is_public)
+  }
 
-      query = query.order('category', { ascending: true }).order('label', { ascending: true })
+  query = query.order('category', { ascending: true }).order('label', { ascending: true })
 
-      const { data, error } = await query
+  const { data, error } = await query
 
-      throwIfError(error, 'Không thể tải cài đặt hệ thống')
+  throwIfError(error, 'Không thể tải cài đặt hệ thống')
 
-      return data || []
-    },
-    5 * 60 * 1000 // 5 minutes cache
-  )
+  return data || []
 }
 
 /**
  * Get a single setting by key
  */
 export const getSettingByKey = async (key: string): Promise<SystemSettingRecord | null> => {
-  const cacheKey = `setting_${key}`
-  
-  return cacheFirstWithRefresh<SystemSettingRecord | null>(
-    cacheKey,
-    async () => {
+  // Use queryClient.ensureQueryData to leverage React Query cache
+  return queryClient.ensureQueryData({
+    queryKey: ['setting', key],
+    queryFn: async () => {
       const supabase = getSupabaseClient()
       const { data, error } = await supabase
         .from(TABLE_NAME)
@@ -112,8 +103,8 @@ export const getSettingByKey = async (key: string): Promise<SystemSettingRecord 
 
       return data
     },
-    5 * 60 * 1000 // 5 minutes cache
-  )
+    staleTime: 5 * 60 * 1000 // 5 minutes cache
+  })
 }
 
 /**
@@ -128,16 +119,23 @@ export const getSettingValue = async (key: string): Promise<string | null> => {
  * Get multiple settings by keys
  */
 export const getSettingsByKeys = async (keys: string[]): Promise<Record<string, SystemSettingRecord>> => {
-  const settings = await fetchSettings()
+  // Fetch all settings to filter locally, or could optimize to fetch specific keys
+  // For now, fetching all is simpler and likely performant enough given low volume of settings
+  const settings = await queryClient.ensureQueryData({
+    queryKey: ['settings'],
+    queryFn: () => fetchSettings(),
+    staleTime: 5 * 60 * 1000
+  })
+
   const result: Record<string, SystemSettingRecord> = {}
-  
+
   keys.forEach(key => {
     const setting = settings.find(s => s.setting_key === key)
     if (setting) {
       result[key] = setting
     }
   })
-  
+
   return result
 }
 
@@ -167,8 +165,8 @@ export const createSetting = async (payload: SystemSettingInsert): Promise<Syste
     throw new Error('Không nhận được dữ liệu cài đặt sau khi tạo.')
   }
 
-  await invalidateCache('settings')
-  await invalidateCache(`setting_${payload.setting_key}`)
+  await queryClient.invalidateQueries({ queryKey: ['settings'] })
+  await queryClient.invalidateQueries({ queryKey: ['setting', payload.setting_key] })
 
   return data
 }
@@ -203,8 +201,8 @@ export const updateSetting = async (
     throw new Error('Không nhận được dữ liệu cài đặt sau khi cập nhật.')
   }
 
-  await invalidateCache('settings')
-  await invalidateCache(`setting_${key}`)
+  await queryClient.invalidateQueries({ queryKey: ['settings'] })
+  await queryClient.invalidateQueries({ queryKey: ['setting', key] })
 
   return data
 }
@@ -218,7 +216,7 @@ export const updateSettingValue = async (
   metadata?: Record<string, any>
 ): Promise<SystemSettingRecord> => {
   const user = await getCachedUser()
-  
+
   return updateSetting(key, {
     setting_value: value,
     metadata: metadata || undefined,
@@ -244,8 +242,8 @@ export const deleteSetting = async (key: string): Promise<void> => {
 
   throwIfError(error, 'Không thể xóa cài đặt.')
 
-  await invalidateCache('settings')
-  await invalidateCache(`setting_${key}`)
+  await queryClient.invalidateQueries({ queryKey: ['settings'] })
+  await queryClient.invalidateQueries({ queryKey: ['setting', key] })
 }
 
 /**
@@ -254,11 +252,10 @@ export const deleteSetting = async (key: string): Promise<void> => {
 export const getPublicSettings = async (): Promise<Record<string, string | null>> => {
   const settings = await fetchSettings({ is_public: true, is_active: true })
   const result: Record<string, string | null> = {}
-  
+
   settings.forEach(setting => {
     result[setting.setting_key] = setting.setting_value
   })
-  
+
   return result
 }
-

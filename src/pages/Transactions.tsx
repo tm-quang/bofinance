@@ -8,6 +8,7 @@ import {
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
 import { TransactionActionModal } from '../components/transactions/TransactionActionModal'
+import { TransactionDetailModal } from '../components/transactions/TransactionDetailModal'
 import { TransactionCard } from '../components/transactions/TransactionCard'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { TransactionListSkeleton } from '../components/skeletons'
@@ -90,6 +91,7 @@ const TransactionsPage = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [selectedTransaction, setSelectedTransaction] = useState<TransactionRecord | null>(null)
   const [isActionModalOpen, setIsActionModalOpen] = useState(false)
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false)
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false)
   const [isEditConfirmOpen, setIsEditConfirmOpen] = useState(false)
   const [isDeleting, setIsDeleting] = useState(false)
@@ -275,11 +277,13 @@ const TransactionsPage = () => {
   // Get category info for a transaction
   const getCategoryInfo = (categoryId: string) => {
     const category = categories.find((cat) => cat.id === categoryId)
-    if (!category) return { name: 'Khác', icon: null }
+    if (!category) return { name: 'Khác', icon: null, iconId: undefined, iconUrl: undefined }
 
     return {
       name: category.name,
       icon: categoryIcons[category.id] || null,
+      iconId: category.icon_id,
+      iconUrl: category.icon_url || null,
     }
   }
 
@@ -371,6 +375,12 @@ const TransactionsPage = () => {
     longPressTargetRef.current = null
   }
 
+  // Handle click on transaction card to show detail modal
+  const handleTransactionClick = (transaction: TransactionRecord) => {
+    setSelectedTransaction(transaction)
+    setIsDetailModalOpen(true)
+  }
+
   // Handle edit
   const handleEditClick = () => {
     setIsEditConfirmOpen(true)
@@ -425,7 +435,7 @@ const TransactionsPage = () => {
           <button
             type="button"
             onClick={() => setIsSearchOpen(!isSearchOpen)}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100 transition hover:scale-110 active:scale-95"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-lg border border-slate-100 transition hover:scale-110 active:scale-95"
             aria-label="Tìm kiếm"
           >
             <FaSearch className="h-4 w-4 text-slate-600" />
@@ -473,8 +483,8 @@ const TransactionsPage = () => {
                   type="button"
                   onClick={() => setPeriodType(period)}
                   className={`flex-1 rounded-xl px-3 py-2.5 text-xs font-semibold transition-all sm:text-sm ${isActive
-                      ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-lg shadow-sky-500/30'
-                      : 'bg-white text-slate-600 shadow-sm ring-1 ring-slate-200 hover:ring-slate-300'
+                    ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-lg shadow-sky-500/30'
+                    : 'bg-white text-slate-600 shadow-sm border border-slate-200 hover:border-slate-300'
                     }`}
                 >
                   {labels[period]}
@@ -485,13 +495,13 @@ const TransactionsPage = () => {
 
           {/* Total Income and Expense */}
           <section className="grid grid-cols-2 gap-3">
-            <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-white px-4 py-3 shadow-sm ring-1 ring-emerald-100">
+            <div className="rounded-xl bg-gradient-to-br from-emerald-50 to-white px-4 py-3 shadow-lg border border-emerald-100">
               <p className="text-xs font-semibold uppercase tracking-wider text-emerald-600">Tổng Thu</p>
               <p className="mt-1 text-lg font-bold text-emerald-700">
                 {isLoading ? '...' : formatCurrency(totals.income)}
               </p>
             </div>
-            <div className="rounded-xl bg-gradient-to-br from-rose-50 to-white px-4 py-3 shadow-sm ring-1 ring-rose-100">
+            <div className="rounded-xl bg-gradient-to-br from-rose-50 to-white px-4 py-3 shadow-lg border border-rose-100">
               <p className="text-xs font-semibold uppercase tracking-wider text-rose-600">Tổng Chi</p>
               <p className="mt-1 text-lg font-bold text-rose-700">
                 {isLoading ? '...' : formatCurrency(totals.expense)}
@@ -504,7 +514,7 @@ const TransactionsPage = () => {
             {isLoading ? (
               <TransactionListSkeleton count={10} />
             ) : transactionsByDate.length === 0 ? (
-              <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-12 shadow-lg ring-1 ring-slate-100">
+              <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-12 shadow-lg border border-slate-100">
                 <div className="mb-4 p-4 overflow-hidden">
                   {searchTerm || typeFilter !== 'all' || walletFilter !== 'all' ? (
                     <FaSearch className="h-8 w-8 text-slate-400" />
@@ -595,6 +605,7 @@ const TransactionsPage = () => {
                               onLongPressStart={handleLongPressStart}
                               onLongPressEnd={handleLongPressEnd}
                               onLongPressCancel={handleLongPressCancel}
+                              onClick={handleTransactionClick}
                               formatCurrency={formatCurrency}
                               formatDate={formatTransactionDate}
                             />
@@ -611,6 +622,17 @@ const TransactionsPage = () => {
       </main>
 
       <FooterNav onAddClick={() => navigate('/add-transaction')} />
+
+      <TransactionDetailModal
+        isOpen={isDetailModalOpen}
+        onClose={() => {
+          setIsDetailModalOpen(false)
+          setSelectedTransaction(null)
+        }}
+        transaction={selectedTransaction}
+        categoryInfo={selectedTransaction ? getCategoryInfo(selectedTransaction.category_id) : undefined}
+        walletInfo={selectedTransaction ? { name: getWalletName(selectedTransaction.wallet_id) } : undefined}
+      />
 
       <TransactionActionModal
         isOpen={isActionModalOpen}

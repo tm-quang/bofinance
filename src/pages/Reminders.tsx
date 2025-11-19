@@ -399,7 +399,7 @@ const RemindersPage = () => {
           <button
             type="button"
             onClick={() => setIsSearchOpen(!isSearchOpen)}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100 transition hover:scale-110 active:scale-95"
+            className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-lg border border-slate-100 transition hover:scale-110 active:scale-95"
             aria-label="Tìm kiếm"
           >
             <FaSearch className="h-4 w-4 text-slate-600" />
@@ -452,7 +452,7 @@ const RemindersPage = () => {
                   </div>
                   <button
                     onClick={handleAddClick}
-                    className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-blue-700 active:scale-95"
+                    className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-sky-500/30 transition hover:from-sky-600 hover:to-blue-700 hover:shadow-xl active:scale-95"
                   >
                     <FaPlus className="h-4 w-4" />
                     Thêm mới
@@ -477,7 +477,7 @@ const RemindersPage = () => {
                       return (
                         <div
                           key={reminder.id}
-                          className={`rounded-2xl p-4 shadow-lg ring-1 ${colorClasses.bg} ${colorClasses.border}`}
+                          className={`rounded-2xl p-4 shadow-lg border ${colorClasses.bg} ${colorClasses.border}`}
                         >
                           <div className="flex items-start gap-3">
                             <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full">
@@ -579,7 +579,7 @@ const RemindersPage = () => {
                       return (
                         <div
                           key={reminder.id}
-                          className={`rounded-2xl p-4 shadow-sm ring-1 ${colorClasses.bg} ${colorClasses.border}`}
+                          className={`rounded-2xl p-4 shadow-lg border ${colorClasses.bg} ${colorClasses.border}`}
                         >
                           <div className="flex items-start gap-3">
                             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
@@ -675,7 +675,7 @@ const RemindersPage = () => {
                       return (
                         <div
                           key={reminder.id}
-                          className="rounded-2xl bg-slate-50 p-4 opacity-60 ring-1 ring-slate-200"
+                          className="rounded-2xl bg-slate-50 p-4 opacity-60 border border-slate-200"
                         >
                           <div className="flex items-start gap-3">
                             <div
@@ -710,7 +710,7 @@ const RemindersPage = () => {
 
               {/* Empty State */}
               {filteredReminders.length === 0 && (
-                <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-12 shadow-lg ring-1 ring-slate-100">
+                <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-12 shadow-lg border border-slate-100">
                   <div className="mx-auto mb-4 flex h-16 w-16 items-center justify-center rounded-full bg-slate-100">
                     <FaCalendar className="h-8 w-8 text-slate-400" />
                   </div>
@@ -722,7 +722,7 @@ const RemindersPage = () => {
                   </p>
                   <button
                     onClick={handleAddClick}
-                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-6 py-3 text-white font-semibold shadow-lg hover:from-sky-600 hover:to-blue-700 transition-all"
+                    className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-6 py-3 text-white font-semibold shadow-lg shadow-sky-500/30 hover:from-sky-600 hover:to-blue-700 hover:shadow-xl transition-all"
                   >
                     <FaPlus className="h-5 w-5" />
                     Tạo nhắc nhở đầu tiên

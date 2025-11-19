@@ -181,8 +181,8 @@ export const CategoriesPage = () => {
         setIsLoading(true)
         try {
             // Invalidate cache trước khi fetch
-            const { invalidateCache } = await import('../lib/cache')
-            await invalidateCache('categories')
+            const { queryClient } = await import('../lib/react-query')
+            await queryClient.invalidateQueries({ queryKey: ['categories'] })
 
             // Đợi một chút để cache được clear
             await new Promise(resolve => setTimeout(resolve, 150))
@@ -431,13 +431,13 @@ export const CategoriesPage = () => {
             <main className="flex-1 overflow-y-auto overscroll-contain">
                 <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 pt-2 pb-4 sm:pt-2 sm:pb-4">
                     {/* Tab Navigation */}
-                    <div className="flex gap-2 rounded-2xl bg-white p-1.5 shadow-sm ring-1 ring-slate-100/50 sm:gap-2.5 sm:p-2">
+                    <div className="flex gap-2 rounded-2xl bg-white p-1.5 shadow-lg border border-slate-100 sm:gap-2.5 sm:p-2">
                         <button
                             type="button"
                             onClick={() => setActiveTab('expense')}
                             className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition-all sm:px-5 sm:py-3 ${activeTab === 'expense'
-                                    ? 'bg-gradient-to-r from-rose-500 to-rose-600 text-white shadow-md shadow-rose-500/30'
-                                    : 'text-slate-600 hover:bg-slate-50'
+                                ? 'bg-gradient-to-r from-rose-500 to-rose-600 text-white shadow-md shadow-rose-500/30'
+                                : 'text-slate-600 hover:bg-slate-50'
                                 }`}
                         >
                             Khoản chi
@@ -446,8 +446,8 @@ export const CategoriesPage = () => {
                             type="button"
                             onClick={() => setActiveTab('income')}
                             className={`flex-1 rounded-xl px-4 py-2.5 text-sm font-bold transition-all sm:px-5 sm:py-3 ${activeTab === 'income'
-                                    ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md shadow-emerald-500/30'
-                                    : 'text-slate-600 hover:bg-slate-50'
+                                ? 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md shadow-emerald-500/30'
+                                : 'text-slate-600 hover:bg-slate-50'
                                 }`}
                         >
                             Khoản thu
@@ -461,13 +461,13 @@ export const CategoriesPage = () => {
                             value={searchTerm}
                             onChange={(event) => setSearchTerm(event.target.value)}
                             placeholder="Tìm theo tên hạng mục"
-                            className="h-12 w-full rounded-2xl border-0 bg-white pl-11 pr-4 text-sm text-slate-900 shadow-sm ring-1 ring-slate-200/50 outline-none transition-all placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500/20 sm:h-11"
+                            className="h-12 w-full rounded-2xl border-0 bg-white pl-11 pr-4 text-sm text-slate-900 shadow-lg border border-slate-100 outline-none transition-all placeholder:text-slate-400 focus:ring-2 focus:ring-sky-500/20 sm:h-11"
                         />
                     </div>
 
                     {/* Category List */}
                     <section
-                        className="rounded-2xl bg-white ring-1 ring-slate-100/50 overflow-hidden"
+                        className="rounded-2xl bg-white border border-slate-100 shadow-lg overflow-hidden"
                         onClick={handleClickOutside}
                     >
                         {loadError && (
@@ -528,8 +528,8 @@ export const CategoriesPage = () => {
                                                                 toggleParentExpanded(parentCategory.id)
                                                             }}
                                                             className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg transition-all ${isExpanded
-                                                                    ? 'bg-sky-200 text-sky-600'
-                                                                    : 'bg-slate-200 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600'
+                                                                ? 'bg-sky-200 text-sky-600'
+                                                                : 'bg-slate-200 text-slate-400 group-hover:bg-slate-200 group-hover:text-slate-600'
                                                                 }`}
                                                         >
                                                             <FaChevronRight
@@ -643,7 +643,7 @@ export const CategoriesPage = () => {
                                 <button
                                     type="button"
                                     onClick={closeForm}
-                                    className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100"
+                                    className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-lg border border-slate-100"
                                     aria-label="Đóng"
                                 >
                                     <FaArrowLeft className="h-5 w-5" />
@@ -691,7 +691,7 @@ export const CategoriesPage = () => {
                                             })
                                         }}
                                         disabled={isSubmitting || isDeleting}
-                                        className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100 text-rose-600 transition-all hover:bg-rose-50 hover:ring-rose-200 disabled:cursor-not-allowed disabled:opacity-50 active:scale-95"
+                                        className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-lg border border-slate-100 text-rose-600 transition-all hover:bg-rose-50 hover:border-rose-200 disabled:cursor-not-allowed disabled:opacity-50 active:scale-95"
                                         aria-label="Xóa hạng mục"
                                     >
                                         <FaTrash className="h-5 w-5" />
@@ -734,8 +734,8 @@ export const CategoriesPage = () => {
                                         type="button"
                                         onClick={() => setFormState((prev) => ({ ...prev, type: 'Chi tiêu' }))}
                                         className={`group relative h-14 rounded-2xl border-2 px-4 text-sm font-bold transition-all active:scale-[0.98] ${formState.type === 'Chi tiêu'
-                                                ? 'border-rose-500 bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-lg shadow-rose-500/30 ring-2 ring-rose-400/20'
-                                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                                            ? 'border-rose-500 bg-gradient-to-br from-rose-500 to-red-600 text-white shadow-lg shadow-rose-500/30 ring-2 ring-rose-400/20'
+                                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
                                             }`}
                                     >
                                         <span className="relative z-10">Chi tiêu</span>
@@ -747,8 +747,8 @@ export const CategoriesPage = () => {
                                         type="button"
                                         onClick={() => setFormState((prev) => ({ ...prev, type: 'Thu nhập' }))}
                                         className={`group relative h-14 rounded-2xl border-2 px-4 text-sm font-bold transition-all active:scale-[0.98] ${formState.type === 'Thu nhập'
-                                                ? 'border-emerald-500 bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30 ring-2 ring-emerald-400/20'
-                                                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                                            ? 'border-emerald-500 bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/30 ring-2 ring-emerald-400/20'
+                                            : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50'
                                             }`}
                                     >
                                         <span className="relative z-10">Thu nhập</span>

@@ -16,6 +16,7 @@ import { LoadingRing } from '../components/ui/LoadingRing'
 // import { WalletCarousel } from '../components/wallets/WalletCarousel'
 import { TransactionListSkeleton } from '../components/skeletons'
 import { NetAssetsCard } from '../components/dashboard/NetAssetsCard'
+import { DashboardTasksSection } from '../components/dashboard/DashboardTasksSection'
 import { getAllNotifications } from '../lib/notificationService'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
 import { getIconNodeFromCategory } from '../utils/iconLoader'
@@ -50,7 +51,7 @@ const QuickActionButton = ({
     <button
       type="button"
       onClick={() => onNavigate(action.id)}
-      className="group relative flex flex-col items-center gap-2.5 rounded-2xl bg-white p-3 text-center transition-all hover:scale-105 hover:shadow-lg active:scale-95 sm:p-4"
+      className="group relative flex flex-col items-center gap-2.5 rounded-2xl bg-white p-3 text-center border border-slate-100 transition-all hover:scale-105 hover:shadow-xl active:scale-95 sm:p-4"
     >
       <span
         className={`flex h-22 w-22 items-center justify-center rounded-2xl bg-transparent transition-all group-hover:scale-110 sm:h-16 sm:w-16 overflow-hidden`}
@@ -892,7 +893,9 @@ export const DashboardPage = () => {
           <IncomeExpenseOverview walletId={defaultWalletId || undefined} />
 
           {/* Date Navigation and Plan Section */}
-          <section className="rounded-3xl bg-white p-5 shadow-lg ring-1 ring-slate-100">
+          {/* Date Navigation and Plan Section */}
+          <section className="rounded-3xl bg-white p-5 shadow-lg border border-slate-100">
+            {/* Date Navigation Header */}
             {/* Date Navigation Header */}
             <div className="flex items-center justify-between mb-4">
               <button
@@ -904,14 +907,14 @@ export const DashboardPage = () => {
               </button>
 
               <div className="flex-1 text-center">
-                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">
+                <h3 className="text-md font-bold uppercase tracking-wider text-slate-700">
                   Kế hoạch {formatSelectedDate(selectedDate)}
                 </h3>
                 <div className="mt-1 flex items-center justify-center gap-2">
                   <button
                     type="button"
                     onClick={goToToday}
-                    className="rounded-lg bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700 transition hover:bg-amber-200"
+                    className="rounded-3xl bg-amber-100 px-3 py-1 text-xs shadow-md font-semibold text-amber-700 transition hover:bg-amber-200"
                   >
                     Hôm nay
                   </button>
@@ -932,7 +935,7 @@ export const DashboardPage = () => {
 
             {/* Reminders List */}
             {isLoadingDateData ? (
-              <div className="py-8 flex items-center justify-center">
+              <div className="py-5 flex items-center justify-center">
                 <LoadingRing size="md" />
               </div>
             ) : selectedDateReminders.length === 0 ? (
@@ -940,15 +943,15 @@ export const DashboardPage = () => {
                 <img
                   src="/bofin-calender.png"
                   alt="Calendar"
-                  className="mx-auto h-64 w-64 object-contain opacity-60"
+                  className="mx-auto h-52 w-52 object-contain opacity-60"
                 />
-                <p className="mt-3 mb-3 text-sm font-medium text-slate-400">
+                <p className="mb-2 text-sm font-medium text-slate-400">
                   Chưa có kế hoạch, ghi chú, thu chi
                 </p>
                 <button
                   type="button"
                   onClick={() => navigate('/reminders')}
-                  className="rounded-xl bg-amber-100 px-4 py-2 text-xs font-semibold text-amber-700 transition hover:bg-amber-200"
+                  className="rounded-3xl bg-amber-100 px-12 py-2 text-md font-semibold shadow-md text-amber-700 transition hover:bg-amber-200"
                 >
                   Tạo nhắc nhở
                 </button>
@@ -1031,10 +1034,17 @@ export const DashboardPage = () => {
             )}
           </section>
 
-          <section className="rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-white p-5 shadow-lg ring-1 ring-slate-100">
+          {/* Tasks Section */}
+          <DashboardTasksSection
+            onTaskClick={(task) => {
+              navigate(`/tasks?taskId=${task.id}`)
+            }}
+          />
+
+          <section className="rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-white p-5 shadow-lg border border-slate-100">
             <div className="flex items-center justify-between mb-6">
               <div>
-                <h3 className="text-sm font-bold uppercase tracking-wider text-slate-700">Tiện ích khác</h3>
+                <h3 className="text-md font-bold uppercase tracking-wider text-slate-700">Tiện ích khác</h3>
                 <p className="mt-1 text-xs text-slate-500">Truy cập nhanh các tiện ích thường dùng</p>
               </div>
               <button
@@ -1047,11 +1057,11 @@ export const DashboardPage = () => {
               </button>
             </div>
             <div className={`grid gap-2.5 sm:gap-3 ${enabledQuickActions.length === 1 ? 'grid-cols-1' :
-                enabledQuickActions.length === 2 ? 'grid-cols-2' :
-                  enabledQuickActions.length === 3 ? 'grid-cols-3' :
-                    enabledQuickActions.length === 4 ? 'grid-cols-4' :
-                      enabledQuickActions.length === 5 ? 'grid-cols-5' :
-                        'grid-cols-6'
+              enabledQuickActions.length === 2 ? 'grid-cols-2' :
+                enabledQuickActions.length === 3 ? 'grid-cols-3' :
+                  enabledQuickActions.length === 4 ? 'grid-cols-4' :
+                    enabledQuickActions.length === 5 ? 'grid-cols-5' :
+                      'grid-cols-6'
               }`}>
               {enabledQuickActions.map((action) => {
                 const Icon = action.icon
@@ -1105,7 +1115,7 @@ export const DashboardPage = () => {
               {isLoadingTransactions ? (
                 <TransactionListSkeleton count={5} />
               ) : transactions.length === 0 ? (
-                <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-8 shadow-[0_20px_55px_rgba(15,40,80,0.1)] ring-1 ring-slate-100">
+                <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-8 shadow-lg border border-slate-100">
                   <div className="mb-3 p-3 overflow-hidden">
                     <img
                       src="/bg-giaodich.png"

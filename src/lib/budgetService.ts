@@ -1,9 +1,9 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 import { getSupabaseClient } from './supabaseClient'
-import { cacheFirstWithRefresh, cacheManager, invalidateCache } from './cache'
 import { getCachedUser } from './userCache'
 import { fetchTransactions, type TransactionRecord } from './transactionService'
 import { fetchCategories } from './categoryService'
+import { queryClient } from './react-query'
 import {
   getNowUTC7,
   formatDateUTC7,
@@ -121,14 +121,14 @@ export const calculatePeriod = (
     const selectedMonth = getFirstDayOfMonthUTC7(year, month)
     // End: last day of the month at 23:59:59 UTC+7
     const selectedMonthEnd = getLastDayOfMonthUTC7(year, month)
-    
+
     // If selected month is in the past, use current month instead
     if (selectedMonthEnd < nowStartOfDay) {
       const currentMonth = getFirstDayOfMonthUTC7(nowComponents.year, nowComponents.month)
       const currentMonthEnd = getLastDayOfMonthUTC7(nowComponents.year, nowComponents.month)
       return { start: currentMonth, end: currentMonthEnd }
     }
-    
+
     return { start: selectedMonth, end: selectedMonthEnd }
   }
 
@@ -136,21 +136,21 @@ export const calculatePeriod = (
     // Create dates in UTC+7
     const selectedYear = getStartOfDayUTC7(year, 1, 1)
     const selectedYearEnd = getEndOfDayUTC7(year, 12, 31)
-    
+
     // If selected year is in the past, use current year instead
     if (selectedYearEnd < nowStartOfDay) {
       const currentYear = getStartOfDayUTC7(nowComponents.year, 1, 1)
       const currentYearEnd = getEndOfDayUTC7(nowComponents.year, 12, 31)
       return { start: currentYear, end: currentYearEnd }
     }
-    
+
     return { start: selectedYear, end: selectedYearEnd }
   }
 
   // Weekly
   if (periodType === 'weekly') {
     let weekStart: Date
-    
+
     if (weekStartDate) {
       // Use provided week start date
       weekStart = getMonday(weekStartDate)
@@ -158,13 +158,13 @@ export const calculatePeriod = (
       // Use current week
       weekStart = getMonday(now)
     }
-    
+
     // If the week is in the past, use current week instead
     const weekEnd = getSunday(weekStart)
     if (weekEnd < nowStartOfDay) {
       weekStart = getMonday(now)
     }
-    
+
     const weekEndDate = getSunday(weekStart)
     return { start: weekStart, end: weekEndDate }
   }
@@ -253,46 +253,37 @@ export const fetchBudgets = async (filters?: BudgetFilters): Promise<BudgetRecor
     throw new Error('Bạn cần đăng nhập để xem ngân sách.')
   }
 
-  const cacheKey = await cacheManager.generateKey('budgets', filters)
+  let query = supabase
+    .from(TABLE_NAME)
+    .select('*')
+    .eq('user_id', user.id)
+    .order('period_start', { ascending: false })
+    .order('created_at', { ascending: false })
 
-  return cacheFirstWithRefresh(
-    cacheKey,
-    async () => {
-      let query = supabase
-        .from(TABLE_NAME)
-        .select('*')
-        .eq('user_id', user.id)
-        .order('period_start', { ascending: false })
-        .order('created_at', { ascending: false })
+  if (filters) {
+    if (filters.category_id) query = query.eq('category_id', filters.category_id)
+    if (filters.wallet_id) query = query.eq('wallet_id', filters.wallet_id)
+    if (filters.period_type) query = query.eq('period_type', filters.period_type)
+    if (filters.is_active !== undefined) query = query.eq('is_active', filters.is_active)
+    if (filters.year) {
+      query = query.gte('period_start', `${filters.year}-01-01`)
+      query = query.lte('period_end', `${filters.year}-12-31`)
+    }
+    if (filters.month && filters.year) {
+      const start = `${filters.year}-${String(filters.month).padStart(2, '0')}-01`
+      // Format date in UTC+7
+      const endDate = getLastDayOfMonthUTC7(filters.year, filters.month)
+      const end = formatDateUTC7(endDate)
+      query = query.gte('period_start', start)
+      query = query.lte('period_end', end)
+    }
+  }
 
-      if (filters) {
-        if (filters.category_id) query = query.eq('category_id', filters.category_id)
-        if (filters.wallet_id) query = query.eq('wallet_id', filters.wallet_id)
-        if (filters.period_type) query = query.eq('period_type', filters.period_type)
-        if (filters.is_active !== undefined) query = query.eq('is_active', filters.is_active)
-        if (filters.year) {
-          query = query.gte('period_start', `${filters.year}-01-01`)
-          query = query.lte('period_end', `${filters.year}-12-31`)
-        }
-        if (filters.month && filters.year) {
-          const start = `${filters.year}-${String(filters.month).padStart(2, '0')}-01`
-          // Format date in UTC+7
-          const endDate = getLastDayOfMonthUTC7(filters.year, filters.month)
-          const end = formatDateUTC7(endDate)
-          query = query.gte('period_start', start)
-          query = query.lte('period_end', end)
-        }
-      }
+  const { data, error } = await query
 
-      const { data, error } = await query
+  throwIfError(error, 'Không thể tải danh sách ngân sách.')
 
-      throwIfError(error, 'Không thể tải danh sách ngân sách.')
-
-      return data ?? []
-    },
-    24 * 60 * 60 * 1000,
-    12 * 60 * 60 * 1000
-  )
+  return data ?? []
 }
 
 // Get budget by ID
@@ -429,7 +420,7 @@ export const createBudget = async (payload: BudgetInsert): Promise<BudgetRecord>
 
     if (error) {
       console.error('Supabase error creating budget:', error)
-      
+
       // Provide more user-friendly error messages
       if (error.code === 'PGRST116' || error.message.includes('not found')) {
         throw new Error('Không thể tạo ngân sách. Vui lòng thử lại.')
@@ -452,13 +443,7 @@ export const createBudget = async (payload: BudgetInsert): Promise<BudgetRecord>
       throw new Error('Không nhận được dữ liệu ngân sách sau khi tạo.')
     }
 
-    // Invalidate cache (don't let cache errors block the operation)
-    try {
-      await invalidateCache('budgets')
-    } catch (cacheError) {
-      console.warn('Error invalidating cache:', cacheError)
-      // Continue even if cache invalidation fails
-    }
+    await queryClient.invalidateQueries({ queryKey: ['budgets'] })
 
     return data
   } catch (err) {
@@ -529,7 +514,7 @@ export const updateBudget = async (id: string, updates: BudgetUpdate): Promise<B
 
     if (error) {
       console.error('Supabase error updating budget:', error)
-      
+
       // Provide more user-friendly error messages
       if (error.code === 'PGRST116' || error.message.includes('not found')) {
         throw new Error('Không thể cập nhật ngân sách. Vui lòng thử lại.')
@@ -552,13 +537,7 @@ export const updateBudget = async (id: string, updates: BudgetUpdate): Promise<B
       throw new Error('Không nhận được dữ liệu ngân sách sau khi cập nhật.')
     }
 
-    // Invalidate cache (don't let cache errors block the operation)
-    try {
-      await invalidateCache('budgets')
-    } catch (cacheError) {
-      console.warn('Error invalidating cache:', cacheError)
-      // Continue even if cache invalidation fails
-    }
+    await queryClient.invalidateQueries({ queryKey: ['budgets'] })
 
     return data
   } catch (err) {
@@ -583,7 +562,7 @@ export const deleteBudget = async (id: string): Promise<void> => {
 
   throwIfError(error, 'Không thể xóa ngân sách.')
 
-  await invalidateCache('budgets')
+  await queryClient.invalidateQueries({ queryKey: ['budgets'] })
 }
 
 // Get active budgets for current period
@@ -617,23 +596,23 @@ export const getBudgetForCategory = async (
   date: string | Date
 ): Promise<BudgetWithSpending | null> => {
   const targetDate = typeof date === 'string' ? new Date(date) : date
-  
+
   // Find active budgets that match this category
-  const budgets = await fetchBudgets({ 
+  const budgets = await fetchBudgets({
     category_id: categoryId,
-    is_active: true 
+    is_active: true
   })
-  
+
   // Filter budgets that match wallet and date
   const matchingBudgets = budgets.filter((budget) => {
     // Must match wallet (if budget has wallet_id, transaction must match)
     if (budget.wallet_id && budget.wallet_id !== walletId) return false
-    
+
     // Date must be within budget period
     const periodStart = new Date(budget.period_start)
     const periodEnd = new Date(budget.period_end)
     if (targetDate < periodStart || targetDate > periodEnd) return false
-    
+
     return true
   })
 
@@ -665,29 +644,29 @@ export const checkBudgetLimit = async (
   if (transaction.type !== 'Chi') {
     return { allowed: true, budget: null, message: '' }
   }
-  
+
   // Skip budget check if transaction is excluded from reports
   if (transaction.exclude_from_reports) {
     return { allowed: true, budget: null, message: '' }
   }
 
   const transactionDate = new Date(transaction.transaction_date)
-  
+
   // Find active budgets that match this transaction
   const budgets = await fetchBudgets({ is_active: true })
-  
+
   const matchingBudgets = budgets.filter((budget) => {
     // Must match category
     if (budget.category_id !== transaction.category_id) return false
-    
+
     // Must match wallet (if budget has wallet_id, transaction must match)
     if (budget.wallet_id && budget.wallet_id !== transaction.wallet_id) return false
-    
+
     // Transaction date must be within budget period
     const periodStart = new Date(budget.period_start)
     const periodEnd = new Date(budget.period_end)
     if (transactionDate < periodStart || transactionDate > periodEnd) return false
-    
+
     return true
   })
 
@@ -756,4 +735,3 @@ export const checkBudgetLimit = async (
 
   return { allowed: true, budget: null, message: '' }
 }
-

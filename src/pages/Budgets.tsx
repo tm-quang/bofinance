@@ -161,7 +161,7 @@ export const BudgetsPage = () => {
 
             return (
               <div className="grid grid-cols-3 gap-2 sm:gap-3">
-                <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-white p-3 sm:p-4 border border-blue-100 shadow-sm overflow-hidden">
+                <div className="rounded-2xl bg-gradient-to-br from-blue-50 to-white p-3 sm:p-4 border border-blue-100 shadow-lg overflow-hidden">
                   <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
                     <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
                       <FaWallet className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600" />
@@ -176,7 +176,7 @@ export const BudgetsPage = () => {
                     }).format(totalBudget)}
                   </p>
                 </div>
-                <div className="rounded-2xl bg-gradient-to-br from-rose-50 to-white p-3 sm:p-4 border border-rose-100 shadow-sm overflow-hidden">
+                <div className="rounded-2xl bg-gradient-to-br from-rose-50 to-white p-3 sm:p-4 border border-rose-100 shadow-lg overflow-hidden">
                   <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
                     <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-rose-100 flex items-center justify-center shrink-0">
                       <FaChartPie className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-rose-600" />
@@ -194,7 +194,7 @@ export const BudgetsPage = () => {
                     {overallPercentage.toFixed(1)}% tổng
                   </p>
                 </div>
-                <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-white p-3 sm:p-4 border border-emerald-100 shadow-sm overflow-hidden">
+                <div className="rounded-2xl bg-gradient-to-br from-emerald-50 to-white p-3 sm:p-4 border border-emerald-100 shadow-lg overflow-hidden">
                   <div className="flex items-center gap-1.5 sm:gap-2 mb-2">
                     <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
                       <FaExclamationTriangle className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-emerald-600" />
@@ -221,7 +221,7 @@ export const BudgetsPage = () => {
           {isLoading ? (
             <BudgetListSkeleton count={3} />
           ) : budgets.length === 0 ? (
-            <div className="rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-white p-8 sm:p-12 text-center shadow-lg ring-1 ring-slate-100">
+            <div className="rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-white p-8 sm:p-12 text-center shadow-lg border border-slate-100">
               <div className="mx-auto mb-6 sm:mb-8 flex items-center justify-center">
                 <img
                   src="/ngan-sach.png"

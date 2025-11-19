@@ -31,7 +31,7 @@ export const useAuthState = () => {
     const initializeAuth = async () => {
       try {
         const { data: { session }, error } = await supabase.auth.getSession()
-        
+
         if (error) {
           console.error('Error getting session:', error)
           // Don't throw, just set to null
@@ -43,7 +43,7 @@ export const useAuthState = () => {
             const { setCachedUser } = await import('../lib/userCache')
             setCachedUser(session.user)
           }
-          
+
           setAuthState({
             user: session?.user ?? null,
             session,
@@ -53,9 +53,9 @@ export const useAuthState = () => {
 
           // If we have a session, try to refresh it to ensure it's valid
           if (session) {
-            const { data: { session: refreshedSession }, error: refreshError } = 
+            const { data: { session: refreshedSession }, error: refreshError } =
               await supabase.auth.refreshSession()
-            
+
             if (refreshError) {
               console.warn('Session refresh failed:', refreshError)
               // If refresh fails, clear the session
@@ -73,7 +73,7 @@ export const useAuthState = () => {
                 const { setCachedUser } = await import('../lib/userCache')
                 setCachedUser(refreshedSession.user)
               }
-              
+
               setAuthState({
                 user: refreshedSession.user,
                 session: refreshedSession,
@@ -114,24 +114,16 @@ export const useAuthState = () => {
           setCachedUser(session.user)
           console.log('✅ User cache populated immediately on SIGNED_IN')
         }
-        
+
         setAuthState({
           user: session?.user ?? null,
           session,
           loading: false,
           initialized: true,
         })
-        
-        // Initialize cache when user signs in
-        if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
-          try {
-            const { cacheManager } = await import('../lib/cache')
-            await cacheManager.initialize()
-          } catch (e) {
-            console.warn('Error initializing cache on sign in:', e)
-          }
-        }
-        
+
+
+
         // Clear cache khi SIGNED_IN (chỉ khi có flag đánh dấu login mới)
         // Điều này đảm bảo chỉ clear cache khi login, không phải khi refresh token
         if (event === 'SIGNED_IN') {
@@ -139,23 +131,21 @@ export const useAuthState = () => {
           if (justLoggedIn === 'true') {
             // Clear flag trước để tránh clear cache nhiều lần
             sessionStorage.removeItem('bofin_just_logged_in')
-            
+
             // Clear toàn bộ cache và reload dữ liệu mới khi đăng nhập
             // KHÔNG clear user cache và KHÔNG reset client để tránh lỗi "Bạn cần đăng nhập"
             try {
               const { clearAllCacheAndState } = await import('../utils/reloadData')
               await clearAllCacheAndState(false, false) // false, false = không clear user cache, không reset client
-              // Re-initialize cache after clear
-              const { cacheManager } = await import('../lib/cache')
-              await cacheManager.initialize()
-              
+
+
               // Đảm bảo user cache vẫn còn sau khi clear cache
               // (vì clearAllCacheAndState không clear user cache)
               if (session?.user) {
                 const { setCachedUser } = await import('../lib/userCache')
                 setCachedUser(session.user)
               }
-              
+
               console.log('✅ Cache cleared after login - user cache preserved and reloading fresh data')
             } catch (e) {
               console.warn('Error clearing cache on login:', e)
@@ -172,12 +162,13 @@ export const useAuthState = () => {
         })
         // Clear all caches on sign out
         try {
-          const { clearAllCache } = await import('../lib/cache')
           const { clearUserCache } = await import('../lib/userCache')
           const { clearPreloadTimestamp } = await import('../lib/dataPreloader')
-          await clearAllCache()
+          const { queryClient } = await import('../lib/react-query')
+
           clearUserCache()
           await clearPreloadTimestamp()
+          queryClient.clear()
         } catch (e) {
           console.warn('Error clearing cache on sign out:', e)
         }

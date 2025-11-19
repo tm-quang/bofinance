@@ -106,11 +106,10 @@ export const TransactionCard = ({
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onMouseLeave={onLongPressCancel}
-      className={`group relative flex items-center gap-3 rounded-3xl p-3 shadow-lg border transition-all select-none cursor-pointer hover:shadow-md active:scale-[0.98] ${
-        isIncome
+      className={`group relative flex items-center gap-3 rounded-3xl p-3 shadow-lg border transition-all select-none cursor-pointer hover:shadow-xl active:scale-[0.98] ${isIncome
           ? 'bg-emerald-50/30 border-emerald-200/60 hover:border-emerald-300/80'
           : 'bg-rose-50/40 border-rose-200/60 hover:border-rose-300/80'
-      }`}
+        }`}
     >
       {/* Icon Container */}
       <div
@@ -121,9 +120,8 @@ export const TransactionCard = ({
             {categoryIcon}
           </div>
         ) : (
-          <FaPlus className={`h-6 w-6 ${
-            isIncome ? 'text-emerald-600' : 'text-rose-600'
-          }`} />
+          <FaPlus className={`h-6 w-6 ${isIncome ? 'text-emerald-600' : 'text-rose-600'
+            }`} />
         )}
       </div>
 
@@ -174,9 +172,8 @@ export const TransactionCard = ({
         {/* Right side: Amount and Wallet */}
         <div className="flex flex-col items-end justify-center gap-1.5 shrink-0">
           {/* Amount */}
-          <span className={`text-base font-bold whitespace-nowrap ${
-            isIncome ? 'text-emerald-600' : 'text-rose-600'
-          }`}>
+          <span className={`text-base font-bold whitespace-nowrap ${isIncome ? 'text-emerald-600' : 'text-rose-600'
+            }`}>
             {isIncome ? '+' : '-'}
             {formatCurrency(transaction.amount)}
           </span>

@@ -1,9 +1,9 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 import { getSupabaseClient } from './supabaseClient'
-import { cacheFirstWithRefresh, cacheManager } from './cache'
 import { getCachedUser } from './userCache'
 import { uploadToCloudinary } from './cloudinaryService'
 import { compressImageForIcon, isFileSizeAcceptable } from '../utils/imageCompression'
+import { queryClient } from './react-query'
 
 export type IconFileType = 'png' | 'jpg' | 'jpeg' | 'svg' | 'webp'
 export type IconUsageType = 'category' | 'feature' | 'avatar' | 'general'
@@ -54,10 +54,6 @@ const throwIfError = (error: PostgrestError | null, fallbackMessage: string): vo
   }
 }
 
-// Icon image cache map: name -> IconImageRecord
-let iconImageCacheMap: Map<string, IconImageRecord> | null = null
-let iconImageCachePromise: Promise<IconImageRecord[]> | null = null
-
 /**
  * Fetch all active icon images
  */
@@ -69,99 +65,62 @@ export const fetchIconImages = async (filters?: IconImageFilters): Promise<IconI
     return []
   }
 
-  const cacheKey = await cacheManager.generateKey('icon_images', filters)
+  try {
+    const isActiveFilter = filters?.is_active !== undefined ? filters.is_active : true
 
-  const iconImages = await cacheFirstWithRefresh(
-    cacheKey,
-    async () => {
-      try {
-        const isActiveFilter = filters?.is_active !== undefined ? filters.is_active : true
-        
-        let query = supabase
-          .from(TABLE_NAME)
-          .select('*')
+    let query = supabase
+      .from(TABLE_NAME)
+      .select('*')
 
-        query = query.eq('is_active', isActiveFilter)
+    query = query.eq('is_active', isActiveFilter)
 
-        if (filters?.file_type) {
-          query = query.eq('file_type', filters.file_type)
-        }
-        if (filters?.usage_type) {
-          query = query.eq('usage_type', filters.usage_type)
-        }
-        if (filters?.group_id) {
-          query = query.eq('group_id', filters.group_id)
-        }
-
-        query = query
-          .order('group_id', { ascending: true })
-          .order('display_order', { ascending: true })
-          .order('label', { ascending: true })
-
-        const { data, error } = await query
-
-        if (error) {
-          if (error.code !== 'PGRST116') {
-            console.warn('Cannot fetch icon images from database:', {
-              code: error.code,
-              message: error.message,
-            })
-          }
-          return []
-        }
-
-        return data ?? []
-      } catch (err) {
-        if (err instanceof Error && !err.message.includes('fetch')) {
-          console.warn('Error fetching icon images:', err)
-        }
-        return []
-      }
-    },
-    24 * 60 * 60 * 1000, // 24 hours
-    12 * 60 * 60 * 1000  // 12 hours stale
-  )
-
-  // Populate cache map
-  if (!filters || (filters.is_active === true || filters.is_active === undefined)) {
-    if (!filters?.group_id && !filters?.file_type && !filters?.usage_type) {
-      iconImageCacheMap = new Map(iconImages.map(icon => [icon.name, icon]))
+    if (filters?.file_type) {
+      query = query.eq('file_type', filters.file_type)
     }
-  }
+    if (filters?.usage_type) {
+      query = query.eq('usage_type', filters.usage_type)
+    }
+    if (filters?.group_id) {
+      query = query.eq('group_id', filters.group_id)
+    }
 
-  return iconImages
+    query = query
+      .order('group_id', { ascending: true })
+      .order('display_order', { ascending: true })
+      .order('label', { ascending: true })
+
+    const { data, error } = await query
+
+    if (error) {
+      if (error.code !== 'PGRST116') {
+        console.warn('Cannot fetch icon images from database:', {
+          code: error.code,
+          message: error.message,
+        })
+      }
+      return []
+    }
+
+    return data ?? []
+  } catch (err) {
+    if (err instanceof Error && !err.message.includes('fetch')) {
+      console.warn('Error fetching icon images:', err)
+    }
+    return []
+  }
 }
 
 /**
  * Get icon image by name
  */
 export const getIconImageByName = async (name: string): Promise<IconImageRecord | null> => {
-  if (iconImageCacheMap && iconImageCacheMap.has(name)) {
-    return iconImageCacheMap.get(name) || null
-  }
+  const icons = await queryClient.ensureQueryData({
+    queryKey: ['icon_images', { is_active: true }],
+    queryFn: () => fetchIconImages({ is_active: true }),
+    staleTime: 24 * 60 * 60 * 1000, // 24 hours
+  })
 
-  if (iconImageCachePromise) {
-    await iconImageCachePromise
-    if (iconImageCacheMap && iconImageCacheMap.has(name)) {
-      return iconImageCacheMap.get(name) || null
-    }
-  }
-
-  if (!iconImageCachePromise) {
-    iconImageCachePromise = fetchIconImages({ is_active: true })
-    iconImageCachePromise
-      .then((icons) => {
-        iconImageCacheMap = new Map(icons.map(icon => [icon.name, icon]))
-        iconImageCachePromise = null
-      })
-      .catch(() => {
-        iconImageCacheMap = new Map()
-        iconImageCachePromise = null
-      })
-  }
-
-  await iconImageCachePromise
-  return iconImageCacheMap?.get(name) || null
+  return icons.find(icon => icon.name === name) || null
 }
 
 /**
@@ -190,10 +149,7 @@ export const getIconImageById = async (id: string): Promise<IconImageRecord | nu
  * Invalidate icon image cache
  */
 export const invalidateIconImageCache = async (): Promise<void> => {
-  iconImageCacheMap = null
-  iconImageCachePromise = null
-  const cacheKey = await cacheManager.generateKey('icon_images', {})
-  await cacheManager.invalidate(cacheKey)
+  await queryClient.invalidateQueries({ queryKey: ['icon_images'] })
 }
 
 /**
@@ -244,11 +200,11 @@ export const createIconImage = async (
         // PNG preserves transparency, JPEG has better compression
         const fileName = imageFile.name.toLowerCase()
         const isPng = fileName.endsWith('.png')
-        
+
         if (isPng) {
           // PNG: 96x96px, max 30KB (to preserve transparency)
           fileToUpload = await compressImageForIcon(imageFile, 96, 96, 30, 0.6, true)
-          
+
           // Verify compressed size (PNG is larger, allow up to 30KB)
           if (!isFileSizeAcceptable(fileToUpload, 30)) {
             throw new Error('Không thể nén ảnh PNG xuống dưới 30KB. Vui lòng chọn ảnh đơn giản hơn hoặc giảm kích thước.')
@@ -256,7 +212,7 @@ export const createIconImage = async (
         } else {
           // JPEG: 128x128px, max 10KB
           fileToUpload = await compressImageForIcon(imageFile, 128, 128, 10, 0.6, false)
-          
+
           // Verify compressed size
           if (!isFileSizeAcceptable(fileToUpload, 10)) {
             throw new Error('Không thể nén ảnh xuống dưới 10KB. Vui lòng chọn ảnh khác')
@@ -363,11 +319,11 @@ export const updateIconImage = async (
         // PNG preserves transparency, JPEG has better compression
         const fileName = imageFile.name.toLowerCase()
         const isPng = fileName.endsWith('.png')
-        
+
         if (isPng) {
           // PNG: 96x96px, max 30KB (to preserve transparency)
           fileToUpload = await compressImageForIcon(imageFile, 96, 96, 30, 0.6, true)
-          
+
           // Verify compressed size (PNG is larger, allow up to 30KB)
           if (!isFileSizeAcceptable(fileToUpload, 30)) {
             throw new Error('Không thể nén ảnh PNG xuống dưới 30KB. Vui lòng chọn ảnh đơn giản hơn hoặc giảm kích thước.')
@@ -375,7 +331,7 @@ export const updateIconImage = async (
         } else {
           // JPEG: 128x128px, max 10KB
           fileToUpload = await compressImageForIcon(imageFile, 128, 128, 10, 0.6, false)
-          
+
           // Verify compressed size
           if (!isFileSizeAcceptable(fileToUpload, 10)) {
             throw new Error('Không thể nén ảnh xuống dưới 10KB. Vui lòng chọn ảnh khác')
@@ -486,4 +442,3 @@ export const getIconImagesByUsage = async (
 ): Promise<IconImageRecord[]> => {
   return fetchIconImages({ usage_type: usageType, is_active: true })
 }
-

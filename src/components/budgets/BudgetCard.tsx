@@ -84,7 +84,7 @@ export const BudgetCard = ({
   const enhancedColors = enhancedColorClasses[color] || enhancedColorClasses.emerald
 
   return (
-    <div className={`group relative rounded-3xl ${enhancedColors.cardBg} p-4 sm:p-5 shadow-sm border ${enhancedColors.border} hover:shadow-lg hover:scale-[1.01] transition-all duration-300 overflow-hidden`}>
+    <div className={`group relative rounded-3xl ${enhancedColors.cardBg} p-4 sm:p-5 shadow-lg border ${enhancedColors.border} hover:shadow-xl hover:scale-[1.01] transition-all duration-300 overflow-hidden`}>
       {/* Header */}
       <div className="flex items-start justify-between mb-4 gap-2">
         <div className="flex items-start gap-2 sm:gap-3 min-w-0 flex-1">
@@ -93,11 +93,10 @@ export const BudgetCard = ({
               {categoryIcon}
             </div>
             {budget.limit_type && (
-              <div className={`absolute -top-1 -right-1 h-4 w-4 sm:h-5 sm:w-5 rounded-full flex items-center justify-center ${
-                budget.limit_type === 'hard' 
-                  ? 'bg-rose-500 text-white' 
+              <div className={`absolute -top-1 -right-1 h-4 w-4 sm:h-5 sm:w-5 rounded-full flex items-center justify-center ${budget.limit_type === 'hard'
+                  ? 'bg-rose-500 text-white'
                   : 'bg-amber-500 text-white'
-              } shadow-lg`}>
+                } shadow-lg`}>
                 {budget.limit_type === 'hard' ? (
                   <FaBan className="h-2 w-2 sm:h-2.5 sm:w-2.5" />
                 ) : (

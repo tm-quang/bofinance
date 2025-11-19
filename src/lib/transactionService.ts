@@ -1,9 +1,9 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 
 import { getSupabaseClient } from './supabaseClient'
-import { cacheFirstWithRefresh, cacheManager, invalidateCache } from './cache'
 import { getCachedUser } from './userCache'
 import { formatDateUTC7, getNowUTC7 } from '../utils/dateUtils'
+import { queryClient } from './react-query'
 
 export type TransactionType = 'Thu' | 'Chi'
 
@@ -88,58 +88,49 @@ export const fetchTransactions = async (
     throw new Error('Bạn cần đăng nhập để xem giao dịch.')
   }
 
-  const cacheKey = await cacheManager.generateKey('transactions', {
-    ...filters,
-  })
+  let query = supabase
+    .from(TABLE_NAME)
+    .select('*')
+    .eq('user_id', user.id)
+    .order('transaction_date', { ascending: false })
+    .order('created_at', { ascending: false })
 
-  const fetchFromSupabase = async (): Promise<TransactionRecord[]> => {
-    let query = supabase
-      .from(TABLE_NAME)
-      .select('*')
-      .eq('user_id', user.id)
-      .order('transaction_date', { ascending: false })
-      .order('created_at', { ascending: false })
-
-    if (filters) {
-      if (filters.wallet_id) {
-        query = query.eq('wallet_id', filters.wallet_id)
-      }
-      if (filters.category_id) {
-        query = query.eq('category_id', filters.category_id)
-      }
-      if (filters.type) {
-        query = query.eq('type', filters.type)
-      }
-      if (filters.start_date) {
-        query = query.gte('transaction_date', filters.start_date)
-      }
-      if (filters.end_date) {
-        query = query.lte('transaction_date', filters.end_date)
-      }
-      if (filters.tags && filters.tags.length > 0) {
-        query = query.contains('tags', filters.tags)
-      }
-      if (typeof filters.exclude_from_reports === 'boolean') {
-        query = query.eq('exclude_from_reports', filters.exclude_from_reports)
-      }
-      if (typeof filters.limit === 'number') {
-        query = query.limit(filters.limit)
-      }
-      if (typeof filters.offset === 'number') {
-        const limit = filters.limit || 50
-        query = query.range(filters.offset, filters.offset + limit - 1)
-      }
+  if (filters) {
+    if (filters.wallet_id) {
+      query = query.eq('wallet_id', filters.wallet_id)
     }
-
-    const { data, error } = await query
-
-    throwIfError(error, 'Không thể tải danh sách giao dịch.')
-
-    return data ?? []
+    if (filters.category_id) {
+      query = query.eq('category_id', filters.category_id)
+    }
+    if (filters.type) {
+      query = query.eq('type', filters.type)
+    }
+    if (filters.start_date) {
+      query = query.gte('transaction_date', filters.start_date)
+    }
+    if (filters.end_date) {
+      query = query.lte('transaction_date', filters.end_date)
+    }
+    if (filters.tags && filters.tags.length > 0) {
+      query = query.contains('tags', filters.tags)
+    }
+    if (typeof filters.exclude_from_reports === 'boolean') {
+      query = query.eq('exclude_from_reports', filters.exclude_from_reports)
+    }
+    if (typeof filters.limit === 'number') {
+      query = query.limit(filters.limit)
+    }
+    if (typeof filters.offset === 'number') {
+      const limit = filters.limit || 50
+      query = query.range(filters.offset, filters.offset + limit - 1)
+    }
   }
 
-  // Cache với TTL 24 giờ cho session cache
-  return cacheFirstWithRefresh(cacheKey, fetchFromSupabase, 24 * 60 * 60 * 1000, 12 * 60 * 60 * 1000)
+  const { data, error } = await query
+
+  throwIfError(error, 'Không thể tải danh sách giao dịch.')
+
+  return data ?? []
 }
 
 // Lấy một giao dịch theo ID
@@ -242,14 +233,14 @@ export const createTransaction = async (
     console.warn('Could not create notification for transaction:', error)
   }
 
-  await invalidateCache('transactions')
-  await invalidateCache('getTransactionStats')
+  await queryClient.invalidateQueries({ queryKey: ['transactions'] })
+  await queryClient.invalidateQueries({ queryKey: ['getTransactionStats'] })
   // Invalidate wallet cache vì balance đã được trigger cập nhật
-  await invalidateCache('fetchWallets')
-  await invalidateCache('getDefaultWallet')
-  await invalidateCache('getTotalBalanceWalletIds')
+  await queryClient.invalidateQueries({ queryKey: ['fetchWallets'] })
+  await queryClient.invalidateQueries({ queryKey: ['getDefaultWallet'] })
+  await queryClient.invalidateQueries({ queryKey: ['getTotalBalanceWalletIds'] })
   // Invalidate wallet cash flow stats cache vì có giao dịch mới
-  await invalidateCache('getWalletCashFlowStats')
+  await queryClient.invalidateQueries({ queryKey: ['getWalletCashFlowStats'] })
 
   // Return transaction with optional budget warning
   return { transaction: data, budgetWarning }
@@ -285,14 +276,14 @@ export const updateTransaction = async (
   // Trigger tự động xử lý cả wallet cũ (nếu wallet_id thay đổi) và wallet mới
   // Không cần gọi syncWalletBalanceFromTransactions vì sẽ gây xung đột và tính 2 lần
 
-  invalidateCache('transactions')
-  invalidateCache('getTransactionStats')
+  await queryClient.invalidateQueries({ queryKey: ['transactions'] })
+  await queryClient.invalidateQueries({ queryKey: ['getTransactionStats'] })
   // Invalidate wallet cache vì balance đã được trigger cập nhật
-  await invalidateCache('fetchWallets')
-  await invalidateCache('getDefaultWallet')
-  await invalidateCache('getTotalBalanceWalletIds')
+  await queryClient.invalidateQueries({ queryKey: ['fetchWallets'] })
+  await queryClient.invalidateQueries({ queryKey: ['getDefaultWallet'] })
+  await queryClient.invalidateQueries({ queryKey: ['getTotalBalanceWalletIds'] })
   // Invalidate wallet cash flow stats cache vì có giao dịch được cập nhật
-  invalidateCache('getWalletCashFlowStats')
+  await queryClient.invalidateQueries({ queryKey: ['getWalletCashFlowStats'] })
 
   return data
 }
@@ -326,14 +317,14 @@ export const deleteTransaction = async (id: string): Promise<void> => {
   // Trigger tự động hoàn tác số dư khi xóa giao dịch
   // Không cần gọi syncWalletBalanceFromTransactions vì sẽ gây xung đột và tính 2 lần
 
-  invalidateCache('transactions')
-  invalidateCache('getTransactionStats')
+  await queryClient.invalidateQueries({ queryKey: ['transactions'] })
+  await queryClient.invalidateQueries({ queryKey: ['getTransactionStats'] })
   // Invalidate wallet cache vì balance đã được trigger cập nhật
-  await invalidateCache('fetchWallets')
-  await invalidateCache('getDefaultWallet')
-  await invalidateCache('getTotalBalanceWalletIds')
+  await queryClient.invalidateQueries({ queryKey: ['fetchWallets'] })
+  await queryClient.invalidateQueries({ queryKey: ['getDefaultWallet'] })
+  await queryClient.invalidateQueries({ queryKey: ['getTotalBalanceWalletIds'] })
   // Invalidate wallet cash flow stats cache vì có giao dịch bị xóa
-  invalidateCache('getWalletCashFlowStats')
+  await queryClient.invalidateQueries({ queryKey: ['getWalletCashFlowStats'] })
 }
 
 // Lấy thống kê giao dịch
@@ -354,51 +345,37 @@ export const getTransactionStats = async (
     throw new Error('Bạn cần đăng nhập để xem thống kê.')
   }
 
-  const cacheKey = await cacheManager.generateKey('getTransactionStats', {
-    startDate,
-    endDate,
-    walletId,
-  })
+  let query = supabase
+    .from(TABLE_NAME)
+    .select('type, amount')
+    .eq('user_id', user.id)
 
-  return cacheFirstWithRefresh(
-    cacheKey,
-    async () => {
-      let query = supabase
-        .from(TABLE_NAME)
-        .select('type, amount')
-        .eq('user_id', user.id)
+  if (walletId) {
+    query = query.eq('wallet_id', walletId)
+  }
+  if (startDate) {
+    query = query.gte('transaction_date', startDate)
+  }
+  if (endDate) {
+    query = query.lte('transaction_date', endDate)
+  }
 
-      if (walletId) {
-        query = query.eq('wallet_id', walletId)
-      }
-      if (startDate) {
-        query = query.gte('transaction_date', startDate)
-      }
-      if (endDate) {
-        query = query.lte('transaction_date', endDate)
-      }
+  const { data, error } = await query
 
-      const { data, error } = await query
+  throwIfError(error, 'Không thể tải thống kê giao dịch.')
 
-      throwIfError(error, 'Không thể tải thống kê giao dịch.')
+  const transactions = data ?? []
+  const total_income = transactions
+    .filter((t) => t.type === 'Thu')
+    .reduce((sum, t) => sum + Number(t.amount), 0)
+  const total_expense = transactions
+    .filter((t) => t.type === 'Chi')
+    .reduce((sum, t) => sum + Number(t.amount), 0)
 
-      const transactions = data ?? []
-      const total_income = transactions
-        .filter((t) => t.type === 'Thu')
-        .reduce((sum, t) => sum + Number(t.amount), 0)
-      const total_expense = transactions
-        .filter((t) => t.type === 'Chi')
-        .reduce((sum, t) => sum + Number(t.amount), 0)
-
-      return {
-        total_income,
-        total_expense,
-        net_balance: total_income - total_expense,
-        transaction_count: transactions.length,
-      }
-    },
-    24 * 60 * 60 * 1000, // 24 giờ
-    12 * 60 * 60 * 1000  // 12 giờ stale threshold
-  )
+  return {
+    total_income,
+    total_expense,
+    net_balance: total_income - total_expense,
+    transaction_count: transactions.length,
+  }
 }
-

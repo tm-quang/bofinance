@@ -1,10 +1,10 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 
 import { getSupabaseClient } from './supabaseClient'
-import { cacheFirstWithRefresh, cacheManager, invalidateCache } from './cache'
 import { getCachedUser } from './userCache'
 import { playNotificationSound } from './notificationSoundService'
 import { getServiceWorkerRegistration } from './serviceWorkerManager'
+import { queryClient } from './react-query'
 
 export type NotificationType =
   | 'transaction'
@@ -51,7 +51,6 @@ export type NotificationFilters = {
 
 const TABLE_NAME = 'notifications'
 const CACHE_KEY = 'notifications'
-const CACHE_TTL = 2 * 60 * 1000 // 2 minutes
 
 const throwIfError = (error: PostgrestError | null, fallbackMessage: string): void => {
   if (error) {
@@ -72,61 +71,52 @@ export const fetchNotifications = async (
     throw new Error('Bạn cần đăng nhập để xem thông báo.')
   }
 
-  const cacheKey = await cacheManager.generateKey(CACHE_KEY, {
-    ...filters,
-    user_id: user.id,
-  })
+  let query = supabase
+    .from(TABLE_NAME)
+    .select('*')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false })
 
-  const fetchFromSupabase = async (): Promise<NotificationRecord[]> => {
-    let query = supabase
-      .from(TABLE_NAME)
-      .select('*')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-
-    if (filters) {
-      if (filters.status) {
-        query = query.eq('status', filters.status)
-      }
-      if (filters.type) {
-        query = query.eq('type', filters.type)
-      }
-      if (filters.start_date) {
-        query = query.gte('created_at', filters.start_date)
-      }
-      if (filters.end_date) {
-        query = query.lte('created_at', filters.end_date)
-      }
-      if (filters.limit) {
-        query = query.limit(filters.limit)
-      }
-      if (typeof filters.offset === 'number') {
-        const limit = filters.limit || 50
-        query = query.range(filters.offset, filters.offset + limit - 1)
-      }
+  if (filters) {
+    if (filters.status) {
+      query = query.eq('status', filters.status)
     }
-
-    const { data, error } = await query
-
-    // If table doesn't exist (PGRST116 or 404), return empty array instead of throwing
-    if (error) {
-      // PGRST116 = PostgREST "not found" error code
-      // Also check for 404 in message (HTTP 404 when table doesn't exist)
-      if (error.code === 'PGRST116' ||
-        error.message?.includes('404') ||
-        error.message?.includes('not found') ||
-        error.message?.toLowerCase().includes('relation') && error.message?.toLowerCase().includes('does not exist')) {
-        // Table doesn't exist, return empty array silently
-        return []
-      }
-      // For other errors, throw
-      throwIfError(error, 'Không thể tải thông báo.')
+    if (filters.type) {
+      query = query.eq('type', filters.type)
     }
-
-    return (data || []) as NotificationRecord[]
+    if (filters.start_date) {
+      query = query.gte('created_at', filters.start_date)
+    }
+    if (filters.end_date) {
+      query = query.lte('created_at', filters.end_date)
+    }
+    if (filters.limit) {
+      query = query.limit(filters.limit)
+    }
+    if (typeof filters.offset === 'number') {
+      const limit = filters.limit || 50
+      query = query.range(filters.offset, filters.offset + limit - 1)
+    }
   }
 
-  return cacheFirstWithRefresh(cacheKey, fetchFromSupabase, CACHE_TTL)
+  const { data, error } = await query
+
+  // If table doesn't exist (PGRST116 or 404), return empty array instead of throwing
+  if (error) {
+    // PGRST116 = PostgREST "not found" error code
+    // Also check for 404 in message (HTTP 404 when table doesn't exist)
+    if (error.code === 'PGRST116' ||
+      error.message?.includes('404') ||
+      error.message?.includes('not found') ||
+      error.message?.toLowerCase().includes('relation') && error.message?.toLowerCase().includes('does not exist')) {
+      // Table doesn't exist, return empty array silently
+      return []
+    }
+    // For other errors, throw
+    throwIfError(error, 'Không thể tải thông báo.')
+  }
+
+  return (data || []) as NotificationRecord[]
 }
 
 /**
@@ -159,7 +149,7 @@ export const createNotification = async (
   throwIfError(error, 'Không thể tạo thông báo.')
 
   // Invalidate cache
-  await invalidateCache(CACHE_KEY)
+  await queryClient.invalidateQueries({ queryKey: [CACHE_KEY] })
 
   return data as NotificationRecord
 }
@@ -218,7 +208,7 @@ export const updateNotification = async (
   }
 
   // Invalidate cache
-  await invalidateCache(CACHE_KEY)
+  await queryClient.invalidateQueries({ queryKey: [CACHE_KEY] })
 
   return data as NotificationRecord
 }
@@ -303,7 +293,7 @@ export const markAllNotificationsAsRead = async (): Promise<void> => {
   }
 
   // Invalidate cache
-  await invalidateCache(CACHE_KEY)
+  await queryClient.invalidateQueries({ queryKey: [CACHE_KEY] })
 }
 
 /**
@@ -353,7 +343,7 @@ export const deleteNotification = async (id: string): Promise<void> => {
   }
 
   // Invalidate cache
-  await invalidateCache(CACHE_KEY)
+  await queryClient.invalidateQueries({ queryKey: [CACHE_KEY] })
 }
 
 /**

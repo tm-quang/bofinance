@@ -1,12 +1,18 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 
 import { getSupabaseClient } from './supabaseClient'
-import { cacheFirstWithRefresh, cacheManager, invalidateCache } from './cache'
 import { getCachedUser } from './userCache'
 import { formatDateUTC7, getNowUTC7, getDateComponentsUTC7, createDateUTC7 } from '../utils/dateUtils'
+import { queryClient } from './react-query'
 
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent'
+
+export type Subtask = {
+  id: string
+  title: string
+  completed: boolean
+}
 
 export type TaskRecord = {
   id: string
@@ -19,6 +25,8 @@ export type TaskRecord = {
   progress: number
   week_start_date: string | null
   tags: string[] | null
+  color: string | null
+  subtasks: Subtask[] | null
   created_at: string
   updated_at: string
   completed_at: string | null
@@ -26,17 +34,20 @@ export type TaskRecord = {
 
 export type TaskInsert = {
   title: string
-  description?: string
+  description?: string | null
   status?: TaskStatus
   priority?: TaskPriority
   deadline?: string | null
   progress?: number
   week_start_date?: string | null
-  tags?: string[]
+  tags?: string[] | null
+  color?: string | null
+  subtasks?: Subtask[] | null
 }
 
 export type TaskUpdate = Partial<Omit<TaskInsert, 'title'>> & {
   title?: string
+  completed_at?: string | null
 }
 
 export type TaskFilters = {
@@ -86,55 +97,46 @@ export const fetchTasks = async (filters?: TaskFilters): Promise<TaskRecord[]> =
     throw new Error('Bạn cần đăng nhập để xem công việc.')
   }
 
-  const cacheKey = await cacheManager.generateKey('tasks', {
-    ...filters,
-    userId: user.id,
-  })
+  let query = supabase
+    .from(TABLE_NAME)
+    .select('*')
+    .eq('user_id', user.id)
+    .order('deadline', { ascending: true })
+    .order('priority', { ascending: false })
+    .order('created_at', { ascending: false })
 
-  const fetchFromSupabase = async (): Promise<TaskRecord[]> => {
-    let query = supabase
-      .from(TABLE_NAME)
-      .select('*')
-      .eq('user_id', user.id)
-      .order('deadline', { ascending: true })
-      .order('priority', { ascending: false })
-      .order('created_at', { ascending: false })
-
-    if (filters) {
-      if (filters.status) {
-        query = query.eq('status', filters.status)
-      }
-      if (filters.priority) {
-        query = query.eq('priority', filters.priority)
-      }
-      if (filters.deadline_from) {
-        query = query.gte('deadline', filters.deadline_from)
-      }
-      if (filters.deadline_to) {
-        query = query.lte('deadline', filters.deadline_to)
-      }
-      if (filters.week_start_date) {
-        query = query.eq('week_start_date', filters.week_start_date)
-      }
-      if (filters.tags && filters.tags.length > 0) {
-        query = query.contains('tags', filters.tags)
-      }
-      if (filters.limit) {
-        query = query.limit(filters.limit)
-      }
-      if (filters.offset) {
-        query = query.range(filters.offset, filters.offset + (filters.limit || 100) - 1)
-      }
+  if (filters) {
+    if (filters.status) {
+      query = query.eq('status', filters.status)
     }
-
-    const { data, error } = await query
-
-    throwIfError(error, 'Không thể tải danh sách công việc.')
-
-    return data || []
+    if (filters.priority) {
+      query = query.eq('priority', filters.priority)
+    }
+    if (filters.deadline_from) {
+      query = query.gte('deadline', filters.deadline_from)
+    }
+    if (filters.deadline_to) {
+      query = query.lte('deadline', filters.deadline_to)
+    }
+    if (filters.week_start_date) {
+      query = query.eq('week_start_date', filters.week_start_date)
+    }
+    if (filters.tags && filters.tags.length > 0) {
+      query = query.contains('tags', filters.tags)
+    }
+    if (filters.limit) {
+      query = query.limit(filters.limit)
+    }
+    if (filters.offset) {
+      query = query.range(filters.offset, filters.offset + (filters.limit || 100) - 1)
+    }
   }
 
-  return cacheFirstWithRefresh(cacheKey, fetchFromSupabase, 60000) // Cache for 1 minute
+  const { data, error } = await query
+
+  throwIfError(error, 'Không thể tải danh sách công việc.')
+
+  return data || []
 }
 
 // Get task by ID
@@ -198,7 +200,7 @@ export const createTask = async (payload: TaskInsert): Promise<TaskRecord> => {
   }
 
   // Invalidate cache
-  await invalidateCache(await cacheManager.generateKey('tasks', { userId: user.id }))
+  await queryClient.invalidateQueries({ queryKey: ['tasks'] })
 
   return data
 }
@@ -238,7 +240,7 @@ export const updateTask = async (taskId: string, payload: TaskUpdate): Promise<T
   }
 
   // Invalidate cache
-  await invalidateCache(await cacheManager.generateKey('tasks', { userId: user.id }))
+  await queryClient.invalidateQueries({ queryKey: ['tasks'] })
 
   return data
 }
@@ -261,7 +263,7 @@ export const deleteTask = async (taskId: string): Promise<void> => {
   throwIfError(error, 'Không thể xóa công việc.')
 
   // Invalidate cache
-  await invalidateCache(await cacheManager.generateKey('tasks', { userId: user.id }))
+  await queryClient.invalidateQueries({ queryKey: ['tasks'] })
 }
 
 // Get tasks approaching deadline (within next 3 days)
@@ -269,7 +271,7 @@ export const getTasksApproachingDeadline = async (days: number = 3): Promise<Tas
   const now = getNowUTC7()
   const components = getDateComponentsUTC7(now)
   const today = formatDateUTC7(now)
-  
+
   // Calculate future date
   const futureDate = new Date(components.year, components.month - 1, components.day)
   futureDate.setDate(futureDate.getDate() + days)
@@ -279,7 +281,7 @@ export const getTasksApproachingDeadline = async (days: number = 3): Promise<Tas
     deadline_from: today,
     deadline_to: futureDateStr,
     status: 'pending' as TaskStatus, // Only pending and in_progress tasks
-  }).then(tasks => 
+  }).then(tasks =>
     tasks.filter(t => t.status === 'pending' || t.status === 'in_progress')
   )
 }
@@ -291,3 +293,17 @@ export const getTasksForWeek = async (weekStartDate: string): Promise<TaskRecord
   })
 }
 
+// Get tasks for a specific month
+export const getTasksForMonth = async (year: number, month: number): Promise<TaskRecord[]> => {
+  // Calculate first and last day of month
+  const firstDay = new Date(year, month - 1, 1)
+  const lastDay = new Date(year, month, 0) // Last day of month
+
+  const firstDayStr = formatDateUTC7(firstDay)
+  const lastDayStr = formatDateUTC7(lastDay)
+
+  return fetchTasks({
+    deadline_from: firstDayStr,
+    deadline_to: lastDayStr,
+  })
+}

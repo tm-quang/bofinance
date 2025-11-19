@@ -245,31 +245,33 @@ export const showInstallPrompt = async (): Promise<boolean> => {
 /**
  * Add haptic feedback to buttons
  * Excludes footer navigation buttons
+ * DISABLED: Haptic feedback/vibration removed
  */
 export const addHapticFeedback = () => {
-  document.addEventListener('click', (e) => {
-    const target = e.target as HTMLElement
+  // Haptic feedback disabled - no vibration on button clicks
+  // document.addEventListener('click', (e) => {
+  //   const target = e.target as HTMLElement
 
-    // Skip haptic feedback for footer navigation and buttons with data-no-haptic
-    if (
-      target.closest('[class*="FooterNav"]') ||
-      target.closest('footer') ||
-      target.closest('[data-no-haptic="true"]') ||
-      target.hasAttribute('data-no-haptic')
-    ) {
-      return
-    }
+  //   // Skip haptic feedback for footer navigation and buttons with data-no-haptic
+  //   if (
+  //     target.closest('[class*="FooterNav"]') ||
+  //     target.closest('footer') ||
+  //     target.closest('[data-no-haptic="true"]') ||
+  //     target.hasAttribute('data-no-haptic')
+  //   ) {
+  //     return
+  //   }
 
-    if (
-      target.tagName === 'BUTTON' ||
-      target.closest('button') ||
-      target.classList.contains('clickable')
-    ) {
-      if ('vibrate' in navigator) {
-        navigator.vibrate(10)
-      }
-    }
-  })
+  //   if (
+  //     target.tagName === 'BUTTON' ||
+  //     target.closest('button') ||
+  //     target.classList.contains('clickable')
+  //   ) {
+  //     if ('vibrate' in navigator) {
+  //       navigator.vibrate(10)
+  //     }
+  //   }
+  // })
 }
 
 /**

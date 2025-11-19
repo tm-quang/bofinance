@@ -2,7 +2,6 @@ import { fetchTransactions } from './transactionService'
 import { getSupabaseClient } from './supabaseClient'
 import { getCachedUser } from './userCache'
 import type { WalletRecord } from './walletService'
-import { cacheFirstWithRefresh, cacheManager } from './cache'
 
 /**
  * Tính số dư ví từ giao dịch
@@ -19,15 +18,15 @@ export const calculateWalletBalanceFromTransactions = async (
   try {
     // Only get transactions that are included in reports (exclude_from_reports = false)
     const transactions = await fetchTransactions({ wallet_id: walletId, exclude_from_reports: false })
-    
+
     const totalIncome = transactions
       .filter((t) => t.type === 'Thu')
       .reduce((sum, t) => sum + Number(t.amount), 0)
-    
+
     const totalExpense = transactions
       .filter((t) => t.type === 'Chi')
       .reduce((sum, t) => sum + Number(t.amount), 0)
-    
+
     // Số dư hiện tại = Số dư ban đầu (initial_balance) + Thu - Chi
     return initialBalance + totalIncome - totalExpense
   } catch (error) {
@@ -43,31 +42,31 @@ export type WalletCashFlowStats = {
   // Số dư
   currentBalance: number
   initialBalance: number
-  
+
   // Thu nhập
   totalIncome: number
   incomeCount: number
   averageIncome: number
   largestIncome: number
   smallestIncome: number
-  
+
   // Chi tiêu
   totalExpense: number
   expenseCount: number
   averageExpense: number
   largestExpense: number
   smallestExpense: number
-  
+
   // Tỷ lệ phần trăm
   incomePercentage: number // Thu so với số dư (%)
   expensePercentage: number // Chi so với số dư (%)
   expenseToIncomeRatio: number // Tỷ lệ Chi/Thu (%)
-  
+
   // Phân tích nâng cao
   netFlow: number // Thu - Chi
   savingsRate: number // Tỷ lệ tiết kiệm: (Thu - Chi) / Thu * 100
   expenseRate: number // Tỷ lệ chi tiêu: Chi / Thu * 100
-  
+
   // Thống kê theo thời gian
   dailyAverageIncome: number
   dailyAverageExpense: number
@@ -83,28 +82,20 @@ export const getWalletCashFlowStats = async (
   startDate?: string,
   endDate?: string
 ): Promise<WalletCashFlowStats> => {
-  // Tạo cache key dựa trên wallet.id và date range
-  const cacheKey = await cacheManager.generateKey('getWalletCashFlowStats', {
-    walletId: wallet.id,
-    startDate,
-    endDate,
-  })
+  try {
+    const filters: { wallet_id: string; start_date?: string; end_date?: string; exclude_from_reports?: boolean } = {
+      wallet_id: wallet.id,
+      exclude_from_reports: false, // Only get transactions included in reports
+    }
 
-  const fetchStats = async (): Promise<WalletCashFlowStats> => {
-    try {
-      const filters: { wallet_id: string; start_date?: string; end_date?: string; exclude_from_reports?: boolean } = {
-        wallet_id: wallet.id,
-        exclude_from_reports: false, // Only get transactions included in reports
-      }
-      
-      if (startDate) filters.start_date = startDate
-      if (endDate) filters.end_date = endDate
-      
-      const transactions = await fetchTransactions(filters)
-    
+    if (startDate) filters.start_date = startDate
+    if (endDate) filters.end_date = endDate
+
+    const transactions = await fetchTransactions(filters)
+
     const incomeTransactions = transactions.filter((t) => t.type === 'Thu')
     const expenseTransactions = transactions.filter((t) => t.type === 'Chi')
-    
+
     // Tính toán Thu nhập
     const totalIncome = incomeTransactions.reduce((sum, t) => sum + Number(t.amount), 0)
     const incomeCount = incomeTransactions.length
@@ -112,7 +103,7 @@ export const getWalletCashFlowStats = async (
     const incomeAmounts = incomeTransactions.map((t) => Number(t.amount))
     const largestIncome = incomeAmounts.length > 0 ? Math.max(...incomeAmounts) : 0
     const smallestIncome = incomeAmounts.length > 0 ? Math.min(...incomeAmounts) : 0
-    
+
     // Tính toán Chi tiêu
     const totalExpense = expenseTransactions.reduce((sum, t) => sum + Number(t.amount), 0)
     const expenseCount = expenseTransactions.length
@@ -120,22 +111,22 @@ export const getWalletCashFlowStats = async (
     const expenseAmounts = expenseTransactions.map((t) => Number(t.amount))
     const largestExpense = expenseAmounts.length > 0 ? Math.max(...expenseAmounts) : 0
     const smallestExpense = expenseAmounts.length > 0 ? Math.min(...expenseAmounts) : 0
-    
+
     // Tính số dư hiện tại
     // Sử dụng initial_balance làm mốc (không đổi), không dùng balance (có thể đã bị cập nhật)
     const initialBalance = wallet.initial_balance ?? wallet.balance ?? 0
     const currentBalance = await calculateWalletBalanceFromTransactions(wallet.id, initialBalance)
-    
+
     // Tính tỷ lệ phần trăm
     const incomePercentage = currentBalance > 0 ? (totalIncome / currentBalance) * 100 : 0
     const expensePercentage = currentBalance > 0 ? (totalExpense / currentBalance) * 100 : 0
     const expenseToIncomeRatio = totalIncome > 0 ? (totalExpense / totalIncome) * 100 : 0
-    
+
     // Phân tích nâng cao
     const netFlow = totalIncome - totalExpense
     const savingsRate = totalIncome > 0 ? ((netFlow / totalIncome) * 100) : 0
     const expenseRate = totalIncome > 0 ? ((totalExpense / totalIncome) * 100) : 0
-    
+
     // Thống kê theo thời gian
     let days = 1
     if (startDate && endDate) {
@@ -147,12 +138,12 @@ export const getWalletCashFlowStats = async (
       const now = new Date()
       days = Math.max(1, Math.ceil((now.getTime() - start.getTime()) / (1000 * 60 * 60 * 24)) + 1)
     }
-    
+
     const dailyAverageIncome = days > 0 ? totalIncome / days : 0
     const dailyAverageExpense = days > 0 ? totalExpense / days : 0
     const monthlyProjectedIncome = dailyAverageIncome * 30
     const monthlyProjectedExpense = dailyAverageExpense * 30
-    
+
     const stats: WalletCashFlowStats = {
       currentBalance,
       initialBalance,
@@ -177,40 +168,36 @@ export const getWalletCashFlowStats = async (
       monthlyProjectedIncome,
       monthlyProjectedExpense,
     }
-    
+
     return stats
-    } catch (error) {
-      console.error('Error getting wallet cash flow stats:', error)
-      // Return default stats
-      return {
-        currentBalance: wallet.balance,
-        initialBalance: wallet.balance,
-        totalIncome: 0,
-        incomeCount: 0,
-        averageIncome: 0,
-        largestIncome: 0,
-        smallestIncome: 0,
-        totalExpense: 0,
-        expenseCount: 0,
-        averageExpense: 0,
-        largestExpense: 0,
-        smallestExpense: 0,
-        incomePercentage: 0,
-        expensePercentage: 0,
-        expenseToIncomeRatio: 0,
-        netFlow: 0,
-        savingsRate: 0,
-        expenseRate: 0,
-        dailyAverageIncome: 0,
-        dailyAverageExpense: 0,
-        monthlyProjectedIncome: 0,
-        monthlyProjectedExpense: 0,
-      }
+  } catch (error) {
+    console.error('Error getting wallet cash flow stats:', error)
+    // Return default stats
+    return {
+      currentBalance: wallet.balance,
+      initialBalance: wallet.balance,
+      totalIncome: 0,
+      incomeCount: 0,
+      averageIncome: 0,
+      largestIncome: 0,
+      smallestIncome: 0,
+      totalExpense: 0,
+      expenseCount: 0,
+      averageExpense: 0,
+      largestExpense: 0,
+      smallestExpense: 0,
+      incomePercentage: 0,
+      expensePercentage: 0,
+      expenseToIncomeRatio: 0,
+      netFlow: 0,
+      savingsRate: 0,
+      expenseRate: 0,
+      dailyAverageIncome: 0,
+      dailyAverageExpense: 0,
+      monthlyProjectedIncome: 0,
+      monthlyProjectedExpense: 0,
     }
   }
-
-  // Sử dụng cache với TTL 24 giờ cho session cache, stale threshold 12 giờ
-  return cacheFirstWithRefresh(cacheKey, fetchStats, 24 * 60 * 60 * 1000, 12 * 60 * 60 * 1000)
 }
 
 /**
@@ -251,15 +238,15 @@ export const syncWalletBalanceFromTransactions = async (
 
   // Lấy tất cả giao dịch để tính số dư (chỉ lấy những giao dịch không bị exclude)
   const transactions = await fetchTransactions({ wallet_id: walletId, exclude_from_reports: false })
-  
+
   const totalIncome = transactions
     .filter((t) => t.type === 'Thu')
     .reduce((sum, t) => sum + Number(t.amount), 0)
-  
+
   const totalExpense = transactions
     .filter((t) => t.type === 'Chi')
     .reduce((sum, t) => sum + Number(t.amount), 0)
-  
+
   // Tính số dư hiện tại từ giao dịch
   // Sử dụng initial_balance làm mốc (không đổi), không dùng balance (có thể đã bị cập nhật)
   // Số dư hiện tại = Số dư ban đầu (initial_balance) + Tổng Thu - Tổng Chi
@@ -311,4 +298,3 @@ export const syncAllWalletBalances = async (): Promise<void> => {
   await Promise.all(wallets.map((wallet) => syncWalletBalanceFromTransactions(wallet.id)))
 
 }
-

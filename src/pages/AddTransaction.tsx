@@ -16,7 +16,6 @@ import { getFavoriteCategories, initializeDefaultFavorites } from '../lib/favori
 import { CategoryIcon } from '../components/ui/CategoryIcon'
 import { createTransaction, updateTransaction, type TransactionType } from '../lib/transactionService'
 import { fetchWallets, getDefaultWallet, getTotalBalanceWalletIds, type WalletRecord } from '../lib/walletService'
-import { invalidateCache } from '../lib/cache'
 import { uploadMultipleToCloudinary } from '../lib/cloudinaryService'
 import { compressImageForTransaction } from '../utils/imageCompression'
 import { useNotification } from '../contexts/notificationContext.helpers'
@@ -53,11 +52,11 @@ export const AddTransactionPage = () => {
   const navigate = useNavigate()
   const [searchParams] = useSearchParams()
   const { success, error: showError } = useNotification()
-  
+
   const transactionId = searchParams.get('id')
   const defaultType = (searchParams.get('type') as TransactionType) || 'Chi'
   const isEditMode = !!transactionId
-  
+
   const [formState, setFormState] = useState<TransactionFormState>({
     type: defaultType,
     wallet_id: '',
@@ -102,11 +101,11 @@ export const AddTransactionPage = () => {
 
         setWallets(walletsData)
         setCategories(categoriesData)
-        
+
         // Get selected wallets for default wallet selection
         const walletIds = await getTotalBalanceWalletIds()
         const selectedWallets = walletsData.filter((w) => walletIds.includes(w.id))
-        
+
         // Set default wallet ID (first wallet in selected list or default wallet)
         if (selectedWallets.length > 0) {
           setDefaultWalletId(selectedWallets[0].id)
@@ -145,10 +144,10 @@ export const AddTransactionPage = () => {
 
         // Load hierarchical categories and favorite categories
         const categoryTypeForFetch = defaultType === 'Chi' ? 'Chi tiêu' : 'Thu nhập'
-        
+
         // Initialize default favorites for new users
         await initializeDefaultFavorites(categoryTypeForFetch)
-        
+
         const [hierarchicalData, favoriteIdsArray] = await Promise.all([
           fetchCategoriesHierarchical(),
           getFavoriteCategories(categoryTypeForFetch),
@@ -182,56 +181,74 @@ export const AddTransactionPage = () => {
 
         // Load transaction if editing
         if (transactionId) {
-          const { fetchTransactions } = await import('../lib/transactionService')
-          const transactions = await fetchTransactions({})
-          const foundTransaction = transactions.find(t => t.id === transactionId)
-          if (foundTransaction) {
-            // transaction_date is YYYY-MM-DD format, parse to get date only
-            // Time is not stored in transaction_date, so we'll default to current time in UTC+7
+          // Invalidate cache trước để đảm bảo lấy dữ liệu mới nhất từ database
+          const { queryClient } = await import('../lib/react-query')
+          await queryClient.invalidateQueries({ queryKey: ['transactions'] })
+
+          // Load transaction trực tiếp từ database bằng ID
+          const { getTransactionById } = await import('../lib/transactionService')
+          const foundTransaction = await getTransactionById(transactionId)
+
+          if (!foundTransaction) {
+            setError('Không tìm thấy giao dịch. Vui lòng thử lại.')
+            showError('Không tìm thấy giao dịch. Vui lòng thử lại.')
+            return
+          }
+
+          // Tải toàn bộ dữ liệu từ transaction vào form
+          // Parse transaction_date (YYYY-MM-DD) - ensure it's treated as UTC+7
+          const dateStr = foundTransaction.transaction_date.split('T')[0]
+
+          // Lấy time từ created_at của transaction để giữ nguyên thời gian tạo ban đầu
+          let transactionTime = ''
+          try {
+            const createdDate = new Date(foundTransaction.created_at)
+            const components = getDateComponentsUTC7(createdDate)
+            transactionTime = `${String(components.hour).padStart(2, '0')}:${String(components.minute).padStart(2, '0')}`
+          } catch {
+            // Fallback to current time if parsing fails
             const now = getNowUTC7()
             const components = getDateComponentsUTC7(now)
-            const currentTime = `${String(components.hour).padStart(2, '0')}:${String(components.minute).padStart(2, '0')}`
-
-            // Parse transaction_date (YYYY-MM-DD) - ensure it's treated as UTC+7
-            const dateStr = foundTransaction.transaction_date.split('T')[0]
-
-            // Parse location to extract coordinates if stored
-            const savedLocation = foundTransaction.location || ''
-            let coords: { lat: number; lng: number } | null = null
-            
-            // Check if location contains coordinates (format: "address|lat,lng")
-            if (savedLocation.includes('|')) {
-              const parts = savedLocation.split('|')
-              if (parts[1]) {
-                coords = parseCoordinates(parts[1])
-              }
-            } else if (isCoordinates(savedLocation)) {
-              // If it's just coordinates, parse them
-              coords = parseCoordinates(savedLocation)
-            }
-            
-            if (coords) {
-              setLocationCoordinates(coords)
-            }
-            
-            setFormState({
-              type: foundTransaction.type,
-              wallet_id: foundTransaction.wallet_id,
-              category_id: foundTransaction.category_id,
-              amount: formatVNDInput(foundTransaction.amount.toString()),
-              description: foundTransaction.description || '',
-              transaction_date: dateStr,
-              transaction_time: currentTime,
-              location: savedLocation, // Keep original format for saving
-              recipient_name: foundTransaction.recipient_name || '',
-              is_borrowed: foundTransaction.is_borrowed || false,
-              lender_name: foundTransaction.lender_name || '',
-              lender_phone: foundTransaction.lender_phone || '',
-              borrow_date: foundTransaction.borrow_date || '',
-              exclude_from_reports: foundTransaction.exclude_from_reports || false,
-            })
-            setUploadedImageUrls(foundTransaction.image_urls || [])
+            transactionTime = `${String(components.hour).padStart(2, '0')}:${String(components.minute).padStart(2, '0')}`
           }
+
+          // Parse location to extract coordinates if stored
+          const savedLocation = foundTransaction.location || ''
+          let coords: { lat: number; lng: number } | null = null
+
+          // Check if location contains coordinates (format: "address|lat,lng")
+          if (savedLocation.includes('|')) {
+            const parts = savedLocation.split('|')
+            if (parts[1]) {
+              coords = parseCoordinates(parts[1])
+            }
+          } else if (isCoordinates(savedLocation)) {
+            // If it's just coordinates, parse them
+            coords = parseCoordinates(savedLocation)
+          }
+
+          if (coords) {
+            setLocationCoordinates(coords)
+          }
+
+          // Tải toàn bộ dữ liệu từ transaction vào form state
+          setFormState({
+            type: foundTransaction.type,
+            wallet_id: foundTransaction.wallet_id,
+            category_id: foundTransaction.category_id,
+            amount: formatVNDInput(foundTransaction.amount.toString()),
+            description: foundTransaction.description || '',
+            transaction_date: dateStr,
+            transaction_time: transactionTime,
+            location: savedLocation, // Keep original format for saving
+            recipient_name: foundTransaction.recipient_name || '',
+            is_borrowed: foundTransaction.is_borrowed || false,
+            lender_name: foundTransaction.lender_name || '',
+            lender_phone: foundTransaction.lender_phone || '',
+            borrow_date: foundTransaction.borrow_date || '',
+            exclude_from_reports: foundTransaction.exclude_from_reports || false,
+          })
+          setUploadedImageUrls(foundTransaction.image_urls || [])
         } else {
           // Reset form when creating new transaction
           // For expense, use default wallet ID (will be set after wallets load)
@@ -239,7 +256,7 @@ export const AddTransactionPage = () => {
           const now = getNowUTC7()
           const components = getDateComponentsUTC7(now)
           const currentTime = `${String(components.hour).padStart(2, '0')}:${String(components.minute).padStart(2, '0')}`
-          
+
           setFormState({
             type: defaultType,
             wallet_id: initialWalletId,
@@ -270,7 +287,7 @@ export const AddTransactionPage = () => {
           // Get selected wallet IDs (from Quản lý ví settings)
           const walletIds = await getTotalBalanceWalletIds()
           const selectedWallets = wallets.filter((w) => walletIds.includes(w.id))
-          
+
           // Update default wallet ID if not set
           if (selectedWallets.length > 0 && !defaultWalletId) {
             setDefaultWalletId(selectedWallets[0].id)
@@ -283,7 +300,7 @@ export const AddTransactionPage = () => {
           console.error('Error updating default wallet:', error)
           // Fallback: use Tiền mặt + Ngân hàng
           const netAssetsWallets = wallets.filter((w) => (w.type === 'Tiền mặt' || w.type === 'Ngân hàng') && w.is_active)
-          
+
           // Update default wallet ID if not set
           if (netAssetsWallets.length > 0 && !defaultWalletId) {
             setDefaultWalletId(netAssetsWallets[0].id)
@@ -328,16 +345,14 @@ export const AddTransactionPage = () => {
     const reloadFavorites = async () => {
       try {
         const categoryTypeForReload = formState.type === 'Chi' ? 'Chi tiêu' : 'Thu nhập'
-        
+
         // Invalidate cache to ensure fresh data
         try {
           const { getCachedUser } = await import('../lib/userCache')
           const user = await getCachedUser()
           if (user) {
-            const { invalidateCache } = await import('../lib/cache')
-            const { cacheManager } = await import('../lib/cache')
-            const cacheKey = await cacheManager.generateKey('favoriteCategories', { categoryType: categoryTypeForReload, userId: user.id })
-            await invalidateCache(cacheKey)
+            const { queryClient } = await import('../lib/react-query')
+            await queryClient.invalidateQueries({ queryKey: ['favoriteCategories', { categoryType: categoryTypeForReload }] })
           }
         } catch (cacheError) {
           console.warn('Error invalidating cache:', cacheError)
@@ -450,6 +465,7 @@ export const AddTransactionPage = () => {
       }
 
       if (isEditMode && transactionId) {
+        // Ghi đè toàn bộ dữ liệu từ form lên transaction hiện tại
         await updateTransaction(transactionId, {
           wallet_id: formState.wallet_id,
           category_id: formState.category_id,
@@ -486,61 +502,62 @@ export const AddTransactionPage = () => {
           borrow_date: formState.is_borrowed ? (formState.borrow_date || null) : null,
           exclude_from_reports: formState.exclude_from_reports || false,
         })
-        
+
         // Show budget warning if exists (soft limit)
         if (result.budgetWarning) {
           showError(result.budgetWarning)
         } else {
           success(`Đã thêm ${formState.type === 'Thu' ? 'khoản thu' : 'khoản chi'} thành công!`)
         }
-        
+
         // Reset form for continuous input instead of navigating back
         const now = getNowUTC7()
         const components = getDateComponentsUTC7(now)
         const currentTime = `${String(components.hour).padStart(2, '0')}:${String(components.minute).padStart(2, '0')}`
-        
+
         // Reload data (wallets, categories, favorites) to get updated balances
         // Invalidate cache first to ensure we get fresh data from database
         try {
-          await invalidateCache('fetchWallets')
-          await invalidateCache('getDefaultWallet')
-          await invalidateCache('getTotalBalanceWalletIds')
-          
+          const { queryClient } = await import('../lib/react-query')
+          await queryClient.invalidateQueries({ queryKey: ['fetchWallets'] })
+          await queryClient.invalidateQueries({ queryKey: ['getDefaultWallet'] })
+          await queryClient.invalidateQueries({ queryKey: ['getTotalBalanceWalletIds'] })
+
           // Small delay to ensure database transaction is committed
           await new Promise(resolve => setTimeout(resolve, 100))
-          
+
           const [walletsData, categoriesData, defaultId] = await Promise.all([
             fetchWallets(false),
             fetchCategories(),
             getDefaultWallet(),
           ])
-          
+
           setWallets(walletsData)
           setCategories(categoriesData)
-          
+
           // Get selected wallets for default wallet
           const walletIds = await getTotalBalanceWalletIds()
           const selectedWallets = walletsData.filter((w) => walletIds.includes(w.id))
-          
+
           // Determine wallet_id for reset
           let resetWalletId = ''
           // Use first wallet from selected wallets or default wallet
           resetWalletId = selectedWallets.length > 0 ? selectedWallets[0].id : (defaultId || '')
-          
+
           // Update default wallet ID
           if (selectedWallets.length > 0) {
             setDefaultWalletId(selectedWallets[0].id)
           } else if (defaultId) {
             setDefaultWalletId(defaultId)
           }
-          
+
           // Reload favorite categories
           const categoryTypeForReload = formState.type === 'Chi' ? 'Chi tiêu' : 'Thu nhập'
           const favoriteIdsArray = await getFavoriteCategories(categoryTypeForReload)
           const favoriteIdsSet = new Set(favoriteIdsArray)
           const favoriteCats = categoriesData.filter((cat) => favoriteIdsSet.has(cat.id))
           setFavoriteCategories(favoriteCats)
-          
+
           // Reset form after data is reloaded
           setFormState((prev) => ({
             ...prev,
@@ -642,8 +659,8 @@ export const AddTransactionPage = () => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
-      <HeaderBar 
-        variant="page" 
+      <HeaderBar
+        variant="page"
         title={isEditMode ? 'SỬA GIAO DỊCH' : formState.type === 'Thu' ? 'THÊM KHOẢN THU' : 'THÊM KHOẢN CHI'}
       />
 
@@ -663,11 +680,10 @@ export const AddTransactionPage = () => {
               <button
                 type="button"
                 onClick={() => setFormState((prev) => ({ ...prev, type: 'Thu' }))}
-                className={`group flex items-center justify-center gap-2 rounded-2xl border-2 py-3 px-4 text-center text-sm font-bold transition-all ${
-                  formState.type === 'Thu'
-                    ? 'border-emerald-600 bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 ring-2 ring-emerald-400/50'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-400 hover:bg-emerald-50'
-                }`}
+                className={`group flex items-center justify-center gap-2 rounded-2xl border-2 py-3 px-4 text-center text-sm font-bold transition-all ${formState.type === 'Thu'
+                  ? 'border-emerald-600 bg-emerald-500 text-white shadow-lg shadow-emerald-500/30 ring-2 ring-emerald-400/50'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-emerald-400 hover:bg-emerald-50'
+                  }`}
               >
                 <FaArrowUp className="h-5 w-5" />
                 <span>Khoản thu</span>
@@ -675,11 +691,10 @@ export const AddTransactionPage = () => {
               <button
                 type="button"
                 onClick={() => setFormState((prev) => ({ ...prev, type: 'Chi' }))}
-                className={`group flex items-center justify-center gap-2 rounded-2xl border-2 py-3 px-4 text-center text-sm font-bold transition-all ${
-                  formState.type === 'Chi'
-                    ? 'border-rose-500 bg-rose-500 text-white shadow-lg shadow-rose-500/30'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-rose-300 hover:bg-rose-50'
-                }`}
+                className={`group flex items-center justify-center gap-2 rounded-2xl border-2 py-3 px-4 text-center text-sm font-bold transition-all ${formState.type === 'Chi'
+                  ? 'border-rose-500 bg-rose-500 text-white shadow-lg shadow-rose-500/30'
+                  : 'border-slate-200 bg-white text-slate-600 hover:border-rose-300 hover:bg-rose-50'
+                  }`}
               >
                 <FaArrowDown className="h-5 w-5" />
                 <span>Khoản chi</span>
@@ -708,7 +723,7 @@ export const AddTransactionPage = () => {
             </div>
 
             {/* Amount - Compact and Clean */}
-            <div 
+            <div
               className="rounded-2xl bg-gradient-to-br from-white to-slate-50 shadow-md border border-slate-200/50 p-4 cursor-pointer active:scale-[0.98] transition-all hover:shadow-md"
               onClick={() => setIsNumberPadOpen(true)}
             >
@@ -725,17 +740,15 @@ export const AddTransactionPage = () => {
                     onChange={handleAmountChange}
                     onFocus={() => setIsNumberPadOpen(true)}
                     placeholder="0"
-                    className={`text-right bg-transparent border-0 text-3xl font-bold transition-all placeholder:text-slate-300 focus:outline-none cursor-pointer min-w-[80px] ${
-                      formState.type === 'Thu'
-                        ? 'text-emerald-600'
-                        : 'text-rose-600'
-                    }`}
+                    className={`text-right bg-transparent border-0 text-3xl font-bold transition-all placeholder:text-slate-300 focus:outline-none cursor-pointer min-w-[80px] ${formState.type === 'Thu'
+                      ? 'text-emerald-600'
+                      : 'text-rose-600'
+                      }`}
                     required
                     readOnly
                   />
-                  <span className={`text-xl font-semibold shrink-0 ${
-                    formState.type === 'Thu' ? 'text-emerald-600' : 'text-rose-600'
-                  }`}>
+                  <span className={`text-xl font-semibold shrink-0 ${formState.type === 'Thu' ? 'text-emerald-600' : 'text-rose-600'
+                    }`}>
                     ₫
                   </span>
                 </div>
@@ -813,7 +826,7 @@ export const AddTransactionPage = () => {
                     Mục thường dùng
                   </h4>
                 </div>
-                
+
                 {/* Categories Grid - 4 columns, always 8 slots (7 categories + 1 edit button) */}
                 <div className="grid grid-cols-4 gap-2.5">
                   {Array.from({ length: 8 }, (_, index) => {
@@ -827,17 +840,17 @@ export const AddTransactionPage = () => {
                           className="flex flex-col items-center gap-1 p-1 rounded-xl border-2 border-dashed border-slate-300/60 bg-slate-50/30"                        >
                           <div className="flex h-20 w-20 items-center justify-center">
                             <div className="h-16 w-16 rounded-full border-2 border-dashed border-slate-300/60 flex items-center justify-center">
-                            <FaEdit className="h-7 w-7 text-slate-600" />
+                              <FaEdit className="h-7 w-7 text-slate-600" />
                             </div>
                           </div>
-                            
+
                           <span className="text-[10px] font-bold text-center text-slate-700 leading-tight">
                             Chỉnh sửa
                           </span>
                         </button>
                       )
                     }
-                    
+
                     const category = favoriteCategories[index]
                     if (category) {
                       const isSelected = formState.category_id === category.id
@@ -846,17 +859,15 @@ export const AddTransactionPage = () => {
                           key={category.id}
                           type="button"
                           onClick={() => setFormState((prev) => ({ ...prev, category_id: category.id }))}
-                          className={`relative flex flex-col items-center gap-1 p-1 rounded-xl transition-all active:scale-95 ${
-                            isSelected
-                              ? 'bg-gradient-to-br from-sky-100 via-blue-50 to-indigo-50 ring-2 ring-sky-400 shadow-md scale-105'
-                              : 'bg-white hover:bg-slate-50 shadow-sm border border-slate-200/60 hover:border-slate-300 hover:shadow-md'
-                          }`}
+                          className={`relative flex flex-col items-center gap-1 p-1 rounded-xl transition-all active:scale-95 ${isSelected
+                            ? 'bg-gradient-to-br from-sky-100 via-blue-50 to-indigo-50 ring-2 ring-sky-400 shadow-md scale-105'
+                            : 'bg-white hover:bg-slate-50 shadow-sm border border-slate-200/60 hover:border-slate-300 hover:shadow-md'
+                            }`}
                         >
                           {/* Star Icon - Smaller, more subtle */}
-                          <FaStar className={`absolute top-1 right-1 h-4 w-4 ${
-                            isSelected ? 'text-amber-500' : 'text-amber-500'
-                          } fill-current drop-shadow-xl z-10`} />
-                          
+                          <FaStar className={`absolute top-1 right-1 h-4 w-4 ${isSelected ? 'text-amber-500' : 'text-amber-500'
+                            } fill-current drop-shadow-xl z-10`} />
+
                           {/* Category Icon - Sized to fit content */}
                           <div className="flex h-20 w-20 items-center justify-center transition-all">
                             <CategoryIcon
@@ -870,12 +881,11 @@ export const AddTransactionPage = () => {
                               }
                             />
                           </div>
-                          
+
                           {/* Category Name - Better typography */}
                           <span
-                            className={`text-[11px] font-semibold text-center leading-tight line-clamp-2 px-0.5 ${
-                              isSelected ? 'text-sky-900' : 'text-slate-700'
-                            }`}
+                            className={`text-[11px] font-semibold text-center leading-tight line-clamp-2 px-0.5 ${isSelected ? 'text-sky-900' : 'text-slate-700'
+                              }`}
                           >
                             {category.name}
                           </span>
@@ -919,11 +929,11 @@ export const AddTransactionPage = () => {
                       // Parse date string YYYY-MM-DD directly (already in UTC+7 format)
                       const [year, month, day] = formState.transaction_date.split('-').map(Number)
                       const dateStr = `${String(day).padStart(2, '0')}/${String(month).padStart(2, '0')}/${year}`
-                      
+
                       // Check if today (in UTC+7)
                       const today = getNowUTC7()
                       const todayComponents = getDateComponentsUTC7(today)
-                      
+
                       if (year === todayComponents.year && month === todayComponents.month && day === todayComponents.day) {
                         return `Hôm nay - ${dateStr}`
                       }
@@ -1084,7 +1094,7 @@ export const AddTransactionPage = () => {
                         // Parse location to display address only (hide coordinates)
                         let displayLocation = formState.location || ''
                         let hasCoordinates = false
-                        
+
                         if (displayLocation.includes('|')) {
                           const parts = displayLocation.split('|')
                           displayLocation = parts[0]
@@ -1094,10 +1104,10 @@ export const AddTransactionPage = () => {
                         } else if (isCoordinates(displayLocation)) {
                           hasCoordinates = true
                         }
-                        
+
                         // Check if location can open maps (has coordinates or is an address)
                         const canOpenMaps = hasCoordinates || (displayLocation && displayLocation.trim().length > 0 && !isCoordinates(displayLocation))
-                        
+
                         return (
                           <>
                             <input
@@ -1133,7 +1143,7 @@ export const AddTransactionPage = () => {
                                 onClick={() => {
                                   const locationToUse = formState.location || ''
                                   let mapsUrl = ''
-                                  
+
                                   // Check if location has coordinates in format "address|lat,lng"
                                   if (locationToUse.includes('|')) {
                                     const parts = locationToUse.split('|')
@@ -1147,7 +1157,7 @@ export const AddTransactionPage = () => {
                                   } else {
                                     mapsUrl = getMapsUrl(locationToUse)
                                   }
-                                  
+
                                   window.open(mapsUrl, '_blank', 'noopener,noreferrer')
                                 }}
                                 className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl border-2 border-emerald-200 bg-emerald-50 text-emerald-600 transition-all hover:border-emerald-300 hover:bg-emerald-100"
@@ -1175,14 +1185,14 @@ export const AddTransactionPage = () => {
                                 maximumAge: 0,
                               })
                             })
-                            
+
                             // Get coordinates
                             const lat = position.coords.latitude
                             const lng = position.coords.longitude
-                            
+
                             // Save coordinates for map opening
                             setLocationCoordinates({ lat, lng })
-                            
+
                             // Reverse geocoding to get address
                             try {
                               const address = await reverseGeocode(lat, lng)
@@ -1261,14 +1271,12 @@ export const AddTransactionPage = () => {
                         <button
                           type="button"
                           onClick={() => setFormState((prev) => ({ ...prev, is_borrowed: !prev.is_borrowed }))}
-                          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-                            formState.is_borrowed ? 'bg-sky-500' : 'bg-slate-300'
-                          }`}
+                          className={`relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${formState.is_borrowed ? 'bg-sky-500' : 'bg-slate-300'
+                            }`}
                         >
                           <span
-                            className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                              formState.is_borrowed ? 'translate-x-6' : 'translate-x-0.5'
-                            }`}
+                            className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${formState.is_borrowed ? 'translate-x-6' : 'translate-x-0.5'
+                              }`}
                           />
                         </button>
                       </label>
@@ -1342,14 +1350,12 @@ export const AddTransactionPage = () => {
                       <button
                         type="button"
                         onClick={() => setFormState((prev) => ({ ...prev, exclude_from_reports: !prev.exclude_from_reports }))}
-                        className={`relative ml-3 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${
-                          formState.exclude_from_reports ? 'bg-amber-500' : 'bg-slate-300'
-                        }`}
+                        className={`relative ml-3 inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors ${formState.exclude_from_reports ? 'bg-amber-500' : 'bg-slate-300'
+                          }`}
                       >
                         <span
-                          className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${
-                            formState.exclude_from_reports ? 'translate-x-6' : 'translate-x-0.5'
-                          }`}
+                          className={`inline-block h-5 w-5 transform rounded-full bg-white transition-transform ${formState.exclude_from_reports ? 'translate-x-6' : 'translate-x-0.5'
+                            }`}
                         />
                       </button>
                     </label>
@@ -1365,10 +1371,10 @@ export const AddTransactionPage = () => {
       {/* Fixed Footer with Action Buttons */}
       <ModalFooterButtons
         onCancel={() => navigate(-1)}
-        onConfirm={() => {}}
+        onConfirm={() => { }}
         confirmText={isUploadingImages ? 'Đang upload ảnh...' : isSubmitting ? 'Đang lưu...' : `${isEditMode ? 'Cập nhật' : 'Thêm'} ${formState.type === 'Thu' ? 'Thu' : 'Chi'}`}
         isSubmitting={isSubmitting}
-            disabled={isSubmitting || isLoading || isUploadingImages || wallets.length === 0 || filteredCategories.length === 0}
+        disabled={isSubmitting || isLoading || isUploadingImages || wallets.length === 0 || filteredCategories.length === 0}
         confirmButtonType="submit"
         formId="transaction-form"
         fixed={true}

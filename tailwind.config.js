@@ -47,6 +47,11 @@ export default {
           '50%': { transform: 'scale(1.2)' },
         },
       },
+      boxShadow: {
+        'soft': '0 4px 20px 0 rgba(0, 0, 0, 0.08), 0 2px 8px 0 rgba(0, 0, 0, 0.04)',
+        'soft-hover': '0 12px 30px 0 rgba(0, 0, 0, 0.12), 0 6px 12px 0 rgba(0, 0, 0, 0.06)',
+        'inner-light': 'inset 0 2px 4px 0 rgba(255, 255, 255, 0.5)',
+      },
     },
   },
   plugins: [],

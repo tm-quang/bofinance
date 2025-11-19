@@ -23,7 +23,7 @@ import {
 import { useNotification } from '../contexts/notificationContext.helpers'
 import { useDialog } from '../contexts/dialogContext.helpers'
 import { formatVNDInput, parseVNDInput } from '../utils/currencyInput'
-import { invalidateCache } from '../lib/cache'
+
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('vi-VN', {
@@ -43,9 +43,9 @@ const formatDate = (dateString: string) => {
 // Component logo mờ để tái sử dụng
 const WalletLogo = ({ className = 'h-32 w-32' }: { className?: string }) => (
   <div className="absolute right-2 top-16 -translate-y-16 z-0 opacity-15">
-    <img 
-      src="/logo-nontext.png" 
-      alt="BO.fin Logo" 
+    <img
+      src="/logo-nontext.png"
+      alt="BO.fin Logo"
       className={className}
     />
   </div>
@@ -151,14 +151,14 @@ export const WalletsPage = () => {
         fetchWallets(false), // Load active wallets trước (nhanh hơn)
         getTotalBalanceWalletIds().catch(() => []), // Load total balance wallet ids từ database (có cache)
       ])
-      
+
       // Hiển thị active wallets ngay lập tức (progressive loading)
       setWallets(activeWallets)
       setIsLoading(false) // Cho phép hiển thị ngay
-      
+
       // Xử lý total balance wallet ids
       setTotalBalanceWalletIdsState(totalBalanceIds)
-      
+
       // Load inactive wallets trong background (không block UI)
       setIsLoadingInactive(true)
       fetchWallets(true)
@@ -222,29 +222,29 @@ export const WalletsPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    
+
     // Validation: Kiểm tra tất cả các trường bắt buộc
     if (!formData.name.trim()) {
       showError('Vui lòng nhập tên ví')
       return
     }
-    
+
     if (!editingWallet && !formData.type) {
       showError('Vui lòng chọn loại ví')
       return
     }
-    
+
     const balance = parseVNDInput(formData.balance)
     if (balance <= 0) {
       showError('Vui lòng nhập số dư ban đầu hợp lệ (lớn hơn 0)')
       return
     }
-    
+
     if (!formData.description.trim()) {
       showError('Vui lòng nhập mô tả cho ví')
       return
     }
-    
+
     setIsSubmitting(true)
     try {
       if (editingWallet) {
@@ -270,11 +270,11 @@ export const WalletsPage = () => {
     } catch (error) {
       console.error('Error saving wallet:', error)
       // Hiển thị thông báo lỗi chi tiết hơn
-      const errorMessage = error instanceof Error 
-        ? error.message 
-        : typeof error === 'string' 
-        ? error 
-        : 'Không thể lưu ví. Vui lòng thử lại.'
+      const errorMessage = error instanceof Error
+        ? error.message
+        : typeof error === 'string'
+          ? error
+          : 'Không thể lưu ví. Vui lòng thử lại.'
       showError(errorMessage || 'Không thể lưu ví. Vui lòng thử lại.')
     } finally {
       setIsSubmitting(false)
@@ -294,9 +294,9 @@ export const WalletsPage = () => {
       await showDialog({
         message: transactionCount > 0
           ? `Xóa ví "${walletName}" và ${transactionCount} giao dịch liên quan?\n\n` +
-            `⚠️ Xóa vĩnh viễn, không thể phục hồi`
+          `⚠️ Xóa vĩnh viễn, không thể phục hồi`
           : `Xóa ví "${walletName}"?\n\n` +
-            `⚠️ Xóa vĩnh viễn, không thể phục hồi`,
+          `⚠️ Xóa vĩnh viễn, không thể phục hồi`,
         type: 'error',
         title: 'Xóa ví',
         confirmText: 'Đồng ý xóa',
@@ -395,7 +395,7 @@ export const WalletsPage = () => {
       const wallet = confirmToggleBalance.wallet
       const isSelected = totalBalanceWalletIds.includes(wallet.id)
       let newSelectedIds: string[]
-      
+
       if (isSelected) {
         // Tắt - Bỏ chọn khỏi tổng số dư
         newSelectedIds = totalBalanceWalletIds.filter((id) => id !== wallet.id)
@@ -403,26 +403,27 @@ export const WalletsPage = () => {
         // Bật - Thêm vào danh sách tính tổng số dư
         newSelectedIds = [...totalBalanceWalletIds, wallet.id]
       }
-      
+
       // Lưu vào SQL database
       await setTotalBalanceWalletIds(newSelectedIds)
-      
+
       // Invalidate cache để đảm bảo reload dữ liệu mới
-      await invalidateCache('getTotalBalanceWalletIds')
-      
+      const { queryClient } = await import('../lib/react-query')
+      await queryClient.invalidateQueries({ queryKey: ['getTotalBalanceWalletIds'] })
+
       // Reload lại từ database để đảm bảo dữ liệu mới nhất
       const freshTotalBalanceIds = await getTotalBalanceWalletIds()
-      
+
       // Cập nhật state với dữ liệu mới nhất từ database
       setTotalBalanceWalletIdsState(freshTotalBalanceIds)
-      
+
       // Đóng modal
       setConfirmToggleBalance({
         isOpen: false,
         wallet: null,
         isEnabling: false,
       })
-      
+
       // Hiển thị thông báo thành công
       if (isSelected) {
         success(`Đã tắt tính tổng số dư cho "${wallet.name}"`)
@@ -451,7 +452,7 @@ export const WalletsPage = () => {
           {/* Add button */}
           <button
             onClick={() => handleOpenForm()}
-            className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-6 py-4 font-semibold text-white shadow-lg transition hover:from-sky-600 hover:to-blue-700"
+            className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-6 py-4 font-semibold text-white shadow-lg shadow-sky-500/30 transition hover:from-sky-600 hover:to-blue-700 hover:shadow-xl active:scale-95"
           >
             <FaPlus className="h-5 w-5" />
             Thêm ví mới
@@ -461,7 +462,7 @@ export const WalletsPage = () => {
           {isLoading ? (
             <WalletListSkeleton count={5} />
           ) : wallets.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-12 text-center shadow-sm">
+            <div className="flex flex-col items-center justify-center rounded-3xl bg-white p-12 text-center shadow-lg border border-slate-100">
               <FaWallet className="mb-4 h-16 w-16 text-slate-300" />
               <p className="text-sm font-semibold text-slate-700">Chưa có ví nào</p>
               <p className="mt-2 text-xs text-slate-500 leading-relaxed max-w-xs">
@@ -489,151 +490,149 @@ export const WalletsPage = () => {
                 return activeWallets.length > 0 ? (
                   <div className="space-y-4">
                     {activeWallets.map((wallet) => {
-                const colors = getWalletTypeColors(wallet.type)
-                const isNegative = wallet.balance < 0
-                
-                return (
-                  <div key={wallet.id} className="relative">
-                    <div
-                      className={`relative h-56 w-full overflow-hidden rounded-3xl bg-gradient-to-br ${colors.bg} p-5 ring-2 ${colors.border} ${colors.shadow} ring-1 transition-all duration-300 ${!wallet.is_active ? 'opacity-60' : ''}`}
-                    >
+                      const colors = getWalletTypeColors(wallet.type)
+                      const isNegative = wallet.balance < 0
 
-                      {/* Decorative patterns - Kiểu ATM card hiện đại */}
-                      <div className="absolute inset-0 overflow-hidden rounded-3xl">
-                        {/* Geometric patterns - Blur circles */}
-                        <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-white/5 blur-2xl"></div>
-                        <div className="absolute -right-8 top-1/2 h-32 w-32 rounded-full bg-white/5 blur-xl"></div>
-                        <div className="absolute right-0 bottom-0 h-24 w-24 rounded-full bg-white/5 blur-lg"></div>
-                        <div className="absolute -left-12 bottom-0 h-36 w-36 rounded-full bg-white/5 blur-2xl"></div>
-                        
-                        {/* Wave patterns - Đường viền mờ dưới nền */}
-                        <svg className="absolute bottom-0 left-0 w-full opacity-15" viewBox="0 0 400 180" preserveAspectRatio="none">
-                          <path
-                            d="M0,120 Q100,60 200,120 T400,120 L400,180 L0,180 Z"
-                            fill="white"
-                          />
-                          <path
-                            d="M0,150 Q150,90 300,150 T400,150 L400,180 L0,180 Z"
-                            fill="white"
-                            opacity="0.6"
-                          />
-                        </svg>
-                        
-                        {/* Thêm đường viền mờ thứ 2 */}
-                        <svg className="absolute bottom-0 left-0 w-full opacity-10" viewBox="0 0 400 180" preserveAspectRatio="none">
-                          <path
-                            d="M0,100 Q120,40 240,100 T400,100 L400,180 L0,180 Z"
-                            fill="white"
-                            opacity="0.5"
-                          />
-                        </svg>
-                        
-                        {/* Thêm đường viền mờ thứ 3 */}
-                        <svg className="absolute bottom-0 left-0 w-full opacity-8" viewBox="0 0 400 180" preserveAspectRatio="none">
-                          <path
-                            d="M0,130 Q80,70 160,130 T400,130 L400,180 L0,180 Z"
-                            fill="white"
-                            opacity="0.4"
-                          />
-                        </svg>
+                      return (
+                        <div key={wallet.id} className="relative">
+                          <div
+                            className={`relative h-56 w-full overflow-hidden rounded-3xl bg-gradient-to-br ${colors.bg} p-5 ring-2 ${colors.border} ${colors.shadow} ring-1 transition-all duration-300 ${!wallet.is_active ? 'opacity-60' : ''}`}
+                          >
 
-                        {/* Logo mờ ở giữa 1/3 bên phải */}
-                        <WalletLogo className="h-32 w-32 object-contain" />
-                      </div>
-                    
-                    <div className="relative z-10 flex h-full flex-col justify-between">
-                      {/* Top section */}
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h3 className={`truncate text-lg font-bold ${colors.text}`}>{wallet.name}</h3>
-                            {!wallet.is_active && (
-                              <span className="shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-xs text-white/80 backdrop-blur-sm">
-                                Đã ẩn
-                              </span>
-                            )}
+                            {/* Decorative patterns - Kiểu ATM card hiện đại */}
+                            <div className="absolute inset-0 overflow-hidden rounded-3xl">
+                              {/* Geometric patterns - Blur circles */}
+                              <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-white/5 blur-2xl"></div>
+                              <div className="absolute -right-8 top-1/2 h-32 w-32 rounded-full bg-white/5 blur-xl"></div>
+                              <div className="absolute right-0 bottom-0 h-24 w-24 rounded-full bg-white/5 blur-lg"></div>
+                              <div className="absolute -left-12 bottom-0 h-36 w-36 rounded-full bg-white/5 blur-2xl"></div>
+
+                              {/* Wave patterns - Đường viền mờ dưới nền */}
+                              <svg className="absolute bottom-0 left-0 w-full opacity-15" viewBox="0 0 400 180" preserveAspectRatio="none">
+                                <path
+                                  d="M0,120 Q100,60 200,120 T400,120 L400,180 L0,180 Z"
+                                  fill="white"
+                                />
+                                <path
+                                  d="M0,150 Q150,90 300,150 T400,150 L400,180 L0,180 Z"
+                                  fill="white"
+                                  opacity="0.6"
+                                />
+                              </svg>
+
+                              {/* Thêm đường viền mờ thứ 2 */}
+                              <svg className="absolute bottom-0 left-0 w-full opacity-10" viewBox="0 0 400 180" preserveAspectRatio="none">
+                                <path
+                                  d="M0,100 Q120,40 240,100 T400,100 L400,180 L0,180 Z"
+                                  fill="white"
+                                  opacity="0.5"
+                                />
+                              </svg>
+
+                              {/* Thêm đường viền mờ thứ 3 */}
+                              <svg className="absolute bottom-0 left-0 w-full opacity-8" viewBox="0 0 400 180" preserveAspectRatio="none">
+                                <path
+                                  d="M0,130 Q80,70 160,130 T400,130 L400,180 L0,180 Z"
+                                  fill="white"
+                                  opacity="0.4"
+                                />
+                              </svg>
+
+                              {/* Logo mờ ở giữa 1/3 bên phải */}
+                              <WalletLogo className="h-32 w-32 object-contain" />
+                            </div>
+
+                            <div className="relative z-10 flex h-full flex-col justify-between">
+                              {/* Top section */}
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2">
+                                    <h3 className={`truncate text-lg font-bold ${colors.text}`}>{wallet.name}</h3>
+                                    {!wallet.is_active && (
+                                      <span className="shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-xs text-white/80 backdrop-blur-sm">
+                                        Đã ẩn
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className={`mt-1 text-sm font-medium ${colors.text} opacity-70`}>{wallet.type}</p>
+                                  <p className={`mt-2 text-2xl font-bold ${isNegative ? 'text-rose-300' : colors.text}`}>
+                                    {formatCurrency(wallet.balance)}
+                                  </p>
+                                </div>
+                                <div className="flex shrink-0 gap-2" onClick={(e) => e.stopPropagation()}>
+                                  <button
+                                    onClick={() => handleOpenForm(wallet)}
+                                    className="rounded-full p-2 text-white/70 transition hover:bg-white/20 hover:text-white"
+                                  >
+                                    <FaEdit className="h-5 w-5" />
+                                  </button>
+                                  <button
+                                    onClick={() => handleDelete(wallet.id)}
+                                    className="rounded-full p-2 text-white/70 transition hover:bg-white/20 hover:text-rose-300"
+                                  >
+                                    <FaTrash className="h-5 w-5" />
+                                  </button>
+                                </div>
+                              </div>
+
+                              {/* Description section - luôn có không gian */}
+                              <div className="mt-3 min-h-[2.5rem]">
+                                <div className="flex items-start justify-between gap-2">
+                                  {wallet.description ? (
+                                    <p className={`flex-1 line-clamp-2 text-xs leading-relaxed ${colors.text} opacity-60`}>
+                                      {wallet.description}
+                                    </p>
+                                  ) : (
+                                    <div className="flex-1 h-10"></div>
+                                  )}
+                                  <span className={`shrink-0 text-[10px] font-medium ${colors.text} opacity-60`}>
+                                    Ngày tạo ví: {formatDate(wallet.created_at)}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {/* Bottom section */}
+                              <div className={`mt-auto flex items-center justify-between border-t ${colors.text} border-opacity-20 pt-4`}>
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleToggleActive(wallet)
+                                  }}
+                                  className={`rounded-full px-4 py-2 text-xs font-semibold transition ${wallet.is_active
+                                    ? 'bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm'
+                                    : 'bg-sky-500/50 text-white hover:bg-sky-500/70 backdrop-blur-sm'
+                                    }`}
+                                >
+                                  {wallet.is_active ? 'Ẩn ví' : 'Hiện ví'}
+                                </button>
+                                <div className="flex items-center gap-3">
+                                  {/* Icon chọn ví vào tổng số dư */}
+                                  {wallet.is_active && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation()
+                                        handleToggleTotalBalance(wallet)
+                                      }}
+                                      className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition ${totalBalanceWalletIds.includes(wallet.id)
+                                        ? 'bg-sky-400/90 text-white shadow-lg hover:bg-sky-400'
+                                        : 'bg-white/20 text-white/80 hover:bg-white/30 hover:text-white backdrop-blur-sm'
+                                        }`}
+                                      title={totalBalanceWalletIds.includes(wallet.id) ? 'Đã chọn vào tổng số dư' : 'Chọn vào tổng số dư'}
+                                    >
+                                      <FaCalculator className="h-4 w-4 shrink-0" />
+                                      <span className="whitespace-nowrap">
+                                        {totalBalanceWalletIds.includes(wallet.id) ? 'Đã tính tổng số dư' : 'Tính tổng số dư'}
+                                      </span>
+                                    </button>
+                                  )}
+                                  <span className={`text-xs font-medium ${colors.text} opacity-70`}>{wallet.currency}</span>
+                                </div>
+                              </div>
+                            </div>
                           </div>
-                          <p className={`mt-1 text-sm font-medium ${colors.text} opacity-70`}>{wallet.type}</p>
-                          <p className={`mt-2 text-2xl font-bold ${isNegative ? 'text-rose-300' : colors.text}`}>
-                            {formatCurrency(wallet.balance)}
-                          </p>
                         </div>
-                        <div className="flex shrink-0 gap-2" onClick={(e) => e.stopPropagation()}>
-                          <button
-                            onClick={() => handleOpenForm(wallet)}
-                            className="rounded-full p-2 text-white/70 transition hover:bg-white/20 hover:text-white"
-                          >
-                            <FaEdit className="h-5 w-5" />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(wallet.id)}
-                            className="rounded-full p-2 text-white/70 transition hover:bg-white/20 hover:text-rose-300"
-                          >
-                            <FaTrash className="h-5 w-5" />
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Description section - luôn có không gian */}
-                      <div className="mt-3 min-h-[2.5rem]">
-                        <div className="flex items-start justify-between gap-2">
-                          {wallet.description ? (
-                            <p className={`flex-1 line-clamp-2 text-xs leading-relaxed ${colors.text} opacity-60`}>
-                              {wallet.description}
-                            </p>
-                          ) : (
-                            <div className="flex-1 h-10"></div>
-                          )}
-                          <span className={`shrink-0 text-[10px] font-medium ${colors.text} opacity-60`}>
-                            Ngày tạo ví: {formatDate(wallet.created_at)}
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Bottom section */}
-                      <div className={`mt-auto flex items-center justify-between border-t ${colors.text} border-opacity-20 pt-4`}>
-                        <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleToggleActive(wallet)
-                        }}
-                        className={`rounded-full px-4 py-2 text-xs font-semibold transition ${
-                          wallet.is_active
-                            ? 'bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm'
-                            : 'bg-sky-500/50 text-white hover:bg-sky-500/70 backdrop-blur-sm'
-                        }`}
-                      >
-                          {wallet.is_active ? 'Ẩn ví' : 'Hiện ví'}
-                        </button>
-                        <div className="flex items-center gap-3">
-                          {/* Icon chọn ví vào tổng số dư */}
-                          {wallet.is_active && (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                handleToggleTotalBalance(wallet)
-                              }}
-                              className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition ${
-                                totalBalanceWalletIds.includes(wallet.id)
-                                  ? 'bg-sky-400/90 text-white shadow-lg hover:bg-sky-400'
-                                  : 'bg-white/20 text-white/80 hover:bg-white/30 hover:text-white backdrop-blur-sm'
-                              }`}
-                              title={totalBalanceWalletIds.includes(wallet.id) ? 'Đã chọn vào tổng số dư' : 'Chọn vào tổng số dư'}
-                            >
-                              <FaCalculator className="h-4 w-4 shrink-0" />
-                              <span className="whitespace-nowrap">
-                                {totalBalanceWalletIds.includes(wallet.id) ? 'Đã tính tổng số dư' : 'Tính tổng số dư'}
-                              </span>
-                            </button>
-                          )}
-                          <span className={`text-xs font-medium ${colors.text} opacity-70`}>{wallet.currency}</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                  </div>
-                )
-              })}
+                      )
+                    })}
                   </div>
                 ) : null
               })()}
@@ -664,7 +663,7 @@ export const WalletsPage = () => {
                         {hiddenWallets.map((wallet) => {
                           const colors = getWalletTypeColors(wallet.type)
                           const isNegative = wallet.balance < 0
-                          
+
                           return (
                             <div key={wallet.id} className="relative">
                               <div
@@ -677,7 +676,7 @@ export const WalletsPage = () => {
                                   <div className="absolute -right-8 top-1/2 h-32 w-32 rounded-full bg-white/5 blur-xl"></div>
                                   <div className="absolute right-0 bottom-0 h-24 w-24 rounded-full bg-white/5 blur-lg"></div>
                                   <div className="absolute -left-12 bottom-0 h-36 w-36 rounded-full bg-white/5 blur-2xl"></div>
-                                  
+
                                   {/* Wave patterns - Đường viền mờ dưới nền */}
                                   <svg className="absolute bottom-0 left-0 w-full opacity-15" viewBox="0 0 400 180" preserveAspectRatio="none">
                                     <path
@@ -690,7 +689,7 @@ export const WalletsPage = () => {
                                       opacity="0.6"
                                     />
                                   </svg>
-                                  
+
                                   {/* Thêm đường viền mờ thứ 2 */}
                                   <svg className="absolute bottom-0 left-0 w-full opacity-10" viewBox="0 0 400 180" preserveAspectRatio="none">
                                     <path
@@ -699,7 +698,7 @@ export const WalletsPage = () => {
                                       opacity="0.5"
                                     />
                                   </svg>
-                                  
+
                                   {/* Thêm đường viền mờ thứ 3 */}
                                   <svg className="absolute bottom-0 left-0 w-full opacity-8" viewBox="0 0 400 180" preserveAspectRatio="none">
                                     <path
@@ -712,7 +711,7 @@ export const WalletsPage = () => {
                                   {/* Logo mờ ở giữa 1/3 bên phải */}
                                   <WalletLogo className="h-32 w-32 object-contain" />
                                 </div>
-                              
+
                                 <div className="relative z-10 flex h-full flex-col justify-between">
                                   {/* Top section */}
                                   <div className="flex items-start justify-between">
@@ -862,26 +861,26 @@ export const WalletsPage = () => {
                         type="button"
                         onClick={() => {
                           if (!editingWallet) return
-                          // Wrap in async IIFE to properly handle promise
-                          ;(async () => {
-                            try {
-                              const { syncWalletBalanceFromTransactions } = await import('../lib/walletBalanceService')
-                              const updatedWallet = await syncWalletBalanceFromTransactions(editingWallet.id)
-                              setFormData((prev) => ({
-                                ...prev,
-                                balance: formatVNDInput(updatedWallet.balance.toString()), // Format với phần nghìn
-                              }))
-                              success('Đã đồng bộ số dư từ giao dịch!')
-                              await loadWallets()
-                            } catch (error) {
-                              console.error('Error syncing balance:', error)
+                            // Wrap in async IIFE to properly handle promise
+                            ; (async () => {
+                              try {
+                                const { syncWalletBalanceFromTransactions } = await import('../lib/walletBalanceService')
+                                const updatedWallet = await syncWalletBalanceFromTransactions(editingWallet.id)
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  balance: formatVNDInput(updatedWallet.balance.toString()), // Format với phần nghìn
+                                }))
+                                success('Đã đồng bộ số dư từ giao dịch!')
+                                await loadWallets()
+                              } catch (error) {
+                                console.error('Error syncing balance:', error)
+                                showError('Không thể đồng bộ số dư. Vui lòng thử lại.')
+                              }
+                            })().catch((error) => {
+                              // Catch any unhandled promise rejection
+                              console.error('Unhandled error in sync balance:', error)
                               showError('Không thể đồng bộ số dư. Vui lòng thử lại.')
-                            }
-                          })().catch((error) => {
-                            // Catch any unhandled promise rejection
-                            console.error('Unhandled error in sync balance:', error)
-                            showError('Không thể đồng bộ số dư. Vui lòng thử lại.')
-                          })
+                            })
                         }}
                         className="text-xs font-medium text-sky-600 hover:text-sky-700 hover:underline transition"
                       >
@@ -908,7 +907,7 @@ export const WalletsPage = () => {
                     </span>
                   </div>
                   <p className="mt-1.5 text-xs text-slate-500">
-                    {editingWallet 
+                    {editingWallet
                       ? 'Số dư được cập nhật tự động theo các giao dịch thu/chi. Bạn có thể chỉnh sửa số dư tại đây hoặc nhấn "Đồng bộ từ giao dịch" để tính lại từ các giao dịch.'
                       : 'Nhấn vào ô để mở bàn phím số. Số dư sẽ được cập nhật tự động theo các giao dịch thu/chi.'}
                   </p>
@@ -938,10 +937,10 @@ export const WalletsPage = () => {
           {/* Footer - Fixed - Giống TransactionModal */}
           <ModalFooterButtons
             onCancel={handleCloseForm}
-            onConfirm={() => {}}
+            onConfirm={() => { }}
             confirmText={isSubmitting ? 'Đang lưu...' : editingWallet ? 'Cập nhật' : 'Tạo ví'}
             isSubmitting={isSubmitting}
-                  disabled={isSubmitting}
+            disabled={isSubmitting}
             confirmButtonType="submit"
             formId="wallet-form"
             className="safe-area-bottom"

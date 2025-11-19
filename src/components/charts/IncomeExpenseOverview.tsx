@@ -180,11 +180,11 @@ export const IncomeExpenseOverview = ({ walletId }: IncomeExpenseOverviewProps) 
   const currentTimePeriodLabel = TIME_PERIOD_OPTIONS.find((opt) => opt.value === timePeriod)?.label || 'Tháng'
 
   return (
-    <section className="rounded-3xl border border-blue-100 bg-white p-5 shadow-sm">
+    <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-md">
       {/* Header */}
       <div className="mb-4 flex items-center justify-between">
         <div>
-          <p className="text-md font-semibold uppercase tracking-[0.1em] text-slate-500">
+          <p className="text-md font-semibold uppercase tracking-[0.1em] text-slate-700">
             {timePeriod === 'day' ? 'THU CHI HÔM NAY' : timePeriod === 'week' ? 'THU CHI TUẦN NÀY' : 'THU CHI THÁNG NÀY'}
           </p>
         </div>

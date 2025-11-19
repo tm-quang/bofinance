@@ -1,9 +1,9 @@
 import type { PostgrestError } from '@supabase/supabase-js'
 import { getSupabaseClient } from './supabaseClient'
-import { cacheFirstWithRefresh, cacheManager } from './cache'
 import { getCachedUser } from './userCache'
 import { uploadToCloudinary } from './cloudinaryService'
 import { compressImageForIcon, isFileSizeAcceptable } from '../utils/imageCompression'
+import { queryClient } from './react-query'
 
 export type IconType = 'react-icon' | 'image' | 'svg' | 'svg-url'
 
@@ -54,11 +54,6 @@ const throwIfError = (error: PostgrestError | null, fallbackMessage: string): vo
   }
 }
 
-// Icon cache map: name -> IconRecord
-// Được populate từ fetchIcons() để tránh fetch riêng lẻ
-let iconCacheMap: Map<string, IconRecord> | null = null
-let iconCachePromise: Promise<IconRecord[]> | null = null
-
 // Fetch all active icons
 export const fetchIcons = async (filters?: IconFilters): Promise<IconRecord[]> => {
   const supabase = getSupabaseClient()
@@ -69,120 +64,75 @@ export const fetchIcons = async (filters?: IconFilters): Promise<IconRecord[]> =
     return []
   }
 
-  const cacheKey = await cacheManager.generateKey('icons', filters)
+  try {
+    // Build query từng bước để tránh lỗi
+    const isActiveFilter = filters?.is_active !== undefined ? filters.is_active : true
 
-  const icons = await cacheFirstWithRefresh(
-    cacheKey,
-    async () => {
-      try {
-        // Build query từng bước để tránh lỗi
-        const isActiveFilter = filters?.is_active !== undefined ? filters.is_active : true
-        
-        // Bắt đầu với select đơn giản
-        let query = supabase
-          .from(TABLE_NAME)
-          .select('*')
+    // Bắt đầu với select đơn giản
+    let query = supabase
+      .from(TABLE_NAME)
+      .select('*')
 
-        // Thêm filters
-        query = query.eq('is_active', isActiveFilter)
+    // Thêm filters
+    query = query.eq('is_active', isActiveFilter)
 
-        if (filters?.group_id) {
-          query = query.eq('group_id', filters.group_id)
-        }
-        if (filters?.icon_type) {
-          query = query.eq('icon_type', filters.icon_type)
-        }
-
-        // Thêm ordering
-        query = query
-          .order('group_id', { ascending: true })
-          .order('display_order', { ascending: true })
-          .order('label', { ascending: true })
-
-        const { data, error } = await query
-
-        if (error) {
-          // Log error nhưng không throw - có thể do RLS policy hoặc table chưa tồn tại
-          // App sẽ fallback về hardcoded icons
-          if (error.code !== 'PGRST116') { // PGRST116 = not found, không cần log
-            console.warn('Cannot fetch icons from database (will use hardcoded icons):', {
-              code: error.code,
-              message: error.message,
-            })
-          }
-          return []
-        }
-
-        return data ?? []
-      } catch (err) {
-        // Silently fail - app sẽ dùng hardcoded icons
-        // Chỉ log nếu không phải là lỗi network thông thường
-        if (err instanceof Error && !err.message.includes('fetch')) {
-          console.warn('Error fetching icons (will use hardcoded icons):', err)
-        }
-        return []
-      }
-    },
-    24 * 60 * 60 * 1000, // 24 hours
-    12 * 60 * 60 * 1000  // 12 hours stale
-  )
-
-  // Populate iconCacheMap nếu fetch tất cả active icons (không có filter đặc biệt)
-  // Điều này giúp getIconByName sử dụng cache thay vì fetch riêng lẻ
-  if (!filters || (filters.is_active === true || filters.is_active === undefined)) {
-    if (!filters?.group_id && !filters?.icon_type) {
-      iconCacheMap = new Map(icons.map(icon => [icon.name, icon]))
+    if (filters?.group_id) {
+      query = query.eq('group_id', filters.group_id)
     }
-  }
+    if (filters?.icon_type) {
+      query = query.eq('icon_type', filters.icon_type)
+    }
 
-  return icons
+    // Thêm ordering
+    query = query
+      .order('group_id', { ascending: true })
+      .order('display_order', { ascending: true })
+      .order('label', { ascending: true })
+
+    const { data, error } = await query
+
+    if (error) {
+      // Log error nhưng không throw - có thể do RLS policy hoặc table chưa tồn tại
+      // App sẽ fallback về hardcoded icons
+      if (error.code !== 'PGRST116') { // PGRST116 = not found, không cần log
+        console.warn('Cannot fetch icons from database (will use hardcoded icons):', {
+          code: error.code,
+          message: error.message,
+        })
+      }
+      return []
+    }
+
+    return data ?? []
+  } catch (err) {
+    // Silently fail - app sẽ dùng hardcoded icons
+    // Chỉ log nếu không phải là lỗi network thông thường
+    if (err instanceof Error && !err.message.includes('fetch')) {
+      console.warn('Error fetching icons (will use hardcoded icons):', err)
+    }
+    return []
+  }
 }
 
 /**
- * Get icon by name - sử dụng cache từ fetchIcons() để tránh fetch riêng lẻ
- * Tối ưu: Chỉ fetch tất cả icons một lần, sau đó dùng cache
+ * Get icon by name - sử dụng React Query cache để tránh fetch riêng lẻ
  */
 export const getIconByName = async (name: string): Promise<IconRecord | null> => {
-  // Nếu đã có cache, dùng ngay
-  if (iconCacheMap && iconCacheMap.has(name)) {
-    return iconCacheMap.get(name) || null
-  }
+  // Use ensureQueryData to get from cache or fetch
+  const icons = await queryClient.ensureQueryData({
+    queryKey: ['icons', { is_active: true }],
+    queryFn: () => fetchIcons({ is_active: true }),
+    staleTime: 24 * 60 * 60 * 1000, // 24 hours
+  })
 
-  // Nếu đang fetch, đợi xong rồi check lại
-  if (iconCachePromise) {
-    await iconCachePromise
-    if (iconCacheMap && iconCacheMap.has(name)) {
-      return iconCacheMap.get(name) || null
-    }
-  }
-
-  // Nếu chưa có cache, fetch tất cả icons một lần và cache lại
-  if (!iconCachePromise) {
-    iconCachePromise = fetchIcons({ is_active: true })
-    iconCachePromise
-      .then((icons) => {
-        iconCacheMap = new Map(icons.map(icon => [icon.name, icon]))
-        iconCachePromise = null
-      })
-      .catch(() => {
-        iconCacheMap = new Map()
-        iconCachePromise = null
-      })
-  }
-
-  await iconCachePromise
-  return iconCacheMap?.get(name) || null
+  return icons.find(icon => icon.name === name) || null
 }
 
 /**
  * Invalidate icon cache (khi có thay đổi icons)
  */
 export const invalidateIconCache = async (): Promise<void> => {
-  iconCacheMap = null
-  iconCachePromise = null
-  // Invalidate cache from cache manager
-  const cacheKey = await cacheManager.generateKey('icons', {})
-  await cacheManager.invalidate(cacheKey)
+  await queryClient.invalidateQueries({ queryKey: ['icons'] })
 }
 
 // Get icon by ID
@@ -252,11 +202,11 @@ export const createIcon = async (payload: IconInsert, imageFile?: File): Promise
         // PNG preserves transparency, JPEG has better compression
         const fileName = imageFile.name.toLowerCase()
         const isPng = fileName.endsWith('.png')
-        
+
         if (isPng) {
           // PNG: 96x96px, max 30KB (to preserve transparency)
           fileToUpload = await compressImageForIcon(imageFile, 96, 96, 30, 0.6, true)
-          
+
           // Verify compressed size (PNG is larger, allow up to 30KB)
           if (!isFileSizeAcceptable(fileToUpload, 30)) {
             throw new Error('Không thể nén ảnh PNG xuống dưới 30KB. Vui lòng chọn ảnh đơn giản hơn hoặc giảm kích thước.')
@@ -264,7 +214,7 @@ export const createIcon = async (payload: IconInsert, imageFile?: File): Promise
         } else {
           // JPEG: 128x128px, max 10KB
           fileToUpload = await compressImageForIcon(imageFile, 128, 128, 10, 0.6, false)
-          
+
           // Verify compressed size
           if (!isFileSizeAcceptable(fileToUpload, 10)) {
             throw new Error('Không thể nén ảnh xuống dưới 10KB. Vui lòng chọn ảnh khác')
@@ -280,7 +230,7 @@ export const createIcon = async (payload: IconInsert, imageFile?: File): Promise
       folder: 'icons', // Fallback nếu không có VITE_CLOUDINARY_ICON_FOLDER
     })
     imageUrl = uploadResult.secure_url
-    
+
     // Update file type based on compressed file
     if (imageFile) {
       const compressedFileName = fileToUpload.name.toLowerCase()
@@ -346,11 +296,11 @@ export const updateIcon = async (
         // PNG preserves transparency, JPEG has better compression
         const fileName = imageFile.name.toLowerCase()
         const isPng = fileName.endsWith('.png')
-        
+
         if (isPng) {
           // PNG: 96x96px, max 30KB (to preserve transparency)
           fileToUpload = await compressImageForIcon(imageFile, 96, 96, 30, 0.6, true)
-          
+
           // Verify compressed size (PNG is larger, allow up to 30KB)
           if (!isFileSizeAcceptable(fileToUpload, 30)) {
             throw new Error('Không thể nén ảnh PNG xuống dưới 30KB. Vui lòng chọn ảnh đơn giản hơn hoặc giảm kích thước.')
@@ -358,7 +308,7 @@ export const updateIcon = async (
         } else {
           // JPEG: 128x128px, max 10KB
           fileToUpload = await compressImageForIcon(imageFile, 128, 128, 10, 0.6, false)
-          
+
           // Verify compressed size
           if (!isFileSizeAcceptable(fileToUpload, 10)) {
             throw new Error('Không thể nén ảnh xuống dưới 10KB. Vui lòng chọn ảnh khác')
@@ -443,4 +393,3 @@ export const getIconGroups = async (): Promise<Array<{ id: string; label: string
 
   return Array.from(groups.entries()).map(([id, label]) => ({ id, label }))
 }
-

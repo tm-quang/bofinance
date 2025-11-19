@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react'
-import { FaTimes, FaCalendar, FaChartLine } from 'react-icons/fa'
-import { ModalFooterButtons } from '../ui/ModalFooterButtons'
+import { FaTimes, FaCalendar, FaChartLine, FaPlus, FaTrash, FaCheckSquare, FaSquare, FaArrowLeft } from 'react-icons/fa'
 import { DateTimePickerModal } from '../ui/DateTimePickerModal'
-import type { TaskRecord, TaskStatus, TaskPriority } from '../../lib/taskService'
+import type { TaskRecord, TaskStatus, TaskPriority, Subtask } from '../../lib/taskService'
 
 type TaskModalProps = {
   isOpen: boolean
@@ -15,21 +14,39 @@ type TaskModalProps = {
     deadline?: string | null
     progress?: number
     tags?: string[]
+    color?: string | null
+    subtasks?: Subtask[]
   }) => void
   task?: TaskRecord | null
+  defaultDate?: string
 }
 
-export const TaskModal = ({ isOpen, onClose, onSave, task }: TaskModalProps) => {
+export const TaskModal = ({ isOpen, onClose, onSave, task, defaultDate }: TaskModalProps) => {
   const [title, setTitle] = useState('')
   const [description, setDescription] = useState('')
   const [status, setStatus] = useState<TaskStatus>('pending')
   const [priority, setPriority] = useState<TaskPriority>('medium')
   const [deadline, setDeadline] = useState<string | null>(null)
   const [progress, setProgress] = useState(0)
+  const [color, setColor] = useState<string>('#3B82F6')
   const [tags, setTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
+  const [subtasks, setSubtasks] = useState<Subtask[]>([])
+  const [subtaskInput, setSubtaskInput] = useState('')
   const [isDateTimePickerOpen, setIsDateTimePickerOpen] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
+
+  const PRESET_COLORS = [
+    '#3B82F6', // Blue
+    '#EF4444', // Red
+    '#F59E0B', // Amber
+    '#10B981', // Emerald
+    '#8B5CF6', // Violet
+    '#EC4899', // Pink
+    '#6366F1', // Indigo
+    '#14B8A6', // Teal
+  ]
 
   useEffect(() => {
     if (isOpen) {
@@ -41,22 +58,41 @@ export const TaskModal = ({ isOpen, onClose, onSave, task }: TaskModalProps) => 
         setDeadline(task.deadline)
         setProgress(task.progress)
         setTags(task.tags || [])
+        setColor(task.color || '#3B82F6')
+        setSubtasks(task.subtasks || [])
       } else {
         // Reset form for new task
         setTitle('')
         setDescription('')
         setStatus('pending')
         setPriority('medium')
-        setDeadline(null)
+        setDeadline(defaultDate || null)
         setProgress(0)
         setTags([])
         setTagInput('')
+        setColor('#3B82F6')
+        setSubtasks([])
+        setSubtaskInput('')
       }
       setError(null)
     }
-  }, [isOpen, task])
+  }, [isOpen, task, defaultDate])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  // Auto-calculate progress if subtasks exist
+  useEffect(() => {
+    if (subtasks.length > 0) {
+      const completedCount = subtasks.filter(s => s.completed).length
+      const newProgress = Math.round((completedCount / subtasks.length) * 100)
+      setProgress(newProgress)
+
+      // Auto update status based on progress
+      if (newProgress === 100) setStatus('completed')
+      else if (newProgress > 0) setStatus('in_progress')
+      else setStatus('pending')
+    }
+  }, [subtasks])
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setError(null)
 
@@ -65,15 +101,22 @@ export const TaskModal = ({ isOpen, onClose, onSave, task }: TaskModalProps) => 
       return
     }
 
-    onSave({
-      title: title.trim(),
-      description: description.trim() || undefined,
-      status,
-      priority,
-      deadline,
-      progress,
-      tags: tags.length > 0 ? tags : undefined,
-    })
+    setIsSubmitting(true)
+    try {
+      onSave({
+        title: title.trim(),
+        description: description.trim() || undefined,
+        status,
+        priority,
+        deadline,
+        progress,
+        tags: tags.length > 0 ? tags : undefined,
+        color,
+        subtasks: subtasks.length > 0 ? subtasks : undefined,
+      })
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   const handleTagAdd = () => {
@@ -88,33 +131,81 @@ export const TaskModal = ({ isOpen, onClose, onSave, task }: TaskModalProps) => 
     setTags(tags.filter(tag => tag !== tagToRemove))
   }
 
+  // Generate unique ID for subtasks
+  const generateId = () => {
+    return `${Date.now()}-${Math.random().toString(36).substring(2, 11)}`
+  }
+
+  const handleSubtaskAdd = () => {
+    const value = subtaskInput.trim()
+    if (value) {
+      const newSubtask: Subtask = {
+        id: generateId(),
+        title: value,
+        completed: false
+      }
+      setSubtasks([...subtasks, newSubtask])
+      setSubtaskInput('')
+    }
+  }
+
+  const handleSubtaskDelete = (id: string) => {
+    setSubtasks(subtasks.filter(s => s.id !== id))
+  }
+
+  const handleSubtaskToggle = (id: string) => {
+    setSubtasks(subtasks.map(s =>
+      s.id === id ? { ...s, completed: !s.completed } : s
+    ))
+  }
+
+  // Lock body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden'
+      return () => {
+        document.body.style.overflow = ''
+      }
+    }
+  }, [isOpen])
+
   if (!isOpen) return null
 
   return (
     <>
-      <div className="fixed inset-0 z-50 flex items-end backdrop-blur-sm bg-slate-950/50 animate-in fade-in duration-200">
-        <div className="flex w-full max-w-md mx-auto max-h-[90vh] flex-col rounded-t-3xl bg-white shadow-2xl overflow-hidden animate-in slide-in-from-bottom duration-300">
-          {/* Header */}
-          <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50 px-4 py-4 sm:px-6 sm:py-5 rounded-t-3xl">
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 sm:text-xl">
-                {task ? 'Sửa công việc' : 'Thêm công việc'}
-              </h2>
-              <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-                {task ? 'Chỉnh sửa thông tin công việc' : 'Nhập thông tin công việc mới'}
+      <div className="fixed inset-0 z-[60] flex flex-col bg-[#F7F9FC]">
+        {/* Header - Giống ReminderModal và NoteModal */}
+        <header className="pointer-events-none relative z-10 flex-shrink-0 bg-[#F7F9FC]">
+          <div className="relative px-1 py-1">
+            <div className="pointer-events-auto mx-auto flex w-full max-w-md items-center justify-between px-4 py-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100"
+                aria-label="Đóng"
+              >
+                <FaArrowLeft className="h-5 w-5" />
+              </button>
+              <p className="flex-1 px-4 text-center text-base font-semibold uppercase tracking-[0.2em] text-slate-800">
+                {task ? 'SỬA' : 'THÊM'} CÔNG VIỆC
               </p>
+              <div className="flex h-11 w-11 items-center justify-center">
+                <button
+                  type="submit"
+                  form="task-form"
+                  disabled={isSubmitting}
+                  className="text-sm font-semibold text-sky-600 disabled:text-slate-400"
+                >
+                  {isSubmitting ? 'Đang lưu...' : task ? 'Cập nhật' : 'Tạo'}
+                </button>
+              </div>
             </div>
-            <button
-              type="button"
-              onClick={onClose}
-              className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-all hover:bg-slate-200 hover:scale-110 active:scale-95 sm:h-10 sm:w-10"
-            >
-              <FaTimes className="h-4 w-4 sm:h-5 sm:w-5" />
-            </button>
           </div>
+        </header>
 
-          {/* Content */}
-          <div className="flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
+        {/* Content */}
+        <main className="flex-1 overflow-y-auto overscroll-contain">
+          <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 pt-4 pb-4 sm:pb-6">
             {error && (
               <div className="mb-3 rounded-lg bg-rose-50 p-3 text-xs text-rose-600 sm:text-sm">
                 {error}
@@ -148,9 +239,82 @@ export const TaskModal = ({ isOpen, onClose, onSave, task }: TaskModalProps) => 
                   value={description}
                   onChange={(e) => setDescription(e.target.value)}
                   placeholder="Nhập mô tả công việc..."
-                  rows={4}
+                  rows={3}
                   className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4 resize-none"
                 />
+              </div>
+
+              {/* Subtasks */}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-600 sm:text-sm">
+                  Công việc phụ
+                </label>
+                <div className="space-y-2">
+                  {subtasks.map((subtask) => (
+                    <div key={subtask.id} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 p-2.5">
+                      <button
+                        type="button"
+                        onClick={() => handleSubtaskToggle(subtask.id)}
+                        className={`flex-shrink-0 ${subtask.completed ? 'text-blue-600' : 'text-slate-300'}`}
+                      >
+                        {subtask.completed ? <FaCheckSquare /> : <FaSquare />}
+                      </button>
+                      <span className={`flex-1 text-sm ${subtask.completed ? 'text-slate-400 line-through' : 'text-slate-700'}`}>
+                        {subtask.title}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleSubtaskDelete(subtask.id)}
+                        className="text-slate-400 hover:text-rose-500"
+                      >
+                        <FaTrash className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+
+                  <div className="flex gap-2">
+                    <input
+                      type="text"
+                      value={subtaskInput}
+                      onChange={(e) => setSubtaskInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          e.preventDefault()
+                          handleSubtaskAdd()
+                        }
+                      }}
+                      placeholder="Thêm công việc phụ..."
+                      className="flex-1 rounded-xl border-2 border-slate-200 bg-white p-2.5 text-sm text-slate-900 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={handleSubtaskAdd}
+                      className="flex items-center justify-center rounded-xl bg-sky-100 px-3 text-sky-700 hover:bg-sky-200"
+                    >
+                      <FaPlus />
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Color Picker */}
+              <div>
+                <label className="mb-1.5 block text-xs font-medium text-slate-600 sm:text-sm">
+                  Màu sắc hiển thị
+                </label>
+                <div className="flex flex-wrap gap-3">
+                  {PRESET_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      onClick={() => setColor(c)}
+                      className={`h-8 w-8 rounded-full transition-all ${color === c ? 'ring-2 ring-offset-2 ring-slate-400 scale-110' : 'hover:scale-105'
+                        }`}
+                      style={{ backgroundColor: c }}
+                      aria-label={`Select color ${c}`}
+                    />
+                  ))}
+                </div>
               </div>
 
               {/* Status and Priority */}
@@ -163,7 +327,9 @@ export const TaskModal = ({ isOpen, onClose, onSave, task }: TaskModalProps) => 
                   <select
                     value={status}
                     onChange={(e) => setStatus(e.target.value as TaskStatus)}
-                    className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 transition-all focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
+                    disabled={subtasks.length > 0}
+                    className={`w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 transition-all focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4 ${subtasks.length > 0 ? 'bg-slate-100 text-slate-500 cursor-not-allowed' : ''
+                      }`}
                   >
                     <option value="pending">Chờ</option>
                     <option value="in_progress">Đang làm</option>
@@ -195,18 +361,20 @@ export const TaskModal = ({ isOpen, onClose, onSave, task }: TaskModalProps) => 
                 <label className="mb-1.5 block text-xs font-medium text-slate-600 sm:text-sm">
                   Deadline (tùy chọn)
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setIsDateTimePickerOpen(true)}
-                  className="relative flex w-full items-center justify-between rounded-xl border-2 border-slate-200 bg-white p-3.5 pl-12 text-left transition-all hover:border-slate-300 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
-                >
-                  <FaCalendar className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <span className="text-sm text-slate-900">
-                    {deadline ? (() => {
-                      const [year, month, day] = deadline.split('-')
-                      return `${day}/${month}/${year}`
-                    })() : 'Chọn deadline'}
-                  </span>
+                <div className="relative">
+                  <button
+                    type="button"
+                    onClick={() => setIsDateTimePickerOpen(true)}
+                    className="relative flex w-full items-center justify-between rounded-xl border-2 border-slate-200 bg-white p-3.5 pl-12 pr-12 text-left transition-all hover:border-slate-300 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4"
+                  >
+                    <FaCalendar className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <span className="text-sm text-slate-900">
+                      {deadline ? (() => {
+                        const [year, month, day] = deadline.split('-')
+                        return `${day}/${month}/${year}`
+                      })() : 'Chọn deadline'}
+                    </span>
+                  </button>
                   {deadline && (
                     <button
                       type="button"
@@ -214,18 +382,18 @@ export const TaskModal = ({ isOpen, onClose, onSave, task }: TaskModalProps) => 
                         e.stopPropagation()
                         setDeadline(null)
                       }}
-                      className="text-slate-400 hover:text-slate-600"
+                      className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 z-10"
                     >
                       <FaTimes className="h-4 w-4" />
                     </button>
                   )}
-                </button>
+                </div>
               </div>
 
               {/* Progress */}
               <div>
                 <label htmlFor="progress" className="mb-1.5 block text-xs font-medium text-slate-600 sm:text-sm">
-                  Tiến độ: {progress}%
+                  Tiến độ: {progress}% {subtasks.length > 0 && '(Tự động tính theo công việc phụ)'}
                 </label>
                 <div className="flex items-center gap-3">
                   <FaChartLine className="h-4 w-4 text-slate-400" />
@@ -236,7 +404,9 @@ export const TaskModal = ({ isOpen, onClose, onSave, task }: TaskModalProps) => 
                     max="100"
                     value={progress}
                     onChange={(e) => setProgress(parseInt(e.target.value))}
-                    className="flex-1 h-2 rounded-full bg-slate-200 appearance-none cursor-pointer accent-blue-600"
+                    disabled={subtasks.length > 0}
+                    className={`flex-1 h-2 rounded-full appearance-none cursor-pointer accent-blue-600 ${subtasks.length > 0 ? 'bg-slate-100 cursor-not-allowed' : 'bg-slate-200'
+                      }`}
                   />
                   <span className="text-sm font-semibold text-slate-700 w-12 text-right">{progress}%</span>
                 </div>
@@ -293,18 +463,8 @@ export const TaskModal = ({ isOpen, onClose, onSave, task }: TaskModalProps) => 
               </div>
             </form>
           </div>
+        </main>
 
-          {/* Footer */}
-          <ModalFooterButtons
-            onCancel={onClose}
-            onConfirm={() => {}}
-            confirmText={task ? 'Cập nhật' : 'Thêm'}
-            isSubmitting={false}
-            disabled={false}
-            confirmButtonType="submit"
-            formId="task-form"
-          />
-        </div>
       </div>
 
       {/* DateTime Picker Modal */}
@@ -321,4 +481,3 @@ export const TaskModal = ({ isOpen, onClose, onSave, task }: TaskModalProps) => 
     </>
   )
 }
-

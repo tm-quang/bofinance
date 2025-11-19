@@ -71,12 +71,14 @@ export const preventPullToRefresh = () => {
 
 /**
  * Enable haptic feedback (if supported)
+ * DISABLED: Haptic feedback/vibration removed
  */
-export const hapticFeedback = (style: 'light' | 'medium' | 'heavy' = 'light') => {
-  if ('vibrate' in navigator) {
-    const duration = style === 'light' ? 10 : style === 'medium' ? 20 : 30
-    navigator.vibrate(duration)
-  }
+export const hapticFeedback = (_style: 'light' | 'medium' | 'heavy' = 'light') => {
+  // Haptic feedback disabled - no vibration
+  // if ('vibrate' in navigator) {
+  //   const duration = style === 'light' ? 10 : style === 'medium' ? 20 : 30
+  //   navigator.vibrate(duration)
+  // }
 }
 
 /**

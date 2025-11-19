@@ -1,7 +1,6 @@
-
 import { getSupabaseClient } from './supabaseClient'
-import { cacheFirstWithRefresh, cacheManager } from './cache'
 import { getCachedUser } from './userCache'
+import { queryClient } from './react-query'
 
 export type ReminderType = 'Thu' | 'Chi'
 export type ReminderStatus = 'pending' | 'completed' | 'skipped'
@@ -60,9 +59,6 @@ export type ReminderFilters = {
   is_active?: boolean
 }
 
-const CACHE_KEY = 'reminders'
-const CACHE_TTL = 5 * 60 * 1000 // 5 minutes
-
 /**
  * Helper function to compute reminder status from completed_at and notes
  * Status column doesn't exist in database schema
@@ -78,7 +74,7 @@ const computeReminderStatus = (reminder: { completed_at: string | null; notes: s
 }
 
 /**
- * Fetch reminders with caching
+ * Fetch reminders
  */
 export const fetchReminders = async (filters?: ReminderFilters): Promise<ReminderRecord[]> => {
   const user = await getCachedUser()
@@ -86,72 +82,64 @@ export const fetchReminders = async (filters?: ReminderFilters): Promise<Reminde
     throw new Error('User not authenticated')
   }
 
-  const cacheKey = `${CACHE_KEY}:${user.id}:${JSON.stringify(filters || {})}`
+  const supabase = getSupabaseClient()
+  let query = supabase
+    .from('reminders')
+    .select('*')
+    .eq('user_id', user.id)
+    .order('reminder_date', { ascending: true })
+    .order('reminder_time', { ascending: true, nullsFirst: false })
 
-  return cacheFirstWithRefresh(
-    cacheKey,
-    async () => {
-      const supabase = getSupabaseClient()
-      let query = supabase
-        .from('reminders')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('reminder_date', { ascending: true })
-        .order('reminder_time', { ascending: true, nullsFirst: false })
+  if (filters) {
+    // Note: status and is_active columns don't exist in database schema
+    // These filters are handled client-side after fetching data
+    if (filters.type) {
+      query = query.eq('type', filters.type)
+    }
+    if (filters.start_date) {
+      query = query.gte('reminder_date', filters.start_date)
+    }
+    if (filters.end_date) {
+      query = query.lte('reminder_date', filters.end_date)
+    }
+  }
 
-      if (filters) {
-        // Note: status and is_active columns don't exist in database schema
-        // These filters are handled client-side after fetching data
-        if (filters.type) {
-          query = query.eq('type', filters.type)
-        }
-        if (filters.start_date) {
-          query = query.gte('reminder_date', filters.start_date)
-        }
-        if (filters.end_date) {
-          query = query.lte('reminder_date', filters.end_date)
-        }
+  const { data, error } = await query
+
+  if (error) {
+    throw error
+  }
+
+  let results = (data || []) as ReminderRecord[]
+
+  // Compute status for each reminder (status column doesn't exist in DB)
+  results = results.map((r) => ({
+    ...r,
+    status: computeReminderStatus(r),
+    is_active: !r.completed_at,
+  }))
+
+  // Client-side filtering for status and is_active (columns don't exist in DB)
+  if (filters) {
+    if (filters.status) {
+      results = results.filter((r) => r.status === filters.status)
+    }
+
+    if (filters.is_active !== undefined) {
+      // is_active = true means reminder is pending (not completed)
+      if (filters.is_active) {
+        results = results.filter((r) => !r.completed_at)
+      } else {
+        results = results.filter((r) => !!r.completed_at)
       }
+    }
+  }
 
-      const { data, error } = await query
-
-      if (error) {
-        throw error
-      }
-
-      let results = (data || []) as ReminderRecord[]
-      
-      // Compute status for each reminder (status column doesn't exist in DB)
-      results = results.map((r) => ({
-        ...r,
-        status: computeReminderStatus(r),
-        is_active: !r.completed_at,
-      }))
-      
-      // Client-side filtering for status and is_active (columns don't exist in DB)
-      if (filters) {
-        if (filters.status) {
-          results = results.filter((r) => r.status === filters.status)
-        }
-        
-        if (filters.is_active !== undefined) {
-          // is_active = true means reminder is pending (not completed)
-          if (filters.is_active) {
-            results = results.filter((r) => !r.completed_at)
-          } else {
-            results = results.filter((r) => !!r.completed_at)
-          }
-        }
-      }
-
-      return results
-    },
-    CACHE_TTL
-  )
+  return results
 }
 
 /**
- * Get reminder by ID with caching
+ * Get reminder by ID
  */
 export const getReminderById = async (id: string): Promise<ReminderRecord | null> => {
   const user = await getCachedUser()
@@ -159,36 +147,28 @@ export const getReminderById = async (id: string): Promise<ReminderRecord | null
     throw new Error('User not authenticated')
   }
 
-  const cacheKey = `${CACHE_KEY}:${user.id}:byId:${id}`
+  const supabase = getSupabaseClient()
+  const { data, error } = await supabase
+    .from('reminders')
+    .select('*')
+    .eq('id', id)
+    .eq('user_id', user.id)
+    .single()
 
-  return cacheFirstWithRefresh(
-    cacheKey,
-    async () => {
-      const supabase = getSupabaseClient()
-      const { data, error } = await supabase
-        .from('reminders')
-        .select('*')
-        .eq('id', id)
-        .eq('user_id', user.id)
-        .single()
+  if (error) {
+    if (error.code === 'PGRST116') {
+      return null
+    }
+    throw error
+  }
 
-      if (error) {
-        if (error.code === 'PGRST116') {
-          return null
-        }
-        throw error
-      }
-
-      // Compute status (column doesn't exist in DB)
-      const reminder = data as ReminderRecord
-      return {
-        ...reminder,
-        status: computeReminderStatus(reminder),
-        is_active: !reminder.completed_at,
-      }
-    },
-    CACHE_TTL
-  )
+  // Compute status (column doesn't exist in DB)
+  const reminder = data as ReminderRecord
+  return {
+    ...reminder,
+    status: computeReminderStatus(reminder),
+    is_active: !reminder.completed_at,
+  }
 }
 
 /**
@@ -202,7 +182,7 @@ export const createReminder = async (reminder: ReminderInsert): Promise<Reminder
     }
 
     const supabase = getSupabaseClient()
-    
+
     // Build insert object, only including fields that have values
     // This prevents sending undefined/null values that might cause schema errors
     // Ensure type is valid enum value ('Thu' or 'Chi')
@@ -260,7 +240,7 @@ export const createReminder = async (reminder: ReminderInsert): Promise<Reminder
 
     if (error) {
       console.error('Supabase error creating reminder:', error)
-      
+
       // Provide more user-friendly error messages
       if (error.code === 'PGRST116' || error.message.includes('not found')) {
         throw new Error('Không thể tạo nhắc nhở. Vui lòng thử lại.')
@@ -286,13 +266,8 @@ export const createReminder = async (reminder: ReminderInsert): Promise<Reminder
       throw new Error('Không thể tạo nhắc nhở. Không nhận được dữ liệu từ server.')
     }
 
-    // Invalidate cache (don't let cache errors block the operation)
-    try {
-      await cacheManager.invalidate(new RegExp(`^${CACHE_KEY}:${user.id}:`))
-    } catch (cacheError) {
-      console.warn('Error invalidating cache:', cacheError)
-      // Continue even if cache invalidation fails
-    }
+    // Invalidate cache
+    await queryClient.invalidateQueries({ queryKey: ['reminders'] })
 
     // Compute status (column doesn't exist in DB)
     const reminderRecord = data as ReminderRecord
@@ -324,7 +299,7 @@ export const updateReminder = async (
     }
 
     const supabase = getSupabaseClient()
-    
+
     // Build update object, only including fields that are explicitly provided
     // Remove status from updates (column doesn't exist in DB)
     const { status, ...updateFields } = updates as any
@@ -401,7 +376,7 @@ export const updateReminder = async (
 
     if (error) {
       console.error('Supabase error updating reminder:', error)
-      
+
       // Provide more user-friendly error messages
       if (error.code === 'PGRST116' || error.message.includes('not found')) {
         throw new Error('Không thể cập nhật nhắc nhở. Vui lòng thử lại.')
@@ -424,13 +399,8 @@ export const updateReminder = async (
       throw new Error('Không thể cập nhật nhắc nhở. Không nhận được dữ liệu từ server.')
     }
 
-    // Invalidate cache (don't let cache errors block the operation)
-    try {
-      await cacheManager.invalidate(new RegExp(`^${CACHE_KEY}:${user.id}:`))
-    } catch (cacheError) {
-      console.warn('Error invalidating cache:', cacheError)
-      // Continue even if cache invalidation fails
-    }
+    // Invalidate cache
+    await queryClient.invalidateQueries({ queryKey: ['reminders'] })
 
     // Compute status (column doesn't exist in DB)
     const reminder = data as ReminderRecord
@@ -469,7 +439,7 @@ export const deleteReminder = async (id: string): Promise<void> => {
   }
 
   // Invalidate cache
-  await cacheManager.invalidate(new RegExp(`^${CACHE_KEY}:${user.id}:`))
+  await queryClient.invalidateQueries({ queryKey: ['reminders'] })
 }
 
 /**
@@ -500,8 +470,7 @@ export const skipReminder = async (id: string): Promise<ReminderRecord> => {
 }
 
 /**
- * Get reminders for today with caching
- * Cache TTL is shorter (1 minute) since it's date-dependent
+ * Get reminders for today
  */
 export const getTodayReminders = async (): Promise<ReminderRecord[]> => {
   const user = await getCachedUser()
@@ -510,23 +479,14 @@ export const getTodayReminders = async (): Promise<ReminderRecord[]> => {
   }
 
   const today = new Date().toISOString().split('T')[0]
-  const cacheKey = `${CACHE_KEY}:${user.id}:today:${today}`
-
-  return cacheFirstWithRefresh(
-    cacheKey,
-    async () => {
-      const allReminders = await fetchReminders({
-        is_active: true,
-      })
-      return allReminders.filter((r) => r.reminder_date === today)
-    },
-    1 * 60 * 1000 // 1 minute cache for today's reminders
-  )
+  const allReminders = await fetchReminders({
+    is_active: true,
+  })
+  return allReminders.filter((r) => r.reminder_date === today)
 }
 
 /**
- * Get upcoming reminders with caching
- * Cache TTL is shorter (2 minutes) since it's date-dependent
+ * Get upcoming reminders
  */
 export const getUpcomingReminders = async (days: number = 7): Promise<ReminderRecord[]> => {
   const user = await getCachedUser()
@@ -539,18 +499,9 @@ export const getUpcomingReminders = async (days: number = 7): Promise<ReminderRe
   futureDate.setDate(futureDate.getDate() + days)
   const futureDateStr = futureDate.toISOString().split('T')[0]
 
-  const cacheKey = `${CACHE_KEY}:${user.id}:upcoming:${today}:${futureDateStr}`
-
-  return cacheFirstWithRefresh(
-    cacheKey,
-    async () => {
-      return fetchReminders({
-        start_date: today,
-        end_date: futureDateStr,
-        is_active: true,
-      })
-    },
-    2 * 60 * 1000 // 2 minutes cache for upcoming reminders
-  )
+  return fetchReminders({
+    start_date: today,
+    end_date: futureDateStr,
+    is_active: true,
+  })
 }
-

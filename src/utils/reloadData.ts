@@ -3,7 +3,7 @@
  * Xóa toàn bộ cache, reset trạng thái và tải lại dữ liệu mới nhất
  */
 
-import { clearAllCache } from '../lib/cache'
+
 import { clearUserCache } from '../lib/userCache'
 import { clearPreloadTimestamp } from '../lib/dataPreloader'
 import { resetSupabaseClient } from '../lib/supabaseClient'
@@ -24,8 +24,9 @@ export const clearAllCacheAndState = async (
   shouldResetClient: boolean = false
 ): Promise<void> => {
   try {
-    // 1. Clear tất cả cache từ cache manager
-    await clearAllCache()
+    // 1. Clear tất cả cache từ cache manager - REPLACED with React Query
+    const { queryClient } = await import('../lib/react-query')
+    queryClient.clear()
 
     // 2. Clear user cache (session storage) - CHỈ khi được yêu cầu (thường là khi logout)
     if (shouldClearUserCache) {
@@ -43,7 +44,7 @@ export const clearAllCacheAndState = async (
     // 5. Clear các localStorage keys khác nếu có
     try {
       // Clear favorite categories từ localStorage (fallback)
-      const favoriteKeys = Object.keys(localStorage).filter(key => 
+      const favoriteKeys = Object.keys(localStorage).filter(key =>
         key.startsWith('bofin_favorite_categories_')
       )
       favoriteKeys.forEach(key => localStorage.removeItem(key))

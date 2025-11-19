@@ -9,8 +9,10 @@ import { isInstalledPWA } from './utils/nativeAppBehavior'
 import { useSystemSetting } from './hooks/useSystemSettings'
 import ErrorBoundary from './components/ErrorBoundary'
 import { ProtectedRoute } from './components/ProtectedRoute'
-import { cacheManager } from './lib/cache'
-import { getCachedUser } from './lib/userCache'
+
+
+import { QueryClientProvider } from '@tanstack/react-query'
+import { queryClient } from './lib/react-query'
 
 const DashboardPage = lazy(() => import('./pages/Dashboard'))
 const CategoriesPage = lazy(() => import('./pages/Categories'))
@@ -33,7 +35,7 @@ const AdminSettingsPage = lazy(() => import('./pages/AdminSettings'))
 
 const PageFallback = () => {
   const { value: splashLogo } = useSystemSetting('app_splash_logo', '/logo-nontext.png')
-  
+
   return (
     <div className="flex h-screen items-center justify-center bg-gradient-to-br from-slate-50 via-white to-slate-100 px-6">
       <div className="flex w-full max-w-sm flex-col items-center gap-6">
@@ -77,22 +79,9 @@ function AppContent() {
   const [initialPath] = useState(() => location.pathname)
   const splashEligible = ['/login', '/register', '/'].includes(initialPath)
   const [showSplash, setShowSplash] = useState(splashEligible)
-  
-  // Initialize cache when app starts and user is available
-  useEffect(() => {
-    const initCache = async () => {
-      try {
-        const user = await getCachedUser()
-        if (user) {
-          await cacheManager.initialize()
-        }
-      } catch (error) {
-        console.warn('Error initializing cache:', error)
-      }
-    }
-    initCache()
-  }, [])
-  
+
+
+
   // Enable swipe back gesture (swipe from left edge to go back)
   useSwipeBack({ enabled: true, threshold: 100, edgeWidth: 50 })
 
@@ -102,7 +91,7 @@ function AppContent() {
 
     // React Router's BrowserRouter automatically handles back button
     // We just need to ensure proper behavior for PWA
-    
+
     // Track navigation history for back button
     const unlisten = () => {
       // React Router handles this automatically
@@ -127,149 +116,149 @@ function AppContent() {
         <Suspense fallback={null}>
           <Routes>
             <Route path="/" element={<Navigate to="/login" replace />} />
-            <Route 
-              path="/login" 
+            <Route
+              path="/login"
               element={
                 <ProtectedRoute requireAuth={false}>
                   <LoginPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/register" 
+            <Route
+              path="/register"
               element={
                 <ProtectedRoute requireAuth={false}>
                   <RegisterPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/dashboard" 
+            <Route
+              path="/dashboard"
               element={
                 <ProtectedRoute>
                   <DashboardPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/categories" 
+            <Route
+              path="/categories"
               element={
                 <ProtectedRoute>
                   <CategoriesPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/reports" 
+            <Route
+              path="/reports"
               element={
                 <ProtectedRoute>
                   <ReportsPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/settings" 
+            <Route
+              path="/settings"
               element={
                 <ProtectedRoute>
                   <SettingsPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/wallets" 
+            <Route
+              path="/wallets"
               element={
                 <ProtectedRoute>
                   <WalletsPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/transactions" 
+            <Route
+              path="/transactions"
               element={
                 <ProtectedRoute>
                   <TransactionsPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/budgets" 
+            <Route
+              path="/budgets"
               element={
                 <ProtectedRoute>
                   <BudgetsPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/reminders" 
+            <Route
+              path="/reminders"
               element={
                 <ProtectedRoute>
                   <RemindersPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/notifications" 
+            <Route
+              path="/notifications"
               element={
                 <ProtectedRoute>
                   <NotificationsPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/tasks" 
+            <Route
+              path="/tasks"
               element={
                 <ProtectedRoute>
                   <TasksPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/add-transaction" 
+            <Route
+              path="/add-transaction"
               element={
                 <ProtectedRoute>
                   <AddTransactionPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/add-budget" 
+            <Route
+              path="/add-budget"
               element={
                 <ProtectedRoute>
                   <AddBudgetPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/admin-categoriesicon" 
+            <Route
+              path="/admin-categoriesicon"
               element={
                 <ProtectedRoute>
                   <AdminCategoriesIconPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/admin-icon-images" 
+            <Route
+              path="/admin-icon-images"
               element={
                 <ProtectedRoute>
                   <AdminIconImagesPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/admin-settings" 
+            <Route
+              path="/admin-settings"
               element={
                 <ProtectedRoute>
                   <AdminSettingsPage />
                 </ProtectedRoute>
-              } 
+              }
             />
-            <Route 
-              path="/account-info" 
+            <Route
+              path="/account-info"
               element={
                 <ProtectedRoute>
                   <AccountInfoPage />
                 </ProtectedRoute>
-              } 
+              }
             />
             <Route path="*" element={<Navigate to="/login" replace />} />
           </Routes>
@@ -356,11 +345,13 @@ function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
-        <NotificationProvider>
-          <DialogProvider>
-            <AppContent />
-          </DialogProvider>
-        </NotificationProvider>
+        <QueryClientProvider client={queryClient}>
+          <NotificationProvider>
+            <DialogProvider>
+              <AppContent />
+            </DialogProvider>
+          </NotificationProvider>
+        </QueryClientProvider>
       </BrowserRouter>
     </ErrorBoundary>
   )

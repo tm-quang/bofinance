@@ -2,7 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.tsx'
-import { initNativeAppBehavior, setupInstallPrompt, addHapticFeedback, optimizePerformance } from './utils/nativeAppBehavior'
+import { initNativeAppBehavior, setupInstallPrompt, optimizePerformance } from './utils/nativeAppBehavior'
 import { setupConsoleOverride } from './utils/consoleOverride'
 import { registerServiceWorker } from './lib/serviceWorkerManager'
 import './utils/checkCloudinaryConfig' // Auto-check Cloudinary config in dev mode
@@ -13,7 +13,7 @@ setupConsoleOverride()
 // Initialize native app behaviors
 initNativeAppBehavior()
 setupInstallPrompt()
-addHapticFeedback()
+// addHapticFeedback() - Disabled: Removed haptic feedback/vibration
 optimizePerformance()
 
 // Register service worker for PWA background notifications
