@@ -1,6 +1,8 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import { VitePWA } from 'vite-plugin-pwa'
+import fs from 'fs'
+import path from 'path'
 
 // https://vite.dev/config/
 export default defineConfig({
@@ -141,8 +143,42 @@ export default defineConfig({
       }
     })
   ],
-  server: {
-    host: '192.168.1.200',
-    port: 3000,
-  },
+  server: (() => {
+    const baseConfig = {
+      host: '192.168.1.200',
+      port: 3000,
+    }
+
+    // Enable HTTPS only if VITE_USE_HTTPS is set to 'true'
+    // For local development, you can use HTTP unless you need HTTPS features
+    // To enable HTTPS: set VITE_USE_HTTPS=true in .env file
+    if (process.env.VITE_USE_HTTPS === 'true') {
+      // Try to use mkcert certificate if available (recommended for local dev)
+      const certPath = path.resolve(__dirname, 'localhost+2.pem')
+      const keyPath = path.resolve(__dirname, 'localhost+2-key.pem')
+      
+      if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
+        console.log('✅ Using mkcert certificate for HTTPS')
+        return {
+          ...baseConfig,
+          https: {
+            cert: fs.readFileSync(certPath),
+            key: fs.readFileSync(keyPath),
+          },
+        }
+      } else {
+        // Fallback to self-signed certificate
+        // Browser will show warning - click "Advanced" -> "Proceed to site"
+        console.warn('⚠️  Using self-signed certificate. Browser will show security warning.')
+        console.warn('💡 Tip: Install mkcert for trusted local certificates: https://github.com/FiloSottile/mkcert')
+        return {
+          ...baseConfig,
+          https: true as any, // Vite accepts boolean but TypeScript types don't reflect this
+        }
+      }
+    }
+
+    // Default: HTTP
+    return baseConfig
+  })(),
 })
