@@ -16,7 +16,10 @@ declare global {
 
 // Setup global QR code scanned callback
 // This function can be called from external systems (native apps, other QR scanners, etc.)
+// Android app có thể gọi hàm này trực tiếp sau khi scan QR thành công
 window.onQRCodeScanned = function(scanResult: string) {
+  console.log('onQRCodeScanned called with result:', scanResult)
+  
   // Để kiểm tra, hãy dùng alert trước
   alert("Đã nhận được mã QR: " + scanResult)
 

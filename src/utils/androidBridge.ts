@@ -12,6 +12,8 @@ declare global {
         };
         // The global callback function that Android will call
         onNativeScanResult?: (result: string) => void;
+        // Global callback for QR code scanned results (can be called by external systems)
+        onQRCodeScanned?: (scanResult: string) => void;
     }
 }
 
@@ -41,7 +43,19 @@ export const startNativeScan = (): void => {
 export const setupNativeScanCallback = (callback: (result: string) => void) => {
     window.onNativeScanResult = (result: string) => {
         console.log('Received native scan result:', result);
+        
+        // Call the provided callback
         callback(result);
+        
+        // Also trigger the global onQRCodeScanned function if it exists
+        // This ensures external systems can also receive the result
+        if (typeof window.onQRCodeScanned === 'function') {
+            try {
+                window.onQRCodeScanned(result);
+            } catch (error) {
+                console.error('Error calling onQRCodeScanned:', error);
+            }
+        }
     };
 };
 
