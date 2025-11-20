@@ -1,16 +1,26 @@
 import { useEffect, useState, useMemo } from 'react'
 import { FaCog } from 'react-icons/fa'
-import { fetchTasks, type TaskRecord } from '../../lib/taskService'
+import { fetchTasks, updateTask, type TaskRecord } from '../../lib/taskService'
 import { getTaskViewPeriod, type TaskViewPeriod } from '../../lib/userPreferencesService'
-import { getDateComponentsUTC7, formatDateUTC7, createDateUTC7, getNowUTC7 } from '../../utils/dateUtils'
+import { getDateComponentsUTC7, formatDateUTC7, createDateUTC7, getNowUTC7, getFirstDayOfMonthUTC7, getLastDayOfMonthUTC7 } from '../../utils/dateUtils'
 import { DashboardTaskCard } from './DashboardTaskCard'
 import { TaskSettingsModal } from './TaskSettingsModal'
 
 type DashboardTasksSectionProps = {
   onTaskClick?: (task: TaskRecord) => void
+  onLongPressStart?: (task: TaskRecord) => void
+  onLongPressEnd?: () => void
+  onLongPressCancel?: () => void
+  refreshTrigger?: number
 }
 
-export const DashboardTasksSection = ({ onTaskClick }: DashboardTasksSectionProps) => {
+export const DashboardTasksSection = ({ 
+  onTaskClick,
+  onLongPressStart,
+  onLongPressEnd,
+  onLongPressCancel,
+  refreshTrigger = 0
+}: DashboardTasksSectionProps) => {
   const [tasks, setTasks] = useState<TaskRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [viewPeriod, setViewPeriod] = useState<TaskViewPeriod>('week')
@@ -86,11 +96,12 @@ export const DashboardTasksSection = ({ onTaskClick }: DashboardTasksSectionProp
       }
     } else if (viewPeriod === 'month') {
       // First and last day of current month
-      const lastDay = new Date(components.year, components.month, 0)
+      const firstDay = getFirstDayOfMonthUTC7(components.year, components.month)
+      const lastDay = getLastDayOfMonthUTC7(components.year, components.month)
 
       return {
-        start: formatDateUTC7(createDateUTC7(components.year, components.month, 1, 0, 0, 0, 0)),
-        end: formatDateUTC7(createDateUTC7(components.year, components.month, lastDay.getDate(), 23, 59, 59, 999))
+        start: formatDateUTC7(firstDay),
+        end: formatDateUTC7(lastDay)
       }
     } else {
       // Custom range
@@ -140,12 +151,29 @@ export const DashboardTasksSection = ({ onTaskClick }: DashboardTasksSectionProp
         setTasks(allTasks)
       } catch (error) {
         console.error('Error loading tasks:', error)
+        setTasks([])
       } finally {
         setIsLoading(false)
       }
     }
     loadTasks()
-  }, [dateRange])
+  }, [dateRange, viewPeriod, refreshTrigger])
+
+  // Handle task update
+  const handleTaskUpdate = async (taskId: string, updates: Partial<TaskRecord>) => {
+    try {
+      await updateTask(taskId, updates)
+      // Reload tasks to reflect changes
+      const allTasks = await fetchTasks({
+        deadline_from: dateRange.start,
+        deadline_to: dateRange.end,
+      })
+      setTasks(allTasks)
+    } catch (error) {
+      console.error('Error updating task:', error)
+      throw error
+    }
+  }
 
   // Handle save from settings modal
   const handleSettingsSave = (period: TaskViewPeriod, startDate: string | null, endDate: string | null) => {
@@ -247,6 +275,10 @@ export const DashboardTasksSection = ({ onTaskClick }: DashboardTasksSectionProp
               key={task.id}
               task={task}
               onClick={() => onTaskClick?.(task)}
+              onLongPressStart={(task) => onLongPressStart?.(task)}
+              onLongPressEnd={() => onLongPressEnd?.()}
+              onLongPressCancel={() => onLongPressCancel?.()}
+              onTaskUpdate={handleTaskUpdate}
             />
           ))}
         </div>

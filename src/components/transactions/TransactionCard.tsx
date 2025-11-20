@@ -23,7 +23,6 @@ interface TransactionCardProps {
   onLongPressStart: (transaction: TransactionRecord) => void
   onLongPressEnd: () => void
   onLongPressCancel: () => void
-  onClick?: (transaction: TransactionRecord) => void
   formatCurrency: (value: number) => string
   formatDate: (date: Date) => string
 }
@@ -35,7 +34,6 @@ export const TransactionCard = ({
   onLongPressStart,
   onLongPressEnd,
   onLongPressCancel,
-  onClick,
   formatCurrency,
   formatDate,
 }: TransactionCardProps) => {
@@ -56,19 +54,11 @@ export const TransactionCard = ({
   }
 
   const handleTouchEnd = () => {
-    const wasLongPress = wasLongPressRef.current
     if (longPressTimerRef.current) {
       window.clearTimeout(longPressTimerRef.current)
       longPressTimerRef.current = null
     }
     onLongPressEnd()
-    // Only trigger onClick if it wasn't a long press
-    if (!wasLongPress && onClick) {
-      // Small delay to ensure long press modal doesn't interfere
-      setTimeout(() => {
-        onClick(transaction)
-      }, 100)
-    }
     wasLongPressRef.current = false
   }
 
@@ -82,19 +72,11 @@ export const TransactionCard = ({
   }
 
   const handleMouseUp = () => {
-    const wasLongPress = wasLongPressRef.current
     if (longPressTimerRef.current) {
       window.clearTimeout(longPressTimerRef.current)
       longPressTimerRef.current = null
     }
     onLongPressEnd()
-    // Only trigger onClick if it wasn't a long press
-    if (!wasLongPress && onClick) {
-      // Small delay to ensure long press modal doesn't interfere
-      setTimeout(() => {
-        onClick(transaction)
-      }, 100)
-    }
     wasLongPressRef.current = false
   }
 
@@ -106,7 +88,7 @@ export const TransactionCard = ({
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onMouseLeave={onLongPressCancel}
-      className={`group relative flex items-center gap-3 rounded-3xl p-3 shadow-lg border transition-all select-none cursor-pointer hover:shadow-xl active:scale-[0.98] ${isIncome
+      className={`group relative flex items-center gap-3 rounded-3xl p-3 shadow-lg border transition-all select-none cursor-default hover:shadow-xl ${isIncome
           ? 'bg-emerald-50/30 border-emerald-200/60 hover:border-emerald-300/80'
           : 'bg-rose-50/40 border-rose-200/60 hover:border-rose-300/80'
         }`}

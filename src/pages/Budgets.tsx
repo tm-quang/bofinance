@@ -15,6 +15,7 @@ import {
 import { fetchCategories, type CategoryRecord } from '../lib/categoryService'
 import { fetchWallets, type WalletRecord } from '../lib/walletService'
 import { useNotification } from '../contexts/notificationContext.helpers'
+import { checkAndSendBudgetAlerts } from '../lib/budgetAlertService'
 import { useDialog } from '../contexts/dialogContext.helpers'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
 import { getIconNodeFromCategory } from '../utils/iconLoader'
@@ -31,6 +32,11 @@ export const BudgetsPage = () => {
 
   useEffect(() => {
     loadData()
+    
+    // Check budget alerts when Budgets page loads (chạy trong background)
+    checkAndSendBudgetAlerts().catch((error) => {
+      console.warn('Error checking budget alerts on Budgets page load:', error)
+    })
   }, [])
 
   const loadData = async () => {
@@ -95,7 +101,7 @@ export const BudgetsPage = () => {
       setWallets(walletsData)
     } catch (error) {
       console.error('Error loading budgets:', error)
-      showError('Không thể tải danh sách ngân sách.')
+      showError('Không thể tải danh sách hạn mức.')
     } finally {
       setIsLoading(false)
     }
@@ -111,17 +117,17 @@ export const BudgetsPage = () => {
 
   const handleDelete = async (budget: BudgetRecord) => {
     const confirmed = await showConfirm(
-      'Bạn có chắc muốn xóa ngân sách này? Hành động này không thể hoàn tác.'
+      'Bạn có chắc muốn xóa hạn mức này? Hành động này không thể hoàn tác.'
     )
 
     if (!confirmed) return
 
     try {
       await deleteBudget(budget.id)
-      success('Đã xóa ngân sách thành công!')
+      success('Đã xóa hạn mức thành công!')
       loadData()
     } catch {
-      showError('Không thể xóa ngân sách.')
+      showError('Không thể xóa hạn mức.')
     }
   }
 
@@ -129,14 +135,14 @@ export const BudgetsPage = () => {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
-      <HeaderBar variant="page" title="Ngân sách & Hạn mức" />
+      <HeaderBar variant="page" title="Hạn mức" />
 
       <main className="flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 pt-2 pb-4 sm:pt-2 sm:pb-5">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-slate-900">Ngân sách của tôi</h1>
+              <h1 className="text-2xl font-bold text-slate-900">Hạn mức của tôi</h1>
               <p className="mt-1 text-sm text-slate-500">
                 Kiểm soát chi tiêu, đảm bảo ổn định tài chính
               </p>
@@ -146,7 +152,7 @@ export const BudgetsPage = () => {
               className="flex items-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-white font-semibold shadow-lg shadow-sky-500/30 hover:from-sky-600 hover:to-blue-700 transition-all active:scale-95"
             >
               <FaPlus className="h-5 w-5" />
-              <span className="hidden sm:inline">Tạo ngân sách</span>
+              <span className="hidden sm:inline">Tạo hạn mức</span>
               <span className="sm:hidden">Tạo</span>
             </button>
           </div>
@@ -166,7 +172,7 @@ export const BudgetsPage = () => {
                     <div className="h-7 w-7 sm:h-8 sm:w-8 rounded-lg bg-blue-100 flex items-center justify-center shrink-0">
                       <FaWallet className="h-3.5 w-3.5 sm:h-4 sm:w-4 text-blue-600" />
                     </div>
-                    <span className="text-[10px] sm:text-xs font-semibold text-blue-600 truncate">Tổng ngân sách</span>
+                    <span className="text-[10px] sm:text-xs font-semibold text-blue-600 truncate">Tổng hạn mức</span>
                   </div>
                   <p className="text-sm sm:text-lg font-bold text-slate-900 break-words leading-tight">
                     {new Intl.NumberFormat('vi-VN', {
@@ -225,13 +231,13 @@ export const BudgetsPage = () => {
               <div className="mx-auto mb-6 sm:mb-8 flex items-center justify-center">
                 <img
                   src="/ngan-sach.png"
-                  alt="Ngân sách"
+                  alt="Hạn mức"
                   className="h-48 w-48 sm:h-56 sm:w-56 md:h-64 md:w-64 object-contain max-w-full"
                 />
               </div>
-              <h3 className="mb-3 text-xl sm:text-2xl font-bold text-slate-900">Chưa có ngân sách nào</h3>
+              <h3 className="mb-3 text-xl sm:text-2xl font-bold text-slate-900">Chưa có hạn mức nào</h3>
               <p className="mb-2 text-sm sm:text-base text-slate-600 max-w-md mx-auto">
-                Tạo ngân sách để kiểm soát chi tiêu hiệu quả
+                Tạo hạn mức để kiểm soát chi tiêu hiệu quả
               </p>
               <p className="mb-8 text-xs sm:text-sm text-slate-500 max-w-lg mx-auto">
                 Thiết lập giới hạn cứng hoặc mềm để tự động từ chối hoặc cảnh báo khi vượt quá
@@ -241,7 +247,7 @@ export const BudgetsPage = () => {
                 className="inline-flex items-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-6 py-3.5 sm:px-8 sm:py-4 text-white font-semibold text-sm sm:text-base shadow-lg shadow-sky-500/30 hover:from-sky-600 hover:to-blue-700 transition-all active:scale-95"
               >
                 <FaPlus className="h-5 w-5" />
-                Tạo ngân sách đầu tiên
+                Tạo hạn mức đầu tiên
               </button>
             </div>
           ) : (

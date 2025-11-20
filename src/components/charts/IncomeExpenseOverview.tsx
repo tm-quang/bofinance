@@ -309,7 +309,7 @@ export const IncomeExpenseOverview = ({ walletId }: IncomeExpenseOverviewProps) 
         <button
           type="button"
           onClick={() => navigate('/transactions')}
-          className="rounded-xl border border-slate-200 bg-slate-100 px-5 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:border-slate-300"
+          className="rounded-xl bg-gradient-to-r from-sky-500 to-blue-600 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-sky-500/30 transition-all hover:from-sky-600 hover:to-blue-700 hover:shadow-xl hover:scale-105 active:scale-95"
         >
           Lịch sử ghi chép
         </button>

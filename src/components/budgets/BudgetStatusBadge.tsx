@@ -9,7 +9,7 @@ type BudgetStatusBadgeProps = {
 const statusLabels = {
   safe: 'An toàn',
   warning: 'Cảnh báo',
-  danger: 'Vượt ngân sách',
+  danger: 'Vượt hạn mức',
   critical: 'Vượt quá nhiều',
 }
 

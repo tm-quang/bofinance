@@ -251,15 +251,14 @@ export const AddTransactionPage = () => {
           setUploadedImageUrls(foundTransaction.image_urls || [])
         } else {
           // Reset form when creating new transaction
-          // For expense, use default wallet ID (will be set after wallets load)
-          const initialWalletId = defaultType === 'Chi' ? '' : (defaultId || '')
+          // Always start with empty wallet_id - user must select manually
           const now = getNowUTC7()
           const components = getDateComponentsUTC7(now)
           const currentTime = `${String(components.hour).padStart(2, '0')}:${String(components.minute).padStart(2, '0')}`
 
           setFormState({
             type: defaultType,
-            wallet_id: initialWalletId,
+            wallet_id: '', // Always empty - user must select wallet
             category_id: '',
             amount: '',
             description: '',
@@ -288,26 +287,20 @@ export const AddTransactionPage = () => {
           const walletIds = await getTotalBalanceWalletIds()
           const selectedWallets = wallets.filter((w) => walletIds.includes(w.id))
 
-          // Update default wallet ID if not set
+          // Update default wallet ID if not set (for reference only, don't auto-select)
           if (selectedWallets.length > 0 && !defaultWalletId) {
             setDefaultWalletId(selectedWallets[0].id)
-            // Auto-set wallet_id if not set
-            if (!formState.wallet_id) {
-              setFormState((prev) => ({ ...prev, wallet_id: selectedWallets[0].id }))
-            }
+            // Don't auto-set wallet_id - user must select manually
           }
         } catch (error) {
           console.error('Error updating default wallet:', error)
           // Fallback: use Tiền mặt + Ngân hàng
           const netAssetsWallets = wallets.filter((w) => (w.type === 'Tiền mặt' || w.type === 'Ngân hàng') && w.is_active)
 
-          // Update default wallet ID if not set
+          // Update default wallet ID if not set (for reference only, don't auto-select)
           if (netAssetsWallets.length > 0 && !defaultWalletId) {
             setDefaultWalletId(netAssetsWallets[0].id)
-            // Auto-set wallet_id if not set
-            if (!formState.wallet_id) {
-              setFormState((prev) => ({ ...prev, wallet_id: netAssetsWallets[0].id }))
-            }
+            // Don't auto-set wallet_id - user must select manually
           }
         }
       }
@@ -333,12 +326,8 @@ export const AddTransactionPage = () => {
     }
   }, [formState.type, filteredCategories.length])
 
-  // Auto-set wallet_id when type changes (if not set)
-  useEffect(() => {
-    if (defaultWalletId && !formState.wallet_id) {
-      setFormState((prev) => ({ ...prev, wallet_id: defaultWalletId }))
-    }
-  }, [formState.type, defaultWalletId, formState.wallet_id])
+  // Don't auto-set wallet_id - user must select manually
+  // Removed auto-selection logic to force user to choose wallet
 
   // Reload favorite categories when type changes
   useEffect(() => {
@@ -715,7 +704,7 @@ export const AddTransactionPage = () => {
                 }))}
                 value={formState.wallet_id}
                 onChange={(value) => setFormState((prev) => ({ ...prev, wallet_id: value }))}
-                placeholder={formState.type === 'Chi' ? 'Chọn ví chi ra' : 'Chọn ví'}
+                placeholder={formState.type === 'Chi' ? 'Chọn ví' : 'Chọn ví'}
                 loading={isLoading}
                 emptyMessage="Chưa có ví"
                 className="h-14"
@@ -1076,7 +1065,7 @@ export const AddTransactionPage = () => {
                 onClick={() => setIsExpandedSectionOpen(!isExpandedSectionOpen)}
                 className="flex w-full items-center justify-between"
               >
-                <span className="text-sm font-semibold text-slate-900">Thông tin mở rộng</span>
+                <span className="text-sm font-semibold text-slate-900">Thêm chi tiết</span>
                 <FaChevronDown
                   className={`h-4 w-4 text-slate-400 transition-transform ${isExpandedSectionOpen ? 'rotate-180' : ''}`}
                 />

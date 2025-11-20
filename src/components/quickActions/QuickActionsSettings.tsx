@@ -35,15 +35,21 @@ const ACTION_INFO: Record<string, { icon: typeof FaPaperPlane; description: stri
     color: 'text-indigo-600',
     bgGradient: 'from-indigo-50 to-purple-50',
   },
+  'notes-plans': {
+    icon: FaTasks,
+    description: 'Quản lý công việc, ghi chú và kế hoạch nhắc nhở trong tháng',
+    color: 'text-purple-600',
+    bgGradient: 'from-purple-50 to-pink-50',
+  },
   'tasks': {
     icon: FaTasks,
-    description: 'Theo dõi tiến độ và quản lý công việc',
+    description: 'Theo dõi tiến độ và quản lý công việc (đã chuyển sang Công việc, kế hoạch)',
     color: 'text-purple-600',
     bgGradient: 'from-purple-50 to-pink-50',
   },
   'reminder': {
     icon: FaHandHoldingHeart,
-    description: 'Tạo nhắc nhở cho các khoản thu chi sắp tới',
+    description: 'Tạo nhắc nhở cho các khoản thu chi sắp tới (đã chuyển sang Công việc, kế hoạch)',
     color: 'text-amber-600',
     bgGradient: 'from-amber-50 to-orange-50',
   },

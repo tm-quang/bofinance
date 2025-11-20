@@ -181,7 +181,7 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
     }
 
     if (!formData.amount || parseVNDInput(formData.amount) <= 0) {
-      const message = 'Số tiền ngân sách phải lớn hơn 0'
+      const message = 'Số tiền hạn mức phải lớn hơn 0'
       setError(message)
       showError(message)
       return
@@ -214,16 +214,16 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
 
       if (isEditMode && budgetId) {
         await updateBudget(budgetId, payload)
-        success('Đã cập nhật ngân sách thành công!')
+        success('Đã cập nhật hạn mức thành công!')
       } else {
         await createBudget(payload)
-        success('Đã tạo ngân sách thành công!')
+        success('Đã tạo hạn mức thành công!')
       }
 
       onSuccess?.()
       onClose()
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Không thể lưu ngân sách'
+      const message = err instanceof Error ? err.message : 'Không thể lưu hạn mức'
       setError(message)
       showError(message)
     } finally {
@@ -324,10 +324,10 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
         <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-gradient-to-r from-white to-slate-50 px-4 py-4 sm:px-6 sm:py-5 rounded-t-3xl">
           <div>
             <h2 className="text-lg font-bold text-slate-900 sm:text-xl">
-              {isEditMode ? 'Sửa ngân sách' : 'Tạo ngân sách mới'}
+              {isEditMode ? 'Sửa hạn mức' : 'Tạo hạn mức mới'}
             </h2>
             <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
-              {isEditMode ? 'Cập nhật thông tin ngân sách' : 'Đặt ngân sách cho hạng mục chi tiêu'}
+              {isEditMode ? 'Cập nhật thông tin hạn mức' : 'Đặt hạn mức cho hạng mục chi tiêu'}
             </p>
           </div>
           <button
@@ -384,7 +384,7 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
               {/* Amount */}
               <div>
                 <label className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
-                  Số tiền ngân sách <span className="text-red-500">*</span>
+                  Số tiền hạn mức <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -404,7 +404,7 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
               {/* Period Type */}
               <div>
                 <label className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
-                  Loại ngân sách <span className="text-red-500">*</span>
+                  Loại hạn mức <span className="text-red-500">*</span>
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   {PERIOD_TYPES.map((type) => (
@@ -552,7 +552,7 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
                 <textarea
                   value={formData.notes}
                   onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Thêm ghi chú cho ngân sách này..."
+                  placeholder="Thêm ghi chú cho hạn mức này..."
                   rows={3}
                   className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 resize-none sm:p-4"
                 />
@@ -565,7 +565,7 @@ export const BudgetModal = ({ isOpen, onClose, onSuccess, budgetId }: BudgetModa
         <ModalFooterButtons
           onCancel={onClose}
           onConfirm={() => {}}
-          confirmText={isSubmitting ? 'Đang lưu...' : isEditMode ? 'Cập nhật' : 'Tạo ngân sách'}
+          confirmText={isSubmitting ? 'Đang lưu...' : isEditMode ? 'Cập nhật' : 'Tạo hạn mức'}
           isSubmitting={isSubmitting}
               disabled={isSubmitting || isLoading}
           confirmButtonType="submit"

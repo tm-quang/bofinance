@@ -38,7 +38,7 @@ const financeToggleSettings = [
   },
   {
     id: 'budgetSuggestion',
-    title: 'Gợi ý ngân sách',
+    title: 'Gợi ý hạn mức',
     description: 'Dựa trên lịch sử chi tiêu',
     icon: <FaExclamationCircle className="h-5 w-5" />,
     color: 'text-amber-600',

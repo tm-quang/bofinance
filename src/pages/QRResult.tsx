@@ -200,24 +200,6 @@ const QRResultPage = () => {
         }
     }, [addScanResult, success, showError])
 
-    const handleToggleContinuousScan = () => {
-        if (isContinuousScanning) {
-            // Stop continuous scanning
-            setIsContinuousScanning(false)
-            if (continuousScanTimeoutRef.current) {
-                clearTimeout(continuousScanTimeoutRef.current)
-                continuousScanTimeoutRef.current = null
-            }
-            cleanupNativeScanCallback()
-            stopWebQRScan()
-            lastScannedResultRef.current = '' // Reset to allow same result to be scanned again
-        } else {
-            // Start continuous scanning
-            setIsContinuousScanning(true)
-            handleScanQR(true)
-        }
-    }
-
     const handleDeleteResult = (id: string) => {
         setScanResults(prev => prev.filter(item => item.id !== id))
         if (selectedResult && scanResults.find(item => item.id === id)?.result === selectedResult) {

@@ -105,7 +105,7 @@ const getNotificationTypeLabel = (type: NotificationType): string => {
     case 'reminder':
       return 'Nhắc nhở'
     case 'budget':
-      return 'Ngân sách'
+      return 'Hạn mức'
     case 'system':
       return 'Hệ thống'
     case 'admin':

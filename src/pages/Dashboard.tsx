@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useDataPreloader } from '../hooks/useDataPreloader'
-import { FaPlus, FaCalendar, FaHandHoldingHeart, FaPaperPlane, FaCog, FaFolder, FaChevronLeft, FaChevronRight, FaArrowRight, FaClock, FaTasks } from 'react-icons/fa'
+import { FaPlus, FaPaperPlane, FaCog, FaFolder, FaArrowRight, FaClock, FaTasks } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
@@ -10,23 +10,29 @@ import { IncomeExpenseOverview } from '../components/charts/IncomeExpenseOvervie
 import { TransactionActionModal } from '../components/transactions/TransactionActionModal'
 import { TransactionDetailModal } from '../components/transactions/TransactionDetailModal'
 import { TransactionCard } from '../components/transactions/TransactionCard'
+import { TaskActionModal } from '../components/tasks/TaskActionModal'
+import { TaskDetailModal } from '../components/tasks/TaskDetailModal'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
 import { WelcomeModal } from '../components/ui/WelcomeModal'
-import { LoadingRing } from '../components/ui/LoadingRing'
 // import { WalletCarousel } from '../components/wallets/WalletCarousel'
 import { TransactionListSkeleton } from '../components/skeletons'
 import { NetAssetsCard } from '../components/dashboard/NetAssetsCard'
 import { DashboardTasksSection } from '../components/dashboard/DashboardTasksSection'
+import { BudgetAlertsSection } from '../components/dashboard/BudgetAlertsSection'
+import { PlanCalendar } from '../components/dashboard/PlanCalendar'
+import { PlanDayModal } from '../components/dashboard/PlanDayModal'
 import { getAllNotifications } from '../lib/notificationService'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
 import { getIconNodeFromCategory } from '../utils/iconLoader'
 import { fetchCategories, type CategoryRecord } from '../lib/categoryService'
 import { fetchTransactions, deleteTransaction, type TransactionRecord } from '../lib/transactionService'
+import { deleteTask, fetchTasks, type TaskRecord } from '../lib/taskService'
 import { fetchWallets, type WalletRecord } from '../lib/walletService'
 import { getDefaultWallet, setDefaultWallet } from '../lib/walletService'
 import { getCurrentProfile, type ProfileRecord } from '../lib/profileService'
 import { fetchReminders, type ReminderRecord } from '../lib/reminderService'
 import { useNotification } from '../contexts/notificationContext.helpers'
+import { checkAndSendBudgetAlerts } from '../lib/budgetAlertService'
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('vi-VN', {
@@ -51,7 +57,7 @@ const QuickActionButton = ({
     <button
       type="button"
       onClick={() => onNavigate(action.id)}
-      className="group relative flex flex-col items-center gap-2.5 rounded-2xl bg-white p-3 text-center border border-slate-100 transition-all hover:scale-105 hover:shadow-xl active:scale-95 sm:p-4"
+      className="group relative flex flex-col items-center gap-2.5 rounded-2xl bg-white p-3 text-center border border-slate-100 shadow-md transition-all hover:scale-105 hover:shadow-xl active:scale-95 sm:p-4"
     >
       <span
         className={`flex h-22 w-22 items-center justify-center rounded-2xl bg-transparent transition-all group-hover:scale-110 sm:h-16 sm:w-16 overflow-hidden`}
@@ -67,7 +73,7 @@ const QuickActionButton = ({
           <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
         )}
       </span>
-      <span className={`text-[10px] font-semibold leading-tight ${action.textColor} sm:text-xs`}>
+      <span className={`text-[10px] font-semibold leading-tight ${action.textColor} sm:text-xs min-h-[2.5rem] flex items-center justify-center text-center px-1`}>
         {action.label}
       </span>
       <div className={`absolute inset-0 rounded-2xl ${action.bgColor} opacity-0 transition-opacity group-hover:opacity-20 -z-10`} />
@@ -77,58 +83,49 @@ const QuickActionButton = ({
 
 const ALL_QUICK_ACTIONS = [
   {
-    id: 'tasks',
-    label: 'Theo dõi công việc',
+    id: 'notes-plans',
+    label: 'Công việc, kế hoạch',
     icon: FaTasks,
-    image: '/images/heoBO/heo-di-lam.png', // Thêm link ảnh ở đây (tùy chọn)
-    color: 'from-purple-500 to-pink-500',
-    bgColor: 'bg-purple-50',
-    textColor: 'text-purple-700',
+    image: '/images/heoBO/heo2.png', // Thêm link ảnh ở đây (tùy chọn)
+    color: 'from-sky-500 to-blue-600',
+    bgColor: 'bg-sky-50',
+    textColor: 'text-sky-700',
   },
   {
     id: 'send-money',
     label: 'Chi tiêu',
     icon: FaPaperPlane,
     image: '/images/heoBO/heo2.png', // Thêm link ảnh ở đây (tùy chọn)
-    color: 'from-blue-500 to-cyan-500',
-    bgColor: 'bg-blue-50',
-    textColor: 'text-blue-700',
+    color: 'from-sky-500 to-blue-600',
+    bgColor: 'bg-sky-50',
+    textColor: 'text-sky-700',
   },
   {
     id: 'add-transaction',
     label: 'Thêm giao dịch',
     icon: FaPlus,
     image: '/images/heoBO/heo1.png', // Thêm link ảnh ở đây (tùy chọn)
-    color: 'from-emerald-500 to-teal-500',
-    bgColor: 'bg-emerald-50',
-    textColor: 'text-emerald-700',
+    color: 'from-sky-500 to-blue-600',
+    bgColor: 'bg-sky-50',
+    textColor: 'text-sky-700',
   },
   {
     id: 'categories',
     label: 'Hạng mục',
     icon: FaFolder,
     image: '/images/heoBO/heo4.png', // Thêm link ảnh ở đây (tùy chọn)
-    color: 'from-indigo-500 to-purple-500',
-    bgColor: 'bg-indigo-50',
-    textColor: 'text-indigo-700',
-  },
-  {
-    id: 'reminder',
-    label: 'Nhắc nhở',
-    icon: FaHandHoldingHeart,
-    image: '/images/heoBO/heo6.png', // Thêm link ảnh ở đây (tùy chọn)
-    color: 'from-amber-500 to-orange-500',
-    bgColor: 'bg-amber-50',
-    textColor: 'text-amber-700',
+    color: 'from-sky-500 to-blue-600',
+    bgColor: 'bg-sky-50',
+    textColor: 'text-sky-700',
   },
   {
     id: 'settings',
     label: 'Cài đặt',
     icon: FaCog,
     image: '/images/quick-actions/settings.png', // Thêm link ảnh ở đây (tùy chọn)
-    color: 'from-slate-500 to-slate-600',
-    bgColor: 'bg-slate-50',
-    textColor: 'text-slate-700',
+    color: 'from-sky-500 to-blue-600',
+    bgColor: 'bg-sky-50',
+    textColor: 'text-sky-700',
   },
 ]
 
@@ -176,7 +173,10 @@ export const DashboardPage = () => {
   const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
   const [selectedDate, setSelectedDate] = useState<Date>(new Date()) // Default to today
   const [selectedDateReminders, setSelectedDateReminders] = useState<ReminderRecord[]>([])
-  const [isLoadingDateData, setIsLoadingDateData] = useState(false)
+  const [tasks, setTasks] = useState<TaskRecord[]>([])
+  const [reminders, setReminders] = useState<ReminderRecord[]>([])
+  const [isPlanDayModalOpen, setIsPlanDayModalOpen] = useState(false)
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | undefined>(undefined)
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
   const [isReloading, setIsReloading] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
@@ -184,6 +184,17 @@ export const DashboardPage = () => {
   // Long press handler refs
   const longPressTimerRef = useRef<number | null>(null)
   const longPressTargetRef = useRef<TransactionRecord | null>(null)
+  
+  // Task action states
+  const [selectedTask, setSelectedTask] = useState<TaskRecord | null>(null)
+  const [isTaskActionModalOpen, setIsTaskActionModalOpen] = useState(false)
+  const [isTaskDetailModalOpen, setIsTaskDetailModalOpen] = useState(false)
+  const [isTaskDeleteConfirmOpen, setIsTaskDeleteConfirmOpen] = useState(false)
+  const [isTaskDeleting, setIsTaskDeleting] = useState(false)
+  
+  // Task long press handler refs
+  const taskLongPressTimerRef = useRef<number | null>(null)
+  const taskLongPressTargetRef = useRef<TaskRecord | null>(null)
 
   // Load quick actions settings from localStorage
   const getStoredActions = () => {
@@ -191,6 +202,25 @@ export const DashboardPage = () => {
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
         const parsed = JSON.parse(stored)
+        
+        // Migration: Nếu có 'tasks' hoặc 'reminder' được bật, chuyển sang 'notes-plans'
+        const notesPlansEnabled = parsed['notes-plans'] ?? 
+          (parsed['tasks'] || parsed['reminder']) ?? 
+          false
+        
+        // Nếu đã migrate, xóa các key cũ
+        if (parsed['tasks'] !== undefined || parsed['reminder'] !== undefined) {
+          delete parsed['tasks']
+          delete parsed['reminder']
+          parsed['notes-plans'] = notesPlansEnabled
+          // Lưu lại sau khi migrate
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
+          } catch (err) {
+            console.error('Error saving migrated settings:', err)
+          }
+        }
+        
         return ALL_QUICK_ACTIONS.map((action, index) => ({
           id: action.id,
           label: action.label,
@@ -388,6 +418,11 @@ export const DashboardPage = () => {
   // Chỉ load lại khi location.key thay đổi (navigate từ trang khác về)
   useEffect(() => {
     loadNotificationCount()
+    
+    // Check budget alerts when Dashboard loads (chạy trong background)
+    checkAndSendBudgetAlerts().catch((error) => {
+      console.warn('Error checking budget alerts on Dashboard load:', error)
+    })
   }, [])
 
   // Refresh notification count periodically
@@ -526,11 +561,12 @@ export const DashboardPage = () => {
       const loadData = async () => {
         try {
           setIsLoadingTransactions(true)
-          const [transactionsData, categoriesData, walletsData, remindersData, profileData] = await Promise.all([
+          const [transactionsData, categoriesData, walletsData, remindersData, tasksData, profileData] = await Promise.all([
             fetchTransactions({ limit: 5 }),
             fetchCategories(),
             fetchWallets(false),
             fetchReminders({ is_active: true }),
+            fetchTasks(),
             getCurrentProfile(true), // Force refresh on reload
           ])
 
@@ -575,6 +611,7 @@ export const DashboardPage = () => {
           setTransactions(sortedTransactions)
           setCategories(categoriesData)
           setWallets(walletsData)
+          setTasks(tasksData)
           setProfile(profileData)
 
           // Reload notification count
@@ -640,6 +677,14 @@ export const DashboardPage = () => {
   }
 
   // Handle edit
+  // Handle view transaction detail
+  const handleViewClick = () => {
+    setIsActionModalOpen(false)
+    if (selectedTransaction) {
+      setIsDetailModalOpen(true)
+    }
+  }
+
   const handleEditClick = () => {
     setIsEditConfirmOpen(true)
   }
@@ -675,11 +720,88 @@ export const DashboardPage = () => {
     }
   }
 
+  // Task long press handlers
+  const handleTaskLongPressStart = (task: TaskRecord) => {
+    // Clear any existing timer
+    if (taskLongPressTimerRef.current) {
+      window.clearTimeout(taskLongPressTimerRef.current)
+    }
+
+    taskLongPressTargetRef.current = task
+
+    // Set timer for long press (500ms)
+    taskLongPressTimerRef.current = window.setTimeout(() => {
+      if (taskLongPressTargetRef.current) {
+        setSelectedTask(taskLongPressTargetRef.current)
+        setIsTaskActionModalOpen(true)
+      }
+    }, 500)
+  }
+
+  const handleTaskLongPressEnd = () => {
+    if (taskLongPressTimerRef.current) {
+      window.clearTimeout(taskLongPressTimerRef.current)
+      taskLongPressTimerRef.current = null
+    }
+    taskLongPressTargetRef.current = null
+  }
+
+  const handleTaskLongPressCancel = () => {
+    if (taskLongPressTimerRef.current) {
+      window.clearTimeout(taskLongPressTimerRef.current)
+      taskLongPressTimerRef.current = null
+    }
+    taskLongPressTargetRef.current = null
+  }
+
+  // Handle task view
+  const handleTaskViewClick = () => {
+    setIsTaskActionModalOpen(false)
+    if (selectedTask) {
+      setIsTaskDetailModalOpen(true)
+    }
+  }
+
+  // Handle task edit
+  const handleTaskEditClick = () => {
+    setIsTaskActionModalOpen(false)
+    if (selectedTask) {
+      navigate(`/notes-plans?taskId=${selectedTask.id}&edit=true`)
+    }
+  }
+
+  // Handle task delete
+  const handleTaskDeleteClick = () => {
+    setIsTaskDeleteConfirmOpen(true)
+  }
+
+  const handleTaskDeleteConfirm = async () => {
+    if (!selectedTask) return
+
+    setIsTaskDeleting(true)
+    try {
+      await deleteTask(selectedTask.id)
+      success('Đã xóa công việc thành công!')
+      setSelectedTask(null)
+      // Trigger refresh for tasks section
+      setRefreshTrigger(prev => prev + 1)
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Không thể xóa công việc'
+      showError(message)
+    } finally {
+      setIsTaskDeleting(false)
+      setIsTaskDeleteConfirmOpen(false)
+    }
+  }
+
   // Cleanup on unmount
   useEffect(() => {
     return () => {
       if (longPressTimerRef.current) {
         window.clearTimeout(longPressTimerRef.current)
+      }
+      if (taskLongPressTimerRef.current) {
+        window.clearTimeout(taskLongPressTimerRef.current)
       }
     }
   }, [])
@@ -711,16 +833,15 @@ export const DashboardPage = () => {
     return `${year}-${month}-${day}`
   }
 
-  // Load reminders for selected date
+  // Load reminders and tasks for selected date
   useEffect(() => {
     let isCancelled = false
 
     const loadDateData = async () => {
-      setIsLoadingDateData(true)
       try {
         const dateStr = formatDateToString(selectedDate)
 
-        // Fetch reminders for selected date
+        // Fetch reminders for selected date (for PlanDayModal)
         const allReminders = await fetchReminders({ is_active: true })
         if (isCancelled) return
 
@@ -728,13 +849,10 @@ export const DashboardPage = () => {
           (r) => r.reminder_date === dateStr && !r.completed_at
         )
         setSelectedDateReminders(dateReminders)
+        setReminders(allReminders)
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         console.error('Error loading date data:', errorMessage, error)
-      } finally {
-        if (!isCancelled) {
-          setIsLoadingDateData(false)
-        }
       }
     }
 
@@ -798,51 +916,7 @@ export const DashboardPage = () => {
     }
   }, []) // Empty dependency array - only run once on mount
 
-  // Format date for display
-  const formatSelectedDate = (date: Date) => {
-    const today = new Date()
-    today.setHours(0, 0, 0, 0)
-    const yesterday = new Date(today)
-    yesterday.setDate(yesterday.getDate() - 1)
-    const tomorrow = new Date(today)
-    tomorrow.setDate(tomorrow.getDate() + 1)
 
-    const selected = new Date(date)
-    selected.setHours(0, 0, 0, 0)
-
-    if (selected.getTime() === today.getTime()) {
-      return 'Hôm nay'
-    } else if (selected.getTime() === yesterday.getTime()) {
-      return 'Hôm qua'
-    } else if (selected.getTime() === tomorrow.getTime()) {
-      return 'Ngày mai'
-    } else {
-      return date.toLocaleDateString('vi-VN', {
-        weekday: 'long',
-        day: 'numeric',
-        month: 'long',
-      })
-    }
-  }
-
-  // Navigate to previous day
-  const goToPreviousDay = () => {
-    const newDate = new Date(selectedDate)
-    newDate.setDate(newDate.getDate() - 1)
-    setSelectedDate(newDate)
-  }
-
-  // Navigate to next day
-  const goToNextDay = () => {
-    const newDate = new Date(selectedDate)
-    newDate.setDate(newDate.getDate() + 1)
-    setSelectedDate(newDate)
-  }
-
-  // Go to today
-  const goToToday = () => {
-    setSelectedDate(new Date())
-  }
 
   // Get wallet color based on ID (consistent color for same wallet)
   const getWalletColor = (walletId: string) => {
@@ -892,153 +966,36 @@ export const DashboardPage = () => {
           {/* Income Expense Overview - Sử dụng ví mặc định */}
           <IncomeExpenseOverview walletId={defaultWalletId || undefined} />
 
-          {/* Date Navigation and Plan Section */}
-          {/* Date Navigation and Plan Section */}
-          <section className="rounded-3xl bg-white p-5 shadow-lg border border-slate-100">
-            {/* Date Navigation Header */}
-            {/* Date Navigation Header */}
-            <div className="flex items-center justify-between mb-4">
-              <button
-                type="button"
-                onClick={goToPreviousDay}
-                className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-600 transition hover:bg-slate-100 active:scale-95"
-              >
-                <FaChevronLeft className="h-4 w-4" />
-              </button>
-
-              <div className="flex-1 text-center">
-                <h3 className="text-md font-bold uppercase tracking-wider text-slate-700">
-                  Kế hoạch {formatSelectedDate(selectedDate)}
-                </h3>
-                <div className="mt-1 flex items-center justify-center gap-2">
-                  <button
-                    type="button"
-                    onClick={goToToday}
-                    className="rounded-3xl bg-amber-100 px-3 py-1 text-xs shadow-md font-semibold text-amber-700 transition hover:bg-amber-200"
-                  >
-                    Hôm nay
-                  </button>
-                  <p className="text-xs text-slate-500">
-                    {selectedDateReminders.length} sự kiện
-                  </p>
-                </div>
-              </div>
-
-              <button
-                type="button"
-                onClick={goToNextDay}
-                className="flex h-8 w-8 items-center justify-center rounded-lg bg-white text-slate-600 transition hover:bg-slate-100 active:scale-95"
-              >
-                <FaChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Reminders List */}
-            {isLoadingDateData ? (
-              <div className="py-5 flex items-center justify-center">
-                <LoadingRing size="md" />
-              </div>
-            ) : selectedDateReminders.length === 0 ? (
-              <div className="py-0 text-center">
-                <img
-                  src="/bofin-calender.png"
-                  alt="Calendar"
-                  className="mx-auto h-52 w-52 object-contain opacity-60"
-                />
-                <p className="mb-2 text-sm font-medium text-slate-400">
-                  Chưa có kế hoạch, ghi chú, thu chi
-                </p>
-                <button
-                  type="button"
-                  onClick={() => navigate('/reminders')}
-                  className="rounded-3xl bg-amber-100 px-12 py-2 text-md font-semibold shadow-md text-amber-700 transition hover:bg-amber-200"
-                >
-                  Tạo nhắc nhở
-                </button>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {selectedDateReminders.map((reminder) => {
-                  const categoryInfo = getCategoryInfo(reminder.category_id || '')
-                  const isNote = !reminder.amount && !reminder.category_id && !reminder.wallet_id
-                  const isIncome = reminder.type === 'Thu'
-                  const reminderColor = reminder.color || (isNote ? 'amber' : isIncome ? 'emerald' : 'rose')
-                  const colorClasses: Record<string, { bg: string; icon: string }> = {
-                    amber: { bg: 'bg-amber-500', icon: 'bg-amber-500' },
-                    emerald: { bg: 'bg-emerald-500', icon: 'bg-emerald-500' },
-                    rose: { bg: 'bg-rose-500', icon: 'bg-rose-500' },
-                    sky: { bg: 'bg-sky-500', icon: 'bg-sky-500' },
-                    blue: { bg: 'bg-blue-500', icon: 'bg-blue-500' },
-                    purple: { bg: 'bg-purple-500', icon: 'bg-purple-500' },
-                    indigo: { bg: 'bg-indigo-500', icon: 'bg-indigo-500' },
-                    pink: { bg: 'bg-pink-500', icon: 'bg-pink-500' },
-                    orange: { bg: 'bg-orange-500', icon: 'bg-orange-500' },
-                    teal: { bg: 'bg-teal-500', icon: 'bg-teal-500' },
-                  }
-                  const colorClass = colorClasses[reminderColor] || colorClasses.amber
-
-                  return (
-                    <div
-                      key={reminder.id}
-                      onClick={() => navigate('/reminders')}
-                      className={`rounded-2xl p-3 cursor-pointer transition hover:shadow-md ${colorClass.bg} bg-opacity-10`}
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full">
-                          {categoryInfo.icon ? (
-                            <span>{categoryInfo.icon}</span>
-                          ) : (
-                            <FaCalendar className="h-5 w-5 text-slate-400" />
-                          )}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-semibold text-slate-900 text-sm truncate">
-                              {reminder.title}
-                            </h4>
-                            {isNote && (
-                              <span className="shrink-0 rounded-full bg-white/80 px-2 py-0.5 text-xs font-medium text-slate-600">
-                                Ghi chú
-                              </span>
-                            )}
-                          </div>
-                          {reminder.amount && (
-                            <p className="text-xs text-slate-600 mt-0.5">
-                              {formatCurrency(reminder.amount)}
-                            </p>
-                          )}
-                          {reminder.reminder_time && (
-                            <p className="text-xs text-slate-500 mt-0.5">
-                              {reminder.reminder_time}
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-
-            {/* View All Button */}
-            {selectedDateReminders.length > 0 && (
-              <div className="mt-4 text-center">
-                <button
-                  type="button"
-                  onClick={() => navigate('/reminders')}
-                  className="text-xs font-semibold text-amber-600 transition hover:text-amber-700 hover:underline"
-                >
-                  Xem tất cả
-                </button>
-              </div>
-            )}
+          {/* Plan Section with Calendar */}
+          <section className="space-y-4">
+            {/* Calendar */}
+            <PlanCalendar
+              tasks={tasks}
+              reminders={reminders.filter((r) => !r.completed_at)}
+              onDateClick={(date) => {
+                const dateObj = new Date(date + 'T00:00:00+07:00')
+                setSelectedDate(dateObj)
+                setSelectedCalendarDate(date)
+              }}
+              selectedDate={formatDateToString(selectedDate)}
+              onDateWithItemsClick={(date) => {
+                const dateObj = new Date(date + 'T00:00:00+07:00')
+                setSelectedDate(dateObj)
+                setSelectedCalendarDate(date)
+                setIsPlanDayModalOpen(true)
+              }}
+            />
           </section>
 
           {/* Tasks Section */}
           <DashboardTasksSection
             onTaskClick={(task) => {
-              navigate(`/tasks?taskId=${task.id}`)
+              navigate(`/notes-plans?taskId=${task.id}`)
             }}
+            onLongPressStart={handleTaskLongPressStart}
+            onLongPressEnd={handleTaskLongPressEnd}
+            onLongPressCancel={handleTaskLongPressCancel}
+            refreshTrigger={refreshTrigger}
           />
 
           <section className="rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-white p-5 shadow-lg border border-slate-100">
@@ -1077,10 +1034,14 @@ export const DashboardPage = () => {
                         setIsSettingsOpen(true)
                       } else if (id === 'categories') {
                         navigate('/categories')
+                      } else if (id === 'notes-plans') {
+                        navigate('/notes-plans')
                       } else if (id === 'reminder') {
-                        navigate('/reminders')
+                        // Giữ tương thích ngược cho người dùng cũ có thể đã lưu cài đặt cũ
+                        navigate('/notes-plans')
                       } else if (id === 'tasks') {
-                        navigate('/tasks')
+                        // Giữ tương thích ngược cho người dùng cũ có thể đã lưu cài đặt cũ
+                        navigate('/notes-plans')
                       }
                       // Các chức năng khác sẽ được implement sau
                     }}
@@ -1089,6 +1050,9 @@ export const DashboardPage = () => {
               })}
             </div>
           </section>
+
+          {/* Budget Alerts Section */}
+          <BudgetAlertsSection />
 
           <section className="space-y-4">
             <header className="flex items-center justify-between mb-4">
@@ -1165,10 +1129,6 @@ export const DashboardPage = () => {
                       onLongPressStart={handleLongPressStart}
                       onLongPressEnd={handleLongPressEnd}
                       onLongPressCancel={handleLongPressCancel}
-                      onClick={(transaction) => {
-                        setSelectedTransaction(transaction)
-                        setIsDetailModalOpen(true)
-                      }}
                       formatCurrency={formatCurrency}
                       formatDate={formatTransactionDate}
                     />
@@ -1200,6 +1160,7 @@ export const DashboardPage = () => {
           setIsActionModalOpen(false)
           setSelectedTransaction(null)
         }}
+        onView={handleViewClick}
         onEdit={() => {
           setIsActionModalOpen(false)
           // Keep selectedTransaction for edit action
@@ -1233,6 +1194,80 @@ export const DashboardPage = () => {
         confirmText="Xóa"
         cancelText="Hủy"
         isLoading={isDeleting}
+      />
+
+      {/* Task Action Modal */}
+      <TaskActionModal
+        isOpen={isTaskActionModalOpen}
+        onClose={() => {
+          setIsTaskActionModalOpen(false)
+          setSelectedTask(null)
+        }}
+        onView={handleTaskViewClick}
+        onEdit={handleTaskEditClick}
+        onDelete={handleTaskDeleteClick}
+      />
+
+      {/* Plan Day Modal */}
+      <PlanDayModal
+        isOpen={isPlanDayModalOpen}
+        onClose={() => {
+          setIsPlanDayModalOpen(false)
+          setSelectedCalendarDate(undefined)
+        }}
+        tasks={selectedCalendarDate ? tasks.filter((t) => {
+          if (!t.deadline) return false
+          const taskDate = t.deadline.split('T')[0]
+          return taskDate === selectedCalendarDate && t.status !== 'completed'
+        }) : []}
+        reminders={selectedCalendarDate ? selectedDateReminders.filter((r) => r.reminder_date === selectedCalendarDate) : []}
+        date={selectedCalendarDate || formatDateToString(selectedDate)}
+        onTaskClick={(task) => {
+          navigate(`/notes-plans?taskId=${task.id}`)
+        }}
+        onReminderClick={() => {
+          navigate('/notes-plans')
+        }}
+      />
+
+      {/* Task Detail Modal */}
+      <TaskDetailModal
+        isOpen={isTaskDetailModalOpen}
+        onClose={() => {
+          setIsTaskDetailModalOpen(false)
+          setSelectedTask(null)
+        }}
+        task={selectedTask}
+        onEdit={(task) => {
+          setIsTaskDetailModalOpen(false)
+          navigate(`/notes-plans?taskId=${task.id}&edit=true`)
+        }}
+        onUpdate={async () => {
+          // Refresh tasks section
+          setRefreshTrigger(prev => prev + 1)
+        }}
+        onDelete={(task) => {
+          setIsTaskDetailModalOpen(false)
+          setSelectedTask(task)
+          setIsTaskDeleteConfirmOpen(true)
+        }}
+        onComplete={async () => {
+          // Refresh tasks section
+          setRefreshTrigger(prev => prev + 1)
+        }}
+      />
+
+      {/* Task Delete Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={isTaskDeleteConfirmOpen}
+        onClose={() => setIsTaskDeleteConfirmOpen(false)}
+        onConfirm={handleTaskDeleteConfirm}
+        type="error"
+        title="Xác nhận xóa công việc"
+        message="Bạn có chắc chắn muốn xóa công việc này? Hành động này không thể hoàn tác."
+        confirmText="Xóa"
+        cancelText="Hủy"
+        isLoading={isTaskDeleting}
       />
 
       <QuickActionsSettings

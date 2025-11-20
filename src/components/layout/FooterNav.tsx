@@ -23,7 +23,7 @@ type TabItem = {
 
 const tabs: TabItem[] = [
   { id: 'home', label: 'Tổng quan', icon: FaHome, path: '/dashboard' },
-  { id: 'budgets', label: 'Ngân sách', icon: FaWallet, path: '/budgets' },
+  { id: 'budgets', label: 'Hạn mức', icon: FaWallet, path: '/budgets' },
   { id: 'add', label: '', icon: FaPlus, prominent: true },
   { id: 'reports', label: 'Báo cáo', icon: FaChartBar, path: '/reports' },
   { id: 'settings', label: 'Cài đặt', icon: FaCog, path: '/settings' },

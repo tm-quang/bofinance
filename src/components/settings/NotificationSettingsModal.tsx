@@ -29,7 +29,7 @@ const notificationSettings: Omit<NotificationPreference, 'enabled'>[] = [
   {
     id: 'push',
     title: 'Thông báo đẩy',
-    description: 'Nhận nhắc nhở thu chi, cảnh báo ngân sách khi vượt mức.',
+    description: 'Nhận nhắc nhở thu chi, cảnh báo hạn mức khi vượt mức.',
     icon: <FaBell className="h-5 w-5" />,
   },
   {
@@ -40,7 +40,7 @@ const notificationSettings: Omit<NotificationPreference, 'enabled'>[] = [
   },
   {
     id: 'budgetAlert',
-    title: 'Cảnh báo vượt ngân sách',
+    title: 'Cảnh báo vượt hạn mức',
     description: 'Nhận thông báo khi chi tiêu gần đạt hoặc vượt hạn mức.',
     icon: <FaExclamationCircle className="h-5 w-5" />,
   },

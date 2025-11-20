@@ -1,6 +1,6 @@
 import { FaTrash, FaEdit, FaEye } from 'react-icons/fa'
 
-type TransactionActionModalProps = {
+type TaskActionModalProps = {
   isOpen: boolean
   onClose: () => void
   onView: () => void
@@ -8,13 +8,13 @@ type TransactionActionModalProps = {
   onDelete: () => void
 }
 
-export const TransactionActionModal = ({
+export const TaskActionModal = ({
   isOpen,
   onClose,
   onView,
   onEdit,
   onDelete,
-}: TransactionActionModalProps) => {
+}: TaskActionModalProps) => {
   if (!isOpen) return null
 
   return (
@@ -39,7 +39,7 @@ export const TransactionActionModal = ({
           </div>
           <div className="flex-1">
             <p className="text-sm font-semibold text-slate-900">Xem</p>
-            <p className="text-xs text-slate-500">Xem chi tiết giao dịch</p>
+            <p className="text-xs text-slate-500">Xem chi tiết công việc</p>
           </div>
         </button>
 
@@ -53,7 +53,7 @@ export const TransactionActionModal = ({
           </div>
           <div className="flex-1">
             <p className="text-sm font-semibold text-slate-900">Sửa</p>
-            <p className="text-xs text-slate-500">Chỉnh sửa thông tin giao dịch</p>
+            <p className="text-xs text-slate-500">Chỉnh sửa thông tin công việc</p>
           </div>
         </button>
 
@@ -67,7 +67,7 @@ export const TransactionActionModal = ({
           </div>
           <div className="flex-1">
             <p className="text-sm font-semibold text-slate-900">Xóa</p>
-            <p className="text-xs text-slate-500">Xóa vĩnh viễn giao dịch này</p>
+            <p className="text-xs text-slate-500">Xóa vĩnh viễn công việc này</p>
           </div>
         </button>
 

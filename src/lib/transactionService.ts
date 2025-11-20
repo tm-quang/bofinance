@@ -241,6 +241,22 @@ export const createTransaction = async (
   await queryClient.invalidateQueries({ queryKey: ['getTotalBalanceWalletIds'] })
   // Invalidate wallet cash flow stats cache vì có giao dịch mới
   await queryClient.invalidateQueries({ queryKey: ['getWalletCashFlowStats'] })
+  // Invalidate budgets vì có thể đã thay đổi spending
+  await queryClient.invalidateQueries({ queryKey: ['budgets'] })
+
+  // Check và gửi budget alerts sau khi tạo transaction (chạy trong background)
+  if (payload.type === 'Chi') {
+    try {
+      const { checkAndSendBudgetAlerts } = await import('./budgetAlertService')
+      // Chạy async, không cần đợi
+      checkAndSendBudgetAlerts().catch((error) => {
+        console.warn('Error checking budget alerts:', error)
+      })
+    } catch (error) {
+      // Silently continue if budget alert check fails
+      console.warn('Could not check budget alerts:', error)
+    }
+  }
 
   // Return transaction with optional budget warning
   return { transaction: data, budgetWarning }

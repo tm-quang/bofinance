@@ -43,9 +43,9 @@ export const CategoryFilter = ({
 
   const filteredCategories = !useHierarchical
     ? categories.filter((cat) => {
-        if (type === 'all') return true
-        return type === 'Thu' ? cat.type === 'Thu nhập' : cat.type === 'Chi tiêu'
-      })
+    if (type === 'all') return true
+    return type === 'Thu' ? cat.type === 'Thu nhập' : cat.type === 'Chi tiêu'
+  })
     : []
 
   const toggleParent = (parentId: string) => {
@@ -129,16 +129,14 @@ export const CategoryFilter = ({
           {filteredParentCategories.map((parent) => {
             const hasChildren = parent.children && parent.children.length > 0
             const isExpanded = expandedParents.has(parent.id)
-            const isParentSelected = selectedCategoryIds.includes(parent.id)
-            const hasSelectedChildren = parent.children?.some((child) => selectedCategoryIds.includes(child.id))
 
-            return (
+          return (
               <div key={parent.id} className="space-y-2">
                 {/* Parent Category */}
                 <div className="flex items-center gap-2">
                   {hasChildren && (
-                    <button
-                      type="button"
+            <button
+              type="button"
                       onClick={() => toggleParent(parent.id)}
                       className="flex h-6 w-6 items-center justify-center rounded text-slate-500 hover:bg-slate-100"
                     >
@@ -147,7 +145,7 @@ export const CategoryFilter = ({
                       ) : (
                         <FaChevronRight className="h-3 w-3" />
                       )}
-                    </button>
+            </button>
                   )}
                   {!hasChildren && <div className="w-6" />}
                   {renderCategoryButton(parent, false)}
@@ -160,9 +158,9 @@ export const CategoryFilter = ({
                   </div>
                 )}
               </div>
-            )
-          })}
-        </div>
+          )
+        })}
+      </div>
       ) : (
         <div className="flex flex-wrap gap-2">
           {filteredCategories.map((category) => renderCategoryButton(category, false))}

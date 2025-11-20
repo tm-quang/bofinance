@@ -9,7 +9,7 @@ type UpgradeModalProps = {
 const features = [
   { name: 'Báo cáo tài chính chuyên sâu', included: true },
   { name: 'AI gợi ý quản lý tài chính', included: true },
-  { name: 'Tăng giới hạn ngân sách không giới hạn', included: true },
+  { name: 'Tăng giới hạn hạn mức không giới hạn', included: true },
   { name: 'Xuất dữ liệu Excel/PDF', included: true },
   { name: 'Hỗ trợ ưu tiên 24/7', included: true },
   { name: 'Quảng cáo miễn phí', included: true },

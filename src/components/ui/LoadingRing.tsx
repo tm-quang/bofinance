@@ -21,7 +21,7 @@ export const LoadingRing = ({ size = 'md', className = '' }: LoadingRingProps) =
   return (
     <div className={`flex items-center justify-center ${className}`}>
       <div
-        className={`${sizeClasses[size]} ${borderWidth[size]} border-slate-200 border-t-emerald-500 rounded-full animate-spin`}
+        className={`${sizeClasses[size]} ${borderWidth[size]} border-slate-200 border-t-sky-500 rounded-full animate-spin`}
         role="status"
         aria-label="Loading"
       >

@@ -1295,7 +1295,7 @@ export default function AdminCategoriesIcon() {
                   <button
                     onClick={handleSave}
                     disabled={isSaving || isUploading}
-                    className="w-full py-3 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                    className="w-full py-3 bg-blue-600 text-white font-semibold rounded-3xl hover:bg-blue-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 whitespace-nowrap"
                   >
                     {isSaving || isUploading ? (
                       <>

@@ -183,7 +183,7 @@ export const AddBudgetPage = () => {
     }
 
     if (!formData.amount || parseVNDInput(formData.amount) <= 0) {
-      const message = 'Số tiền ngân sách phải lớn hơn 0'
+      const message = 'Số tiền hạn mức phải lớn hơn 0'
       setError(message)
       showError(message)
       return
@@ -217,16 +217,16 @@ export const AddBudgetPage = () => {
 
       if (isEditMode && budgetId) {
         await updateBudget(budgetId, payload)
-        success('Đã cập nhật ngân sách thành công!')
+        success('Đã cập nhật hạn mức thành công!')
       } else {
         await createBudget(payload)
-        success('Đã tạo ngân sách thành công!')
+        success('Đã tạo hạn mức thành công!')
       }
 
       // Navigate back
       navigate(-1)
     } catch (err) {
-      const message = err instanceof Error ? err.message : 'Không thể lưu ngân sách'
+      const message = err instanceof Error ? err.message : 'Không thể lưu hạn mức'
       setError(message)
       showError(message)
     } finally {
@@ -312,7 +312,7 @@ export const AddBudgetPage = () => {
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
       <HeaderBar 
         variant="page" 
-        title={isEditMode ? 'SỬA NGÂN SÁCH' : 'TẠO NGÂN SÁCH'}
+        title={isEditMode ? 'SỬA HẠN MỨC' : 'TẠO HẠN MỨC'}
       />
 
       <main className="flex-1 overflow-y-auto overscroll-contain pb-20">
@@ -363,7 +363,7 @@ export const AddBudgetPage = () => {
               {/* Amount */}
               <div>
                 <label className="mb-2.5 block text-sm font-bold text-slate-900 sm:text-base">
-                  Số tiền ngân sách <span className="text-red-500">*</span>
+                  Số tiền hạn mức <span className="text-red-500">*</span>
                 </label>
                 <input
                   type="text"
@@ -383,7 +383,7 @@ export const AddBudgetPage = () => {
               {/* Period Type */}
               <div>
                 <label className="mb-2.5 block text-sm font-bold text-slate-900 sm:text-base">
-                  Loại ngân sách <span className="text-red-500">*</span>
+                  Loại hạn mức <span className="text-red-500">*</span>
                 </label>
                 <div className="grid grid-cols-3 gap-3">
                   {PERIOD_TYPES.map((type) => (
@@ -451,8 +451,8 @@ export const AddBudgetPage = () => {
                 }`}>
                   <p className="text-xs font-medium text-slate-700">
                     {formData.limit_type === 'soft' 
-                      ? '⚠️ Hệ thống sẽ cảnh báo nhưng vẫn cho phép giao dịch khi vượt quá ngân sách'
-                      : '🚫 Hệ thống sẽ từ chối giao dịch khi vượt quá ngân sách'}
+                      ? '⚠️ Hệ thống sẽ cảnh báo nhưng vẫn cho phép giao dịch khi vượt quá hạn mức'
+                      : '🚫 Hệ thống sẽ từ chối giao dịch khi vượt quá hạn mức'}
                   </p>
                 </div>
               </div>
@@ -564,7 +564,7 @@ export const AddBudgetPage = () => {
                 <textarea
                   value={formData.notes}
                   onChange={(e) => setFormData((prev) => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Thêm ghi chú cho ngân sách này..."
+                  placeholder="Thêm ghi chú cho hạn mức này..."
                   rows={3}
                   className="w-full rounded-2xl border-2 border-slate-200 bg-white p-4 text-sm text-slate-900 transition-all placeholder:text-slate-400 focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 resize-none sm:p-5"
                 />
@@ -579,7 +579,7 @@ export const AddBudgetPage = () => {
       <ModalFooterButtons
         onCancel={() => navigate(-1)}
         onConfirm={() => {}}
-        confirmText={isSubmitting ? 'Đang lưu...' : isEditMode ? 'Cập nhật' : 'Tạo ngân sách'}
+        confirmText={isSubmitting ? 'Đang lưu...' : isEditMode ? 'Cập nhật' : 'Tạo hạn mức'}
         isSubmitting={isSubmitting}
         disabled={isSubmitting || isLoading}
         confirmButtonType="submit"

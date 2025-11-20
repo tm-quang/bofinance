@@ -375,10 +375,12 @@ const TransactionsPage = () => {
     longPressTargetRef.current = null
   }
 
-  // Handle click on transaction card to show detail modal
-  const handleTransactionClick = (transaction: TransactionRecord) => {
-    setSelectedTransaction(transaction)
-    setIsDetailModalOpen(true)
+  // Handle view transaction detail
+  const handleViewClick = () => {
+    setIsActionModalOpen(false)
+    if (selectedTransaction) {
+      setIsDetailModalOpen(true)
+    }
   }
 
   // Handle edit
@@ -605,7 +607,6 @@ const TransactionsPage = () => {
                               onLongPressStart={handleLongPressStart}
                               onLongPressEnd={handleLongPressEnd}
                               onLongPressCancel={handleLongPressCancel}
-                              onClick={handleTransactionClick}
                               formatCurrency={formatCurrency}
                               formatDate={formatTransactionDate}
                             />
@@ -640,6 +641,7 @@ const TransactionsPage = () => {
           setIsActionModalOpen(false)
           setSelectedTransaction(null)
         }}
+        onView={handleViewClick}
         onEdit={() => {
           setIsActionModalOpen(false)
           // Keep selectedTransaction for edit action

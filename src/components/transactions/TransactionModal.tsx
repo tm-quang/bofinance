@@ -544,13 +544,13 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
                 <div className="rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-white p-4">
                   {isLoadingBudget ? (
                     <div className="flex items-center gap-2 text-sm text-slate-500">
-                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
-                      <span>Đang kiểm tra ngân sách...</span>
+                      <div className="h-4 w-4 animate-spin rounded-full border-2 border-slate-300 border-t-sky-500" />
+                      <span>Đang kiểm tra hạn mức...</span>
                     </div>
                   ) : budgetInfo ? (
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-slate-600">Ngân sách hạng mục</span>
+                        <span className="text-xs font-semibold text-slate-600">Hạn mức hạng mục</span>
                         <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${budgetInfo.usage_percentage >= 100
                           ? 'bg-rose-100 text-rose-700'
                           : budgetInfo.usage_percentage >= 80
@@ -598,7 +598,7 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
                     </div>
                   ) : (
                     <div className="text-xs text-slate-500 text-center py-1">
-                      Không có ngân sách cho hạng mục này
+                      Không có hạn mức cho hạng mục này
                     </div>
                   )}
                 </div>

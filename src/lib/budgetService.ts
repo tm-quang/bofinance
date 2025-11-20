@@ -250,7 +250,7 @@ export const fetchBudgets = async (filters?: BudgetFilters): Promise<BudgetRecor
   const user = await getCachedUser()
 
   if (!user) {
-    throw new Error('Bạn cần đăng nhập để xem ngân sách.')
+    throw new Error('Bạn cần đăng nhập để xem hạn mức.')
   }
 
   let query = supabase
@@ -281,7 +281,7 @@ export const fetchBudgets = async (filters?: BudgetFilters): Promise<BudgetRecor
 
   const { data, error } = await query
 
-  throwIfError(error, 'Không thể tải danh sách ngân sách.')
+  throwIfError(error, 'Không thể tải danh sách hạn mức.')
 
   return data ?? []
 }
@@ -292,7 +292,7 @@ export const getBudgetById = async (id: string): Promise<BudgetRecord | null> =>
   const user = await getCachedUser()
 
   if (!user) {
-    throw new Error('Bạn cần đăng nhập để xem ngân sách.')
+    throw new Error('Bạn cần đăng nhập để xem hạn mức.')
   }
 
   const { data, error } = await supabase
@@ -302,7 +302,7 @@ export const getBudgetById = async (id: string): Promise<BudgetRecord | null> =>
     .eq('user_id', user.id)
     .single()
 
-  throwIfError(error, 'Không thể tải ngân sách.')
+  throwIfError(error, 'Không thể tải hạn mức.')
 
   return data
 }
@@ -311,7 +311,7 @@ export const getBudgetById = async (id: string): Promise<BudgetRecord | null> =>
 export const getBudgetWithSpending = async (budgetId: string): Promise<BudgetWithSpending> => {
   const budget = await getBudgetById(budgetId)
   if (!budget) {
-    throw new Error(`Không tìm thấy ngân sách với ID: ${budgetId}`)
+    throw new Error(`Không tìm thấy hạn mức với ID: ${budgetId}`)
   }
 
   try {
@@ -354,14 +354,14 @@ export const createBudget = async (payload: BudgetInsert): Promise<BudgetRecord>
     const user = await getCachedUser()
 
     if (!user) {
-      throw new Error('Bạn cần đăng nhập để tạo ngân sách.')
+      throw new Error('Bạn cần đăng nhập để tạo hạn mức.')
     }
 
     // Validate category is "Chi tiêu"
     const categories = await fetchCategories()
     const category = categories.find((c) => c.id === payload.category_id)
     if (!category || category.type !== 'Chi tiêu') {
-      throw new Error('Ngân sách chỉ có thể đặt cho hạng mục "Chi tiêu".')
+      throw new Error('Hạn mức chỉ có thể đặt cho hạng mục "Chi tiêu".')
     }
 
     // Check for duplicate active budget
@@ -385,7 +385,7 @@ export const createBudget = async (payload: BudgetInsert): Promise<BudgetRecord>
     })
 
     if (hasOverlap) {
-      throw new Error('Đã có ngân sách active cho hạng mục này trong khoảng thời gian này.')
+      throw new Error('Đã có hạn mức active cho hạng mục này trong khoảng thời gian này.')
     }
 
     // Build insert object, only including fields that have values
@@ -423,7 +423,7 @@ export const createBudget = async (payload: BudgetInsert): Promise<BudgetRecord>
 
       // Provide more user-friendly error messages
       if (error.code === 'PGRST116' || error.message.includes('not found')) {
-        throw new Error('Không thể tạo ngân sách. Vui lòng thử lại.')
+        throw new Error('Không thể tạo hạn mức. Vui lòng thử lại.')
       } else if (error.message.includes('column') && error.message.includes('not found')) {
         // Schema error - column doesn't exist
         throw new Error('Lỗi cấu hình database. Vui lòng liên hệ quản trị viên để cập nhật schema.')
@@ -431,16 +431,16 @@ export const createBudget = async (payload: BudgetInsert): Promise<BudgetRecord>
         throw new Error('Lỗi kết nối. Vui lòng kiểm tra kết nối mạng và thử lại')
       } else if (error.code === '23505') {
         // Unique constraint violation
-        throw new Error('Ngân sách này đã tồn tại. Vui lòng kiểm tra lại.')
+        throw new Error('Hạn mức này đã tồn tại. Vui lòng kiểm tra lại.')
       } else if (error.code === '23503') {
         // Foreign key constraint violation
         throw new Error('Dữ liệu không hợp lệ. Vui lòng kiểm tra lại hạng mục hoặc ví đã chọn.')
       }
-      throw new Error(error.message || 'Không thể tạo ngân sách.')
+      throw new Error(error.message || 'Không thể tạo hạn mức.')
     }
 
     if (!data) {
-      throw new Error('Không nhận được dữ liệu ngân sách sau khi tạo.')
+      throw new Error('Không nhận được dữ liệu hạn mức sau khi tạo.')
     }
 
     await queryClient.invalidateQueries({ queryKey: ['budgets'] })
@@ -451,7 +451,7 @@ export const createBudget = async (payload: BudgetInsert): Promise<BudgetRecord>
     if (err instanceof Error) {
       throw err
     }
-    throw new Error('Đã xảy ra lỗi không mong muốn khi tạo ngân sách')
+    throw new Error('Đã xảy ra lỗi không mong muốn khi tạo hạn mức')
   }
 }
 
@@ -462,7 +462,7 @@ export const updateBudget = async (id: string, updates: BudgetUpdate): Promise<B
     const user = await getCachedUser()
 
     if (!user) {
-      throw new Error('Bạn cần đăng nhập để cập nhật ngân sách.')
+      throw new Error('Bạn cần đăng nhập để cập nhật hạn mức.')
     }
 
     // Build update object, only including fields that are explicitly provided
@@ -517,7 +517,7 @@ export const updateBudget = async (id: string, updates: BudgetUpdate): Promise<B
 
       // Provide more user-friendly error messages
       if (error.code === 'PGRST116' || error.message.includes('not found')) {
-        throw new Error('Không thể cập nhật ngân sách. Vui lòng thử lại.')
+        throw new Error('Không thể cập nhật hạn mức. Vui lòng thử lại.')
       } else if (error.message.includes('column') && error.message.includes('not found')) {
         // Schema error - column doesn't exist
         throw new Error('Lỗi cấu hình database. Vui lòng liên hệ quản trị viên để cập nhật schema.')
@@ -525,16 +525,16 @@ export const updateBudget = async (id: string, updates: BudgetUpdate): Promise<B
         throw new Error('Lỗi kết nối. Vui lòng kiểm tra kết nối mạng và thử lại')
       } else if (error.code === '23505') {
         // Unique constraint violation
-        throw new Error('Ngân sách này đã tồn tại. Vui lòng kiểm tra lại.')
+        throw new Error('Hạn mức này đã tồn tại. Vui lòng kiểm tra lại.')
       } else if (error.code === '23503') {
         // Foreign key constraint violation
         throw new Error('Dữ liệu không hợp lệ. Vui lòng kiểm tra lại hạng mục hoặc ví đã chọn.')
       }
-      throw new Error(error.message || 'Không thể cập nhật ngân sách.')
+      throw new Error(error.message || 'Không thể cập nhật hạn mức.')
     }
 
     if (!data) {
-      throw new Error('Không nhận được dữ liệu ngân sách sau khi cập nhật.')
+      throw new Error('Không nhận được dữ liệu hạn mức sau khi cập nhật.')
     }
 
     await queryClient.invalidateQueries({ queryKey: ['budgets'] })
@@ -545,7 +545,7 @@ export const updateBudget = async (id: string, updates: BudgetUpdate): Promise<B
     if (err instanceof Error) {
       throw err
     }
-    throw new Error('Đã xảy ra lỗi không mong muốn khi cập nhật ngân sách')
+    throw new Error('Đã xảy ra lỗi không mong muốn khi cập nhật hạn mức')
   }
 }
 
@@ -555,12 +555,12 @@ export const deleteBudget = async (id: string): Promise<void> => {
   const user = await getCachedUser()
 
   if (!user) {
-    throw new Error('Bạn cần đăng nhập để xóa ngân sách.')
+    throw new Error('Bạn cần đăng nhập để xóa hạn mức.')
   }
 
   const { error } = await supabase.from(TABLE_NAME).delete().eq('id', id).eq('user_id', user.id)
 
-  throwIfError(error, 'Không thể xóa ngân sách.')
+  throwIfError(error, 'Không thể xóa hạn mức.')
 
   await queryClient.invalidateQueries({ queryKey: ['budgets'] })
 }
@@ -720,7 +720,7 @@ export const checkBudgetLimit = async (
     return {
       allowed: false,
       budget: hardLimitBudget.budget,
-      message: `Giao dịch này sẽ vượt quá ngân sách giới hạn cứng cho hạng mục này. Đã chi: ${formatCurrency(hardLimitBudget.budgetWithSpending.spent_amount)}/${formatCurrency(hardLimitBudget.budget.amount)}. Số tiền còn lại: ${formatCurrency(hardLimitBudget.budgetWithSpending.remaining_amount)}.`,
+      message: `Giao dịch này sẽ vượt quá hạn mức giới hạn cứng cho hạng mục này. Đã chi: ${formatCurrency(hardLimitBudget.budgetWithSpending.spent_amount)}/${formatCurrency(hardLimitBudget.budget.amount)}. Số tiền còn lại: ${formatCurrency(hardLimitBudget.budgetWithSpending.remaining_amount)}.`,
     }
   }
 
@@ -729,7 +729,7 @@ export const checkBudgetLimit = async (
     return {
       allowed: true,
       budget: softLimitBudget.budget,
-      message: `⚠️ Cảnh báo: Giao dịch này sẽ vượt quá ngân sách cho hạng mục này. Đã chi: ${formatCurrency(softLimitBudget.budgetWithSpending.spent_amount)}/${formatCurrency(softLimitBudget.budget.amount)}. Số tiền còn lại: ${formatCurrency(softLimitBudget.budgetWithSpending.remaining_amount)}.`,
+      message: `⚠️ Cảnh báo: Giao dịch này sẽ vượt quá hạn mức cho hạng mục này. Đã chi: ${formatCurrency(softLimitBudget.budgetWithSpending.spent_amount)}/${formatCurrency(softLimitBudget.budget.amount)}. Số tiền còn lại: ${formatCurrency(softLimitBudget.budgetWithSpending.remaining_amount)}.`,
     }
   }
 
