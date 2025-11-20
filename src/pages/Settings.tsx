@@ -25,6 +25,8 @@ import { getSupabaseClient } from '../lib/supabaseClient'
 import { useNotification } from '../contexts/notificationContext.helpers'
 import { clearUserCache } from '../lib/userCache'
 import { getCachedAdminStatus } from '../lib/adminService'
+import { isAndroidApp, startNativeScan, setupNativeScanCallback, cleanupNativeScanCallback } from '../utils/androidBridge'
+import { startWebQRScan, stopWebQRScan } from '../utils/webQRScanner'
 
 const financeToggleSettings = [
   {
@@ -65,6 +67,7 @@ const SettingsPage = () => {
   const [isQRScannerOpen, setIsQRScannerOpen] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true)
+  const { success } = useNotification()
 
   const [financeToggles, setFinanceToggles] = useState<Record<string, boolean>>({
     autoCategorize: false,
@@ -121,6 +124,43 @@ const SettingsPage = () => {
 
     return () => {
       mounted = false
+    }
+  }, [])
+
+  // Handle QR scan button click
+  const handleQRScanClick = () => {
+    if (isAndroidApp()) {
+      // Cleanup any existing callback first
+      cleanupNativeScanCallback()
+      // Setup callback to handle scan result
+      setupNativeScanCallback((result: string) => {
+        success('Đã quét mã thành công!')
+        cleanupNativeScanCallback()
+        // Navigate to result page
+        navigate('/qr-result', { state: { scanResult: result } })
+      })
+      // Start native scan directly
+      startNativeScan()
+    } else {
+      // Start web QR scan directly (fullscreen camera, no modal)
+      startWebQRScan({
+        onSuccess: (result: string) => {
+          success('Đã quét mã thành công!')
+          // Navigate to result page
+          navigate('/qr-result', { state: { scanResult: result } })
+        },
+        onError: (error: string) => {
+          showError(error)
+        }
+      })
+    }
+  }
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cleanupNativeScanCallback()
+      stopWebQRScan()
     }
   }, [])
 
@@ -262,7 +302,7 @@ const SettingsPage = () => {
 
               {/* QR Scanner */}
               <button
-                onClick={() => setIsQRScannerOpen(true)}
+                onClick={handleQRScanClick}
                 className="group flex flex-col items-center justify-center gap-3 rounded-2xl bg-white p-4 text-center shadow-lg border border-slate-100 transition-all hover:-translate-y-1 hover:shadow-xl active:scale-95"
               >
                 <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-purple-100 text-purple-600 shadow-sm group-hover:scale-110 transition-transform">
@@ -377,6 +417,7 @@ const SettingsPage = () => {
         onIconManagementClick={() => setIsIconManagementOpen(true)}
       />
 
+      {/* QR Scanner Modal - kept for backward compatibility if needed */}
       <QRScannerModal
         isOpen={isQRScannerOpen}
         onClose={() => setIsQRScannerOpen(false)}
