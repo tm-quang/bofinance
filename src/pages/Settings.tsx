@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useLocation } from 'react-router-dom'
 import {
   FaBell,
   FaCloud,
@@ -18,7 +18,6 @@ import HeaderBar from '../components/layout/HeaderBar'
 import { IconManagementModal } from '../components/settings/IconManagementModal'
 import { NotificationSettingsModal } from '../components/settings/NotificationSettingsModal'
 import { AdminSettingsModal } from '../components/settings/AdminSettingsModal'
-import { QRScannerModal } from '../components/settings/QRScannerModal'
 import { getCurrentProfile, type ProfileRecord } from '../lib/profileService'
 import { useDialog } from '../contexts/dialogContext.helpers'
 import { getSupabaseClient } from '../lib/supabaseClient'
@@ -57,6 +56,7 @@ const financeToggleSettings = [
 
 const SettingsPage = () => {
   const navigate = useNavigate()
+  const location = useLocation()
   const { showConfirm } = useDialog()
   const { error: showError } = useNotification()
   const [profile, setProfile] = useState<ProfileRecord | null>(null)
@@ -64,7 +64,6 @@ const SettingsPage = () => {
   const [isIconManagementOpen, setIsIconManagementOpen] = useState(false)
   const [isNotificationSettingsOpen, setIsNotificationSettingsOpen] = useState(false)
   const [isAdminSettingsModalOpen, setIsAdminSettingsModalOpen] = useState(false)
-  const [isQRScannerOpen, setIsQRScannerOpen] = useState(false)
   const [isAdmin, setIsAdmin] = useState(false)
   const [isCheckingAdmin, setIsCheckingAdmin] = useState(true)
   const { success } = useNotification()
@@ -155,6 +154,35 @@ const SettingsPage = () => {
       })
     }
   }
+
+  // Auto-start QR scan if navigated from QRResult with openScanner state
+  useEffect(() => {
+    if (location.state?.openScanner) {
+      // Clear state first to prevent re-triggering
+      navigate(location.pathname, { replace: true, state: {} })
+      // Start QR scan
+      if (isAndroidApp()) {
+        cleanupNativeScanCallback()
+        setupNativeScanCallback((result: string) => {
+          success('Đã quét mã thành công!')
+          cleanupNativeScanCallback()
+          navigate('/qr-result', { state: { scanResult: result } })
+        })
+        startNativeScan()
+      } else {
+        startWebQRScan({
+          onSuccess: (result: string) => {
+            success('Đã quét mã thành công!')
+            navigate('/qr-result', { state: { scanResult: result } })
+          },
+          onError: (error: string) => {
+            showError(error)
+          }
+        })
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.state])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -314,6 +342,20 @@ const SettingsPage = () => {
                 </div>
               </button>
 
+              {/* QR Result History */}
+              <button
+                onClick={() => navigate('/qr-result')}
+                className="group flex flex-col items-center justify-center gap-3 rounded-2xl bg-white p-4 text-center shadow-lg border border-slate-100 transition-all hover:-translate-y-1 hover:shadow-xl active:scale-95"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600 shadow-sm group-hover:scale-110 transition-transform">
+                  <FaQrcode className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-800">Lịch sử QR</p>
+                  <p className="text-xs text-slate-500">Danh sách</p>
+                </div>
+              </button>
+
               {/* Export Data */}
               <button
                 className="group flex flex-col items-center justify-center gap-3 rounded-2xl bg-white p-4 text-center shadow-lg border border-slate-100 transition-all hover:-translate-y-1 hover:shadow-xl active:scale-95"
@@ -417,11 +459,6 @@ const SettingsPage = () => {
         onIconManagementClick={() => setIsIconManagementOpen(true)}
       />
 
-      {/* QR Scanner Modal - kept for backward compatibility if needed */}
-      <QRScannerModal
-        isOpen={isQRScannerOpen}
-        onClose={() => setIsQRScannerOpen(false)}
-      />
     </div>
   )
 }
