@@ -1,6 +1,6 @@
 import { FaTimes, FaFilter } from 'react-icons/fa'
 import { CategoryFilter } from './CategoryFilter'
-import type { CategoryRecord } from '../../lib/categoryService'
+import type { CategoryRecord, CategoryWithChildren } from '../../lib/categoryService'
 
 type FilterType = 'all' | 'Thu' | 'Chi'
 
@@ -8,6 +8,7 @@ interface ReportFilterModalProps {
     isOpen: boolean
     onClose: () => void
     categories: CategoryRecord[]
+    parentCategories?: CategoryWithChildren[]
     selectedCategoryIds: string[]
     onCategoryToggle: (id: string) => void
     onClearCategories: () => void
@@ -20,6 +21,7 @@ export const ReportFilterModal = ({
     isOpen,
     onClose,
     categories,
+    parentCategories,
     selectedCategoryIds,
     onCategoryToggle,
     onClearCategories,
@@ -80,6 +82,7 @@ export const ReportFilterModal = ({
                         </div>
                         <CategoryFilter
                             categories={categories}
+                            parentCategories={parentCategories}
                             selectedCategoryIds={selectedCategoryIds}
                             onCategoryToggle={onCategoryToggle}
                             onClearAll={onClearCategories}

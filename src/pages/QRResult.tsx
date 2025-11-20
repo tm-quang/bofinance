@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
-import { FaCopy, FaExternalLinkAlt, FaQrcode, FaCheck, FaTrash, FaPlay, FaStop } from 'react-icons/fa'
+import { FaCopy, FaExternalLinkAlt, FaQrcode, FaCheck, FaTrash } from 'react-icons/fa'
 import HeaderBar from '../components/layout/HeaderBar'
 import { useNotification } from '../contexts/notificationContext.helpers'
 import { isAndroidApp, startNativeScan, setupNativeScanCallback, cleanupNativeScanCallback } from '../utils/androidBridge'
@@ -243,36 +243,14 @@ const QRResultPage = () => {
                 <div className="mx-auto max-w-md space-y-6">
 
                     {/* Scan Controls */}
-                    <div className="grid grid-cols-2 gap-3">
-                        <button
-                            onClick={() => handleScanQR(false)}
-                            disabled={isContinuousScanning}
-                            className="flex items-center justify-center gap-2 rounded-2xl bg-purple-600 p-4 font-bold text-white shadow-lg shadow-purple-200 transition-all hover:bg-purple-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            <FaQrcode />
-                            Quét một lần
-                        </button>
-                        <button
-                            onClick={handleToggleContinuousScan}
-                            className={`flex items-center justify-center gap-2 rounded-2xl p-4 font-bold shadow-lg transition-all active:scale-95 ${
-                                isContinuousScanning
-                                    ? 'bg-red-600 text-white shadow-red-200 hover:bg-red-700'
-                                    : 'bg-emerald-600 text-white shadow-emerald-200 hover:bg-emerald-700'
-                            }`}
-                        >
-                            {isContinuousScanning ? (
-                                <>
-                                    <FaStop />
-                                    Dừng quét
-                                </>
-                            ) : (
-                                <>
-                                    <FaPlay />
-                                    Quét liên tục
-                                </>
-                            )}
-                        </button>
-                    </div>
+                    <button
+                        onClick={() => handleScanQR(false)}
+                        disabled={isContinuousScanning}
+                        className="w-full flex items-center justify-center gap-2 rounded-2xl bg-purple-600 p-4 font-bold text-white shadow-lg shadow-purple-200 transition-all hover:bg-purple-700 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                        <FaQrcode />
+                        Quét tiếp QR
+                    </button>
 
                     {/* Selected Result Card */}
                     {currentResult && (

@@ -551,6 +551,7 @@ const ReportPage = () => {
         isOpen={isFilterModalOpen}
         onClose={() => setIsFilterModalOpen(false)}
         categories={categories}
+        parentCategories={parentCategories}
         selectedCategoryIds={selectedCategoryIds}
         onCategoryToggle={(id) => setSelectedCategoryIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
         onClearCategories={() => setSelectedCategoryIds([])}
