@@ -1,5 +1,6 @@
 import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
+import toast from 'react-hot-toast'
 import './index.css'
 import App from './App.tsx'
 import { initNativeAppBehavior, setupInstallPrompt, optimizePerformance } from './utils/nativeAppBehavior'
@@ -20,11 +21,27 @@ declare global {
 window.onQRCodeScanned = function(scanResult: string) {
   console.log('onQRCodeScanned called with result:', scanResult)
   
-  // Để kiểm tra, hãy dùng alert trước
-  alert("Đã nhận được mã QR: " + scanResult)
-
-  // Tự động điều hướng đến trang QR Result với kết quả quét
+  // Hiển thị thông báo với nội dung QR code (chỉ hiển thị nội dung, không có dòng "Trang tại...")
   if (scanResult && scanResult.trim()) {
+    // Sử dụng toast để hiển thị chỉ nội dung QR code
+    toast(scanResult.trim(), {
+      duration: 3000,
+      position: 'top-center',
+      style: {
+        borderRadius: '12px',
+        padding: '12px 20px',
+        maxWidth: '90%',
+        fontSize: '16px',
+        fontWeight: '600',
+        background: 'linear-gradient(135deg, #10b981 0%, #059669 100%)',
+        color: '#ffffff',
+        border: '1px solid rgba(16, 185, 129, 0.3)',
+        boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)',
+      },
+      icon: '✓',
+    })
+
+    // Tự động điều hướng đến trang QR Result với kết quả quét
     // Encode scanResult để tránh lỗi với các ký tự đặc biệt trong URL
     const encodedResult = encodeURIComponent(scanResult.trim())
     // Điều hướng đến trang QR Result
