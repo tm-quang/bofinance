@@ -2,6 +2,7 @@ import { useEffect, useRef, useState, useCallback } from 'react'
 import { MultiFormatReader, DecodeHintType, BarcodeFormat, HTMLCanvasElementLuminanceSource, BinaryBitmap, HybridBinarizer } from '@zxing/library'
 import { FaTimes } from 'react-icons/fa'
 import { useNotification } from '../../contexts/notificationContext.helpers'
+import { isAndroidApp, startNativeScan, setupNativeScanCallback, cleanupNativeScanCallback } from '../../utils/androidBridge'
 
 interface QRScannerModalProps {
     isOpen: boolean
@@ -103,12 +104,25 @@ export const QRScannerModal = ({ isOpen, onClose, onScanSuccess }: QRScannerModa
             readerRef.current.reset()
         }
 
+        cleanupNativeScanCallback()
         setIsScanning(false)
     }, [])
 
     // Start scanning
     const startScanning = useCallback(async () => {
-        if (!videoRef.current || scanResult || isScanning) return
+        if (scanResult || isScanning) return
+
+        // Handle Native Android App Scanning
+        if (isAndroidApp()) {
+            setIsScanning(true)
+            setupNativeScanCallback((text) => {
+                handleScanSuccess(text)
+            })
+            startNativeScan()
+            return
+        }
+
+        if (!videoRef.current) return
 
         try {
             setIsScanning(true)
@@ -207,8 +221,8 @@ export const QRScannerModal = ({ isOpen, onClose, onScanSuccess }: QRScannerModa
 
             // Start scanning loop
             scanningIntervalRef.current = requestAnimationFrame(scanFrame)
-        } catch (err) {
-            console.error('Error starting camera:', err)
+        } catch (_err) {
+            console.error('Error starting camera:', _err)
             setIsScanning(false)
             showError('Không thể khởi động camera. Vui lòng kiểm tra quyền truy cập camera.')
         }
@@ -226,7 +240,10 @@ export const QRScannerModal = ({ isOpen, onClose, onScanSuccess }: QRScannerModa
 
     // Start scanning when modal opens and video is ready
     useEffect(() => {
-        if (isOpen && !scanResult && !isScanning && videoRef.current) {
+        const readyToStart = isOpen && !scanResult && !isScanning
+        const canStart = isAndroidApp() || videoRef.current
+
+        if (readyToStart && canStart) {
             // Small delay to ensure DOM is ready
             const timer = setTimeout(() => {
                 startScanning()
@@ -333,41 +350,63 @@ export const QRScannerModal = ({ isOpen, onClose, onScanSuccess }: QRScannerModa
                     ) : (
                         <div className="space-y-4">
                             <div className="relative overflow-hidden rounded-xl border-2 border-dashed border-slate-300 bg-slate-900 min-h-[300px] flex items-center justify-center">
-                                <video
-                                    ref={videoRef}
-                                    className="w-full h-full object-cover"
-                                    playsInline
-                                    muted
-                                    autoPlay
-                                />
-                                {!isScanning && (
-                                    <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80">
-                                        <div className="text-center text-white">
-                                            <div className="mb-2">
-                                                <svg className="animate-spin h-8 w-8 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                                </svg>
+                                {isAndroidApp() ? (
+                                    <div className="text-center text-white p-6">
+                                        <div className="mb-4">
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-16 w-16 mx-auto text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 4v1m6 11h2m-6 0h-2v4m0-11v3m0 0h.01M12 12h4.01M16 20h4M4 12h4m12 0h.01M5 8h2a1 1 0 001-1V5a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1zm12 0h2a1 1 0 001-1V5a1 1 0 00-1-1h-2a1 1 0 00-1 1v2a1 1 0 001 1zM5 20h2a1 1 0 001-1v-2a1 1 0 00-1-1H5a1 1 0 00-1 1v2a1 1 0 001 1z" />
+                                            </svg>
+                                        </div>
+                                        <p className="text-lg font-medium mb-2">Sử dụng Camera thiết bị</p>
+                                        <p className="text-sm text-slate-400 mb-6">Sử dụng camera gốc của điện thoại để quét nhanh hơn</p>
+                                        <button
+                                            onClick={startNativeScan}
+                                            className="px-6 py-2 bg-emerald-500 hover:bg-emerald-600 text-white rounded-full font-medium transition-colors"
+                                        >
+                                            Mở Camera
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <>
+                                        <video
+                                            ref={videoRef}
+                                            className="w-full h-full object-cover"
+                                            playsInline
+                                            muted
+                                            autoPlay
+                                        />
+                                        {!isScanning && (
+                                            <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80">
+                                                <div className="text-center text-white">
+                                                    <div className="mb-2">
+                                                        <svg className="animate-spin h-8 w-8 mx-auto" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                                        </svg>
+                                                    </div>
+                                                    <p className="text-sm">Đang khởi động camera...</p>
+                                                </div>
                                             </div>
-                                            <p className="text-sm">Đang khởi động camera...</p>
-                                        </div>
-                                    </div>
-                                )}
-                                {/* Scanning overlay with frame */}
-                                {isScanning && (
-                                    <div className="absolute inset-0 pointer-events-none">
-                                        <div className="absolute inset-0 bg-black/20"></div>
-                                        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 border-4 border-sky-400 rounded-lg shadow-lg">
-                                            <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-sky-400"></div>
-                                            <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-sky-400"></div>
-                                            <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-sky-400"></div>
-                                            <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-sky-400"></div>
-                                        </div>
-                                    </div>
+                                        )}
+                                        {/* Scanning overlay with frame */}
+                                        {isScanning && (
+                                            <div className="absolute inset-0 pointer-events-none">
+                                                <div className="absolute inset-0 bg-black/20"></div>
+                                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 border-4 border-sky-400 rounded-lg shadow-lg">
+                                                    <div className="absolute top-0 left-0 w-8 h-8 border-t-4 border-l-4 border-sky-400"></div>
+                                                    <div className="absolute top-0 right-0 w-8 h-8 border-t-4 border-r-4 border-sky-400"></div>
+                                                    <div className="absolute bottom-0 left-0 w-8 h-8 border-b-4 border-l-4 border-sky-400"></div>
+                                                    <div className="absolute bottom-0 right-0 w-8 h-8 border-b-4 border-r-4 border-sky-400"></div>
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
                             <p className="text-center text-sm text-slate-500">
-                                {isScanning ? 'Di chuyển camera đến mã QR để quét' : 'Đang khởi động camera...'}
+                                {isAndroidApp()
+                                    ? 'Nhấn nút bên trên nếu camera không tự động mở'
+                                    : (isScanning ? 'Di chuyển camera đến mã QR để quét' : 'Đang khởi động camera...')}
                             </p>
                         </div>
                     )}
