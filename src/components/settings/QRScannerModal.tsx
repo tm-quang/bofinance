@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { MultiFormatReader, DecodeHintType, BarcodeFormat, HTMLCanvasElementLuminanceSource, BinaryBitmap, HybridBinarizer } from '@zxing/library'
 import { FaTimes } from 'react-icons/fa'
 import { useNotification } from '../../contexts/notificationContext.helpers'
@@ -11,6 +12,7 @@ interface QRScannerModalProps {
 }
 
 export const QRScannerModal = ({ isOpen, onClose, onScanSuccess }: QRScannerModalProps) => {
+    const navigate = useNavigate()
     const videoRef = useRef<HTMLVideoElement>(null)
     const canvasRef = useRef<HTMLCanvasElement | null>(null)
     const readerRef = useRef<MultiFormatReader | null>(null)
@@ -25,22 +27,54 @@ export const QRScannerModal = ({ isOpen, onClose, onScanSuccess }: QRScannerModa
         try {
             new URL(string)
             return true
-        } catch (_) {
+        } catch {
             return false
         }
     }
+
+    // Function to stop scanning and cleanup
+    const stopScanning = useCallback(() => {
+        if (scanningIntervalRef.current) {
+            cancelAnimationFrame(scanningIntervalRef.current)
+            scanningIntervalRef.current = null
+        }
+
+        if (streamRef.current) {
+            streamRef.current.getTracks().forEach(track => track.stop())
+            streamRef.current = null
+        }
+
+        if (videoRef.current) {
+            videoRef.current.srcObject = null
+        }
+
+        if (readerRef.current) {
+            readerRef.current.reset()
+        }
+
+        cleanupNativeScanCallback()
+        setIsScanning(false)
+    }, [])
 
     // Memoize callbacks to prevent unnecessary re-renders
     const handleScanSuccess = useCallback((decodedText: string) => {
         setScanResult(decodedText)
         setIsScanning(false)
         success('Đã quét mã thành công!')
+
+        // Stop scanning immediately
+        stopScanning()
+
+        // Close modal
+        onClose()
+
+        // Navigate to result page
+        navigate('/qr-result', { state: { scanResult: decodedText } })
+
         if (onScanSuccess) {
             onScanSuccess(decodedText)
         }
-        // Stop scanning upon success
-        stopScanning()
-    }, [onScanSuccess, success])
+    }, [onScanSuccess, success, onClose, navigate, stopScanning])
 
     // Function to find the best camera (back camera with highest resolution)
     const findBestCamera = async (): Promise<string | null> => {
@@ -83,30 +117,6 @@ export const QRScannerModal = ({ isOpen, onClose, onScanSuccess }: QRScannerModa
             }
         }
     }
-
-    // Function to stop scanning and cleanup
-    const stopScanning = useCallback(() => {
-        if (scanningIntervalRef.current) {
-            cancelAnimationFrame(scanningIntervalRef.current)
-            scanningIntervalRef.current = null
-        }
-
-        if (streamRef.current) {
-            streamRef.current.getTracks().forEach(track => track.stop())
-            streamRef.current = null
-        }
-
-        if (videoRef.current) {
-            videoRef.current.srcObject = null
-        }
-
-        if (readerRef.current) {
-            readerRef.current.reset()
-        }
-
-        cleanupNativeScanCallback()
-        setIsScanning(false)
-    }, [])
 
     // Start scanning
     const startScanning = useCallback(async () => {
@@ -226,7 +236,7 @@ export const QRScannerModal = ({ isOpen, onClose, onScanSuccess }: QRScannerModa
             setIsScanning(false)
             showError('Không thể khởi động camera. Vui lòng kiểm tra quyền truy cập camera.')
         }
-    }, [scanResult, isScanning, handleScanSuccess, showError])
+    }, [scanResult, isScanning, handleScanSuccess, showError, stopScanning])
 
     // Reset scan result when modal opens
     useEffect(() => {

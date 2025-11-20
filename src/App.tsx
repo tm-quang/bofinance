@@ -32,6 +32,7 @@ const AdminCategoriesIconPage = lazy(() => import('./pages/AdminCategoriesIcon')
 const AdminIconImagesPage = lazy(() => import('./pages/AdminIconImages'))
 const AccountInfoPage = lazy(() => import('./pages/AccountInfo'))
 const AdminSettingsPage = lazy(() => import('./pages/AdminSettings'))
+const QRResultPage = lazy(() => import('./pages/QRResult'))
 
 const PageFallback = () => {
   const { value: splashLogo } = useSystemSetting('app_splash_logo', '/logo-nontext.png')
@@ -249,6 +250,14 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <AdminSettingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/qr-result"
+              element={
+                <ProtectedRoute>
+                  <QRResultPage />
                 </ProtectedRoute>
               }
             />
