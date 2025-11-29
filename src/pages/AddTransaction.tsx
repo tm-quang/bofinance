@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { FaCalendar, FaImage, FaWallet, FaArrowDown, FaArrowUp, FaChevronDown, FaTimes, FaClock, FaStar, FaEdit, FaPlus, FaChevronRight, FaCamera, FaMapMarkerAlt, FaUser, FaPhone, FaMoneyBillWave, FaChartLine, FaExternalLinkAlt } from 'react-icons/fa'
+import { FaCalendar, FaImage, FaWallet, FaArrowDown, FaArrowUp, FaChevronDown, FaTimes, FaClock, FaStar, FaEdit, FaPlus, FaChevronRight, FaCamera, FaMapMarkerAlt, FaUser, FaPhone, FaMoneyBillWave, FaChartLine, FaExternalLinkAlt, FaMicrophone } from 'react-icons/fa'
 
 import HeaderBar from '../components/layout/HeaderBar'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
@@ -23,6 +23,7 @@ import { formatVNDInput, parseVNDInput } from '../utils/currencyInput'
 import { getSupabaseClient } from '../lib/supabaseClient'
 import { formatDateUTC7, getNowUTC7, getDateComponentsUTC7 } from '../utils/dateUtils'
 import { reverseGeocode, isCoordinates, parseCoordinates, getMapsUrl } from '../utils/geocoding'
+import { VoiceTransactionModal } from '../components/transactions/VoiceTransactionModal'
 
 type TransactionFormState = {
   type: TransactionType
@@ -84,6 +85,7 @@ export const AddTransactionPage = () => {
   const [isExpandedSectionOpen, setIsExpandedSectionOpen] = useState(false)
   const [isGettingLocation, setIsGettingLocation] = useState(false)
   const [locationCoordinates, setLocationCoordinates] = useState<{ lat: number; lng: number } | null>(null)
+  const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
 
@@ -1453,6 +1455,41 @@ export const AddTransactionPage = () => {
         }}
         categoryType={formState.type === 'Chi' ? 'Chi tiêu' : 'Thu nhập'}
       />
+
+      {/* Voice Transaction Modal */}
+      <VoiceTransactionModal
+        isOpen={isVoiceModalOpen}
+        onClose={() => setIsVoiceModalOpen(false)}
+        onSuccess={(transactionData) => {
+          // Điền dữ liệu từ voice vào form
+          setFormState((prev) => ({
+            ...prev,
+            type: transactionData.type,
+            amount: transactionData.amount.toString(),
+            category_id: transactionData.category_id || prev.category_id,
+            wallet_id: transactionData.wallet_id || prev.wallet_id || defaultWalletId,
+            transaction_date: transactionData.transaction_date || prev.transaction_date,
+            description: transactionData.description || prev.description,
+          }))
+          setIsVoiceModalOpen(false)
+          success('Đã nhận diện giao dịch từ giọng nói! Vui lòng kiểm tra và lưu.')
+        }}
+        categories={categories}
+        wallets={wallets}
+      />
+
+      {/* Floating Voice Button */}
+      {!isEditMode && (
+        <button
+          type="button"
+          onClick={() => setIsVoiceModalOpen(true)}
+          className="fixed bottom-20 right-5 z-40 flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-2xl transition-all hover:scale-110 active:scale-95 hover:shadow-blue-500/50"
+          title="Ghi chép bằng giọng nói"
+          aria-label="Ghi chép bằng giọng nói"
+        >
+          <FaMicrophone className="h-5 w-5" />
+        </button>
+      )}
     </div>
   )
 }

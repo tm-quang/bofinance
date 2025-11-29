@@ -96,7 +96,7 @@ export const VoiceInputButton = ({ onItemsRecognized, disabled = false }: VoiceI
         ) : (
           <>
             <FaMicrophone className="h-4 w-4" />
-            <span>Nói danh sách</span>
+            <span>Nhập bằng giọng nói</span>
           </>
         )}
       </button>
