@@ -33,8 +33,8 @@ export const AdvancedAnalyticsChart = ({ data, height = 300 }: AdvancedAnalytics
             xAxis: [{
                 scaleType: 'band' as const,
                 data: data.map(d => d.label),
-                categoryGapRatio: 0.8,
-                barGapRatio: 0.1
+                categoryGapRatio: 0.5,
+                barGapRatio: 0.05
             }],
             series: [
                 {

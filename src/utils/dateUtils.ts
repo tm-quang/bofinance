@@ -148,12 +148,18 @@ export const getFirstDayOfMonthUTC7 = (year: number, month: number): Date => {
  * Get last day of month in UTC+7
  */
 export const getLastDayOfMonthUTC7 = (year: number, month: number): Date => {
-  // Get first day of next month, then subtract 1 day
+  // Get first day of next month
   const nextMonth = month === 12 ? { year: year + 1, month: 1 } : { year, month: month + 1 }
   const firstDayNextMonth = getStartOfDayUTC7(nextMonth.year, nextMonth.month, 1)
-  const lastDay = new Date(firstDayNextMonth)
-  lastDay.setUTCDate(lastDay.getUTCDate() - 1)
-  lastDay.setUTCHours(23, 59, 59, 999)
-  return lastDay
+  
+  // Subtract 1 millisecond to get the last moment of the current month
+  const lastDayMs = firstDayNextMonth.getTime() - 1
+  
+  // Get UTC+7 components of that moment
+  const lastDayDate = new Date(lastDayMs)
+  const lastDayComponents = getDateComponentsUTC7(lastDayDate)
+  
+  // Return the end of that day in UTC+7
+  return getEndOfDayUTC7(lastDayComponents.year, lastDayComponents.month, lastDayComponents.day)
 }
 

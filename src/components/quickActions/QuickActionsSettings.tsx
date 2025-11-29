@@ -1,5 +1,5 @@
 import { useEffect, useState, useEffectEvent } from 'react'
-import { FaInfoCircle, FaChevronDown, FaPaperPlane, FaPlus, FaFolder, FaTasks, FaHandHoldingHeart, FaCog } from 'react-icons/fa'
+import { FaInfoCircle, FaChevronDown, FaPaperPlane, FaPlus, FaFolder, FaTasks, FaHandHoldingHeart, FaCog, FaShoppingCart } from 'react-icons/fa'
 import HeaderBar from '../layout/HeaderBar'
 
 type QuickAction = {
@@ -52,6 +52,12 @@ const ACTION_INFO: Record<string, { icon: typeof FaPaperPlane; description: stri
     description: 'Tạo nhắc nhở cho các khoản thu chi sắp tới (đã chuyển sang Công việc, kế hoạch)',
     color: 'text-amber-600',
     bgGradient: 'from-amber-50 to-orange-50',
+  },
+  'shopping-list': {
+    icon: FaShoppingCart,
+    description: 'Tạo và quản lý danh sách mua sắm với checklist cho đi chợ, siêu thị',
+    color: 'text-orange-600',
+    bgGradient: 'from-orange-50 to-amber-50',
   },
   'settings': {
     icon: FaCog,

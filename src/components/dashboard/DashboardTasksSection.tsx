@@ -139,7 +139,7 @@ export const DashboardTasksSection = ({
     }
   }, [viewPeriod, customStartDate, customEndDate])
 
-  // Load tasks based on date range
+  // Load tasks based on date range (exclude completed tasks)
   useEffect(() => {
     const loadTasks = async () => {
       setIsLoading(true)
@@ -148,7 +148,9 @@ export const DashboardTasksSection = ({
           deadline_from: dateRange.start,
           deadline_to: dateRange.end,
         })
-        setTasks(allTasks)
+        // Filter out completed tasks from home page
+        const activeTasks = allTasks.filter(task => task.status !== 'completed')
+        setTasks(activeTasks)
       } catch (error) {
         console.error('Error loading tasks:', error)
         setTasks([])
@@ -163,12 +165,14 @@ export const DashboardTasksSection = ({
   const handleTaskUpdate = async (taskId: string, updates: Partial<TaskRecord>) => {
     try {
       await updateTask(taskId, updates)
-      // Reload tasks to reflect changes
+      // Reload tasks to reflect changes (exclude completed tasks)
       const allTasks = await fetchTasks({
         deadline_from: dateRange.start,
         deadline_to: dateRange.end,
       })
-      setTasks(allTasks)
+      // Filter out completed tasks from home page
+      const activeTasks = allTasks.filter(task => task.status !== 'completed')
+      setTasks(activeTasks)
     } catch (error) {
       console.error('Error updating task:', error)
       throw error

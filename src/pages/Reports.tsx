@@ -17,13 +17,17 @@ import { AdvancedAnalyticsChart } from '../components/charts/AdvancedAnalyticsCh
 import { DonutChartWithLegend } from '../components/charts/DonutChartWithLegend'
 import { DateRangeFilter } from '../components/reports/DateRangeFilter'
 import { ReportFilterModal } from '../components/reports/ReportFilterModal'
+import { ExportExcelModal } from '../components/reports/ExportExcelModal'
+import { exportTransactionsToExcel, type ExportOptions } from '../utils/exportExcel'
+import { fetchWallets, type WalletRecord } from '../lib/walletService'
 import { useNotification } from '../contexts/notificationContext.helpers'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
 import { getIconNodeFromCategory } from '../utils/iconLoader'
 import { fetchCategories, fetchCategoriesHierarchical, type CategoryRecord, type CategoryWithChildren } from '../lib/categoryService'
 import { fetchTransactions, type TransactionRecord } from '../lib/transactionService'
+import { getNowUTC7, getDateComponentsUTC7, getFirstDayOfMonthUTC7, getLastDayOfMonthUTC7, formatDateUTC7, createDateUTC7 } from '../utils/dateUtils'
 
-type DateRangeType = 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
+export type DateRangeType = 'day' | 'week' | 'month' | 'quarter' | 'year' | 'custom'
 type TabType = 'overview' | 'income' | 'expense'
 
 const formatCurrency = (value: number) =>
@@ -34,43 +38,73 @@ const formatCurrency = (value: number) =>
   }).format(value)
 
 const getDateRange = (rangeType: DateRangeType, customStart?: string, customEnd?: string) => {
-  const now = new Date()
+  const now = getNowUTC7()
+  const components = getDateComponentsUTC7(now)
   let startDate: Date
-  let endDate: Date = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+  let endDate: Date
 
   switch (rangeType) {
     case 'day':
-      startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
+      startDate = createDateUTC7(components.year, components.month, components.day, 0, 0, 0, 0)
+      endDate = createDateUTC7(components.year, components.month, components.day, 23, 59, 59, 999)
       break
     case 'week': {
       const dayOfWeek = now.getDay()
-      const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1) // Monday
-      startDate = new Date(now.getFullYear(), now.getMonth(), diff, 0, 0, 0)
+      const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek // Monday is 1
+      const monday = new Date(now)
+      monday.setDate(now.getDate() + diff)
+      monday.setHours(0, 0, 0, 0)
+      const mondayComponents = getDateComponentsUTC7(monday)
+      
+      startDate = createDateUTC7(mondayComponents.year, mondayComponents.month, mondayComponents.day, 0, 0, 0, 0)
+      
+      const sunday = new Date(monday)
+      sunday.setDate(monday.getDate() + 6)
+      sunday.setHours(23, 59, 59, 999)
+      const sundayComponents = getDateComponentsUTC7(sunday)
+      endDate = createDateUTC7(sundayComponents.year, sundayComponents.month, sundayComponents.day, 23, 59, 59, 999)
       break
     }
     case 'month':
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0)
-      endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+      startDate = getFirstDayOfMonthUTC7(components.year, components.month)
+      endDate = getLastDayOfMonthUTC7(components.year, components.month)
       break
     case 'quarter': {
-      const quarter = Math.floor(now.getMonth() / 3)
-      startDate = new Date(now.getFullYear(), quarter * 3, 1, 0, 0, 0)
+      const quarter = Math.floor((components.month - 1) / 3)
+      const quarterStartMonth = quarter * 3 + 1
+      startDate = getFirstDayOfMonthUTC7(components.year, quarterStartMonth)
+      const quarterEndMonth = quarterStartMonth + 2
+      endDate = getLastDayOfMonthUTC7(components.year, quarterEndMonth)
       break
     }
     case 'year':
-      startDate = new Date(now.getFullYear(), 0, 1, 0, 0, 0)
+      startDate = getFirstDayOfMonthUTC7(components.year, 1)
+      endDate = getLastDayOfMonthUTC7(components.year, 12)
       break
     case 'custom':
-      startDate = customStart ? new Date(customStart) : new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0)
-      endDate = customEnd ? new Date(customEnd) : new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
+      if (customStart) {
+        const customStartDate = new Date(customStart + 'T00:00:00+07:00')
+        const customStartComponents = getDateComponentsUTC7(customStartDate)
+        startDate = createDateUTC7(customStartComponents.year, customStartComponents.month, customStartComponents.day, 0, 0, 0, 0)
+      } else {
+        startDate = getFirstDayOfMonthUTC7(components.year, components.month)
+      }
+      if (customEnd) {
+        const customEndDate = new Date(customEnd + 'T23:59:59+07:00')
+        const customEndComponents = getDateComponentsUTC7(customEndDate)
+        endDate = createDateUTC7(customEndComponents.year, customEndComponents.month, customEndComponents.day, 23, 59, 59, 999)
+      } else {
+        endDate = createDateUTC7(components.year, components.month, components.day, 23, 59, 59, 999)
+      }
       break
     default:
-      startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0)
+      startDate = getFirstDayOfMonthUTC7(components.year, components.month)
+      endDate = getLastDayOfMonthUTC7(components.year, components.month)
   }
 
   return {
-    start: startDate.toISOString().split('T')[0],
-    end: endDate.toISOString().split('T')[0],
+    start: formatDateUTC7(startDate),
+    end: formatDateUTC7(endDate),
     startDateObj: startDate,
     endDateObj: endDate
   }
@@ -94,6 +128,7 @@ const ReportPage = () => {
   const [categories, setCategories] = useState<CategoryRecord[]>([])
   const [parentCategories, setParentCategories] = useState<CategoryWithChildren[]>([])
   const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
+  const [wallets, setWallets] = useState<WalletRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
 
   // UI State
@@ -101,6 +136,7 @@ const ReportPage = () => {
   const [searchTerm, setSearchTerm] = useState('')
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false)
 
   // Filter State
   const [typeFilter, setTypeFilter] = useState<'all' | 'Thu' | 'Chi'>('all')
@@ -119,14 +155,15 @@ const ReportPage = () => {
     const loadData = async () => {
       setIsLoading(true)
       try {
-        const [transactionsData, categoriesData, hierarchicalCategories] = await Promise.all([
+        const [transactionsData, categoriesData, hierarchicalCategories, walletsData] = await Promise.all([
           fetchTransactions({
             start_date: dateRange.start,
             end_date: dateRange.end,
             exclude_from_reports: false,
           }),
           fetchCategories(),
-          fetchCategoriesHierarchical()
+          fetchCategoriesHierarchical(),
+          fetchWallets(false)
         ])
 
         // Load icons
@@ -154,6 +191,7 @@ const ReportPage = () => {
         setTransactions(transactionsData)
         setCategories(categoriesData)
         setParentCategories(hierarchicalCategories)
+        setWallets(walletsData)
       } catch (err) {
         console.error('Error loading report data:', err)
         showError('Không thể tải dữ liệu báo cáo')
@@ -278,7 +316,52 @@ const ReportPage = () => {
   }
 
   const handleExport = () => {
-    success('Tính năng xuất báo cáo đang được phát triển')
+    setIsExportModalOpen(true)
+  }
+
+  const handleExportExcel = async (options: ExportOptions) => {
+    try {
+      // Apply filters based on options
+      let transactionsToExport = transactions
+
+      // Filter by type
+      if (options.typeFilter !== 'all') {
+        transactionsToExport = transactionsToExport.filter((t) => t.type === options.typeFilter)
+      }
+
+      // Filter by categories if specified
+      if (options.categoryIds && options.categoryIds.length > 0) {
+        transactionsToExport = transactionsToExport.filter((t) => options.categoryIds!.includes(t.category_id))
+      }
+
+      // Sort by date if groupByDate
+      if (options.groupByDate) {
+        transactionsToExport = transactionsToExport.sort((a, b) => 
+          new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()
+        )
+      }
+
+      // Sort by category if groupByCategory
+      if (options.groupByCategory) {
+        transactionsToExport = transactionsToExport.sort((a, b) => {
+          const categoryA = categories.find((c) => c.id === a.category_id)?.name || ''
+          const categoryB = categories.find((c) => c.id === b.category_id)?.name || ''
+          return categoryA.localeCompare(categoryB, 'vi')
+        })
+      }
+
+      await exportTransactionsToExcel(
+        transactionsToExport,
+        categories,
+        wallets,
+        options
+      )
+      success('Đã xuất file Excel thành công!')
+    } catch (error) {
+      console.error('Export error:', error)
+      showError('Không thể xuất file. Vui lòng thử lại.')
+      throw error
+    }
   }
 
   const handleResetFilters = () => {
@@ -463,7 +546,7 @@ const ReportPage = () => {
                     </h3>
                   </div>
                   <div className="pb-5">
-                    <AdvancedAnalyticsChart data={chartData} height={220} />
+                    <AdvancedAnalyticsChart data={chartData} height={300} />
                   </div>
                 </section>
               </>
@@ -537,7 +620,7 @@ const ReportPage = () => {
           <div className="flex justify-center pt-4">
             <button
               onClick={handleExport}
-              className="flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-blue-600"
+              className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-3xl bg-blue-500 text-white hover:bg-blue-600"
             >
               <FaDownload /> Xuất báo cáo chi tiết
             </button>
@@ -558,6 +641,19 @@ const ReportPage = () => {
         typeFilter={typeFilter}
         onTypeFilterChange={setTypeFilter}
         onReset={handleResetFilters}
+      />
+
+      <ExportExcelModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        onExport={handleExportExcel}
+        dateRange={{
+          start: dateRange.start,
+          end: dateRange.end,
+          type: rangeType,
+        }}
+        typeFilter={typeFilter}
+        categoryIds={selectedCategoryIds}
       />
     </div>
   )

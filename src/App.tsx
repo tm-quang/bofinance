@@ -23,6 +23,7 @@ const TransactionsPage = lazy(() => import('./pages/Transactions'))
 const BudgetsPage = lazy(() => import('./pages/Budgets'))
 const NotificationsPage = lazy(() => import('./pages/Notifications'))
 const NotesPlansPage = lazy(() => import('./pages/NotesPlans'))
+const ShoppingListPage = lazy(() => import('./pages/ShoppingList'))
 const AddTransactionPage = lazy(() => import('./pages/AddTransaction'))
 const AddBudgetPage = lazy(() => import('./pages/AddBudget'))
 const LoginPage = lazy(() => import('./pages/Login'))
@@ -201,6 +202,14 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <NotesPlansPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/shopping-list"
+              element={
+                <ProtectedRoute>
+                  <ShoppingListPage />
                 </ProtectedRoute>
               }
             />
