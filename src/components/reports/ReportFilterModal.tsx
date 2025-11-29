@@ -56,7 +56,7 @@ export const ReportFilterModal = ({
                                 <button
                                     key={type}
                                     onClick={() => onTypeFilterChange(type)}
-                                    className={`rounded-xl py-2 text-sm font-semibold transition-all ${typeFilter === type
+                                    className={`rounded-3xl py-2 text-sm font-semibold transition-all ${typeFilter === type
                                         ? 'bg-blue-600 text-white shadow-md'
                                         : 'bg-slate-50 text-slate-600 hover:bg-slate-100'
                                         }`}
@@ -94,13 +94,13 @@ export const ReportFilterModal = ({
                 <div className="border-t border-slate-100 p-4 flex gap-3">
                     <button
                         onClick={onReset}
-                        className="flex-1 rounded-xl border border-slate-200 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50"
+                        className="flex-1 rounded-2xl border border-slate-200 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-50"
                     >
                         Đặt lại
                     </button>
                     <button
                         onClick={onClose}
-                        className="flex-1 rounded-xl bg-blue-600 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 hover:bg-blue-700"
+                        className="flex-1 rounded-2xl bg-blue-600 py-3 text-sm font-semibold text-white shadow-lg shadow-blue-500/30 hover:bg-blue-700"
                     >
                         Áp dụng
                     </button>

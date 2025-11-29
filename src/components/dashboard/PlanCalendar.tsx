@@ -3,6 +3,7 @@ import { FaChevronLeft, FaChevronRight, FaCalendarAlt, FaCalendarWeek, FaCog } f
 import type { TaskRecord } from '../../lib/taskService'
 import type { ReminderRecord } from '../../lib/reminderService'
 import { createDateUTC7, formatDateUTC7, getDateComponentsUTC7, getNowUTC7 } from '../../utils/dateUtils'
+import { getLunarDate } from '../../utils/lunarCalendar'
 
 type PlanCalendarProps = {
   tasks: TaskRecord[]
@@ -14,7 +15,7 @@ type PlanCalendarProps = {
   onDateWithItemsClick?: (date: string, position?: { top: number; left: number }) => void
 }
 
-const DAYS_OF_WEEK = ['CN', 'T2', 'T3', 'T4', 'T5', 'T6', 'T7']
+const DAYS_OF_WEEK = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN']
 const MONTHS = [
   'Tháng 1', 'Tháng 2', 'Tháng 3', 'Tháng 4', 'Tháng 5', 'Tháng 6',
   'Tháng 7', 'Tháng 8', 'Tháng 9', 'Tháng 10', 'Tháng 11', 'Tháng 12',
@@ -218,18 +219,23 @@ export const PlanCalendar = ({
       const firstDayOfMonth = new Date(year, month, 1)
       const lastDayOfMonth = new Date(year, month + 1, 0)
       const daysInMonth = lastDayOfMonth.getDate()
-      const startingDayOfWeek = firstDayOfMonth.getDay()
+      const startingDayOfWeek = firstDayOfMonth.getDay() // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
+      
+      // Convert to Monday-first week (0=Sunday becomes 6, 1=Monday becomes 0, etc.)
+      const mondayFirstDayOfWeek = startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1
 
-      // Empty slots
-      for (let i = 0; i < startingDayOfWeek; i++) days.push(null)
+      // Empty slots before first day of month (starting from Monday)
+      for (let i = 0; i < mondayFirstDayOfWeek; i++) days.push(null)
       // Days
       for (let i = 1; i <= daysInMonth; i++) {
         days.push(new Date(year, month, i))
       }
     } else {
-      // Week view
-      const currentDay = currentDate.getDay() // 0-6
-      const diff = currentDate.getDate() - currentDay // Adjust to Sunday start
+      // Week view - start from Monday
+      const currentDay = currentDate.getDay() // 0-6 (0 = Sunday)
+      // Convert to Monday-first: if Sunday (0), go back 6 days; otherwise go back (day - 1) days
+      const daysFromMonday = currentDay === 0 ? 6 : currentDay - 1
+      const diff = currentDate.getDate() - daysFromMonday
       const startOfWeek = new Date(currentDate)
       startOfWeek.setDate(diff)
 
@@ -330,13 +336,8 @@ export const PlanCalendar = ({
           let bgColor: string | undefined = undefined
           let textColor = 'text-slate-700'
           
-          if (isSelected) {
-            bgColor = '#2563eb' // blue-600
-            textColor = 'text-white'
-          } else if (isCurrentDay && !data) {
-            bgColor = '#dbeafe' // blue-50
-            textColor = 'text-blue-700'
-          } else if (data && data.primaryColor) {
+          // If there's data with color, always apply it (even when selected)
+          if (data && data.primaryColor) {
             bgColor = data.primaryColor
             textColor = 'text-white'
           }
@@ -351,39 +352,25 @@ export const PlanCalendar = ({
           }
 
           const handleLongPressStart = (e: React.MouseEvent | React.TouchEvent) => {
-            if (data && data.totalCount > 0 && onDateWithItemsClick) {
-              longPressActivatedRef.current = false
-              longPressTargetRef.current = { date: dateStr, hasItems: true }
-              
-              // Get button position for arrow indicator
-              const button = e.currentTarget as HTMLElement
-              const rect = button.getBoundingClientRect()
-              const position = {
-                top: rect.top + rect.height / 2,
-                left: rect.left + rect.width / 2
-              }
-              
-              // Set timer for long press (500ms)
-              longPressTimerRef.current = window.setTimeout(() => {
-                if (longPressTargetRef.current && longPressTargetRef.current.hasItems) {
-                  longPressActivatedRef.current = true
-                  onDateWithItemsClick(longPressTargetRef.current.date, position)
-                }
-              }, 500)
+            // Enable long press for all dates (not just those with items)
+            longPressActivatedRef.current = false
+            longPressTargetRef.current = { date: dateStr, hasItems: !!(data && data.totalCount > 0) }
+            
+            // Get button position for arrow indicator
+            const button = e.currentTarget as HTMLElement
+            const rect = button.getBoundingClientRect()
+            const position = {
+              top: rect.top + rect.height / 2,
+              left: rect.left + rect.width / 2
             }
-          }
-          
-          const handleDirectClick = (e: React.MouseEvent) => {
-            if (data && data.totalCount > 0 && onDateWithItemsClick && !longPressActivatedRef.current) {
-              const button = e.currentTarget as HTMLElement
-              const rect = button.getBoundingClientRect()
-              const position = {
-                top: rect.top + rect.height / 2,
-                left: rect.left + rect.width / 2
+            
+            // Set timer for long press (500ms) to open detail modal
+            longPressTimerRef.current = window.setTimeout(() => {
+              if (longPressTargetRef.current && onDateWithItemsClick) {
+                longPressActivatedRef.current = true
+                onDateWithItemsClick(longPressTargetRef.current.date, position)
               }
-              onDateWithItemsClick(dateStr, position)
-              e.stopPropagation()
-            }
+            }, 500)
           }
 
           const handleLongPressEnd = () => {
@@ -410,16 +397,27 @@ export const PlanCalendar = ({
             longPressTargetRef.current = null
           }
 
+          // Build base className without selection
+          let baseClassName = ''
+          if (isCurrentDay && !data) {
+            baseClassName = 'font-semibold border-2 border-black hover:border-black hover:shadow-md'
+          } else if (isCurrentDay && data) {
+            baseClassName = 'font-semibold border-2 border-black shadow-md hover:border-black hover:shadow-lg hover:scale-105'
+          } else if (data) {
+            baseClassName = 'font-semibold shadow-md hover:shadow-lg hover:scale-105 border-2 border-transparent hover:border-black'
+          } else {
+            baseClassName = 'border-2 border-slate-100 hover:border-black hover:bg-slate-50 hover:shadow-sm'
+          }
+          
+          // If selected, only change border to black, keep everything else
+          const finalClassName = isSelected
+            ? baseClassName.replace(/border-2 border-[^\s]+/g, 'border-2 border-black').replace(/hover:border-[^\s]+/g, 'hover:border-black')
+            : baseClassName
+
           return (
             <button
               key={idx}
-              onClick={(e) => {
-                if (data && data.totalCount > 0 && onDateWithItemsClick) {
-                  handleDirectClick(e)
-                } else {
-                  handleDateClick()
-                }
-              }}
+              onClick={handleDateClick}
               onMouseDown={handleLongPressStart}
               onMouseUp={handleLongPressEnd}
               onMouseLeave={handleLongPressCancel}
@@ -427,27 +425,23 @@ export const PlanCalendar = ({
               onTouchEnd={handleLongPressEnd}
               onTouchCancel={handleLongPressCancel}
               className={`
-                relative flex flex-col items-center justify-center h-12 rounded-xl transition-all duration-200
-                ${isSelected
-                  ? 'shadow-lg scale-105 z-10 font-bold ring-2 ring-blue-300 ring-offset-2'
-                  : isCurrentDay && !data
-                    ? 'font-semibold border-2 border-blue-200 bg-blue-50/50 hover:bg-blue-100/70 hover:border-blue-300 hover:shadow-md'
-                    : data
-                      ? 'font-semibold shadow-md hover:shadow-lg hover:scale-105 border-2 border-transparent hover:border-white/30'
-                      : 'border-2 border-slate-100 hover:border-slate-200 hover:bg-slate-50 hover:shadow-sm'
-                }
+                relative flex flex-col items-center justify-center h-14 sm:h-16 rounded-xl transition-all duration-200
+                ${finalClassName}
                 ${textColor}
               `}
               style={bgColor ? { 
                 backgroundColor: bgColor,
-                boxShadow: isSelected 
-                  ? '0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)' 
-                  : data 
-                    ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
-                    : undefined
+                boxShadow: data 
+                  ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
+                  : undefined
               } : {}}
             >
-              <span className="text-sm relative z-10 font-medium">{date.getDate()}</span>
+              <div className="flex flex-col items-center justify-center relative z-10 gap-0.5">
+                <span className="text-sm font-medium leading-none">{date.getDate()}</span>
+                <span className={`text-[9px] leading-tight ${isSelected ? (data ? 'text-white/90' : 'text-slate-500') : isCurrentDay && !data ? 'text-slate-500' : data ? 'text-white/90' : 'text-slate-500'}`}>
+                  {getLunarDate(date)}
+                </span>
+              </div>
 
               {/* Ripple Effect for Urgent/High Priority */}
               {data?.hasUrgent && !isSelected && !disableRipple && (

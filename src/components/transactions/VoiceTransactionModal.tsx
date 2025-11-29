@@ -29,6 +29,7 @@ export const VoiceTransactionModal = ({
   const [error, setError] = useState<string | null>(null)
   const [audioLevel, setAudioLevel] = useState(0)
   const animationRef = useRef<number | null>(null)
+  const finalTranscriptRef = useRef<string>('') // Lưu transcript cuối cùng để parse
   const audioContextRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
   const microphoneRef = useRef<MediaStreamAudioSourceNode | null>(null)
@@ -81,6 +82,7 @@ export const VoiceTransactionModal = ({
         setTranscript('')
         setError(null)
         setAudioLevel(0)
+        finalTranscriptRef.current = ''
   }
 
   const startAudioVisualization = async () => {
@@ -168,6 +170,7 @@ export const VoiceTransactionModal = ({
         // Combine both interim and final for better UX
         let combinedTranscript = ''
         if (finalTranscript) {
+          finalTranscriptRef.current = finalTranscript // Lưu transcript cuối cùng
           combinedTranscript = finalTranscript
         }
         if (interimTranscript) {
@@ -186,10 +189,13 @@ export const VoiceTransactionModal = ({
         setIsListening(false)
         
         // Parse transcript and create transaction
-        const finalTranscript = transcript.trim()
-        if (finalTranscript) {
+        // Sử dụng finalTranscriptRef để đảm bảo có transcript mới nhất
+        const transcriptToParse = finalTranscriptRef.current.trim() || transcript.trim()
+        if (transcriptToParse) {
+          console.log('Parsing transcript:', transcriptToParse)
           try {
-            const transactionData = parseVoiceTransaction(finalTranscript, categories, wallets)
+            const transactionData = parseVoiceTransaction(transcriptToParse, categories, wallets)
+            console.log('Parsed transaction data:', transactionData)
             if (transactionData) {
               onSuccess(transactionData)
               onClose()
@@ -197,8 +203,11 @@ export const VoiceTransactionModal = ({
               setError('Không thể nhận diện thông tin giao dịch. Vui lòng thử lại và nói rõ hơn.')
             }
           } catch (err) {
+            console.error('Error parsing transaction:', err)
             setError('Lỗi xử lý dữ liệu. Vui lòng thử lại.')
           }
+        } else {
+          setError('Không có nội dung ghi âm. Vui lòng thử lại.')
         }
         
         cleanup()
@@ -212,23 +221,29 @@ export const VoiceTransactionModal = ({
     voiceRecognitionService.stop()
     setIsListening(false)
     
-    // Parse transcript and create transaction when manually stopped
-    const finalTranscript = transcript.trim()
-    if (finalTranscript) {
-      try {
-        const transactionData = parseVoiceTransaction(finalTranscript, categories, wallets)
-        if (transactionData) {
-          onSuccess(transactionData)
-          onClose()
-        } else {
-          setError('Không thể nhận diện thông tin giao dịch. Vui lòng thử lại và nói rõ hơn.')
+    // Đợi một chút để đảm bảo transcript được cập nhật
+    setTimeout(() => {
+      // Parse transcript and create transaction when manually stopped
+      const transcriptToParse = finalTranscriptRef.current.trim() || transcript.trim()
+      console.log('Stopped - Parsing transcript:', transcriptToParse)
+      if (transcriptToParse) {
+        try {
+          const transactionData = parseVoiceTransaction(transcriptToParse, categories, wallets)
+          console.log('Stopped - Parsed transaction data:', transactionData)
+          if (transactionData) {
+            onSuccess(transactionData)
+            onClose()
+          } else {
+            setError('Không thể nhận diện thông tin giao dịch. Vui lòng thử lại và nói rõ hơn.')
+          }
+        } catch (err) {
+          console.error('Error parsing transaction:', err)
+          setError('Lỗi xử lý dữ liệu. Vui lòng thử lại.')
         }
-      } catch (err) {
-        setError('Lỗi xử lý dữ liệu. Vui lòng thử lại.')
+      } else {
+        setError('Không có nội dung ghi âm. Vui lòng thử lại.')
       }
-    }
-    
-    cleanup()
+    }, 100) // Đợi 100ms để đảm bảo transcript được cập nhật
   }
 
   if (!isOpen) return null

@@ -466,7 +466,7 @@ const ReportPage = () => {
               </div>
               <button
                 onClick={() => setIsFilterModalOpen(true)}
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl border transition ${selectedCategoryIds.length > 0 || typeFilter !== 'all'
+                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-3xl border transition ${selectedCategoryIds.length > 0 || typeFilter !== 'all'
                   ? 'bg-blue-50 border-blue-200 text-blue-600'
                   : 'bg-white border-slate-200 text-slate-500'
                   }`}
@@ -478,7 +478,7 @@ const ReportPage = () => {
 
           {/* Summary Cards */}
           <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2 rounded-2xl bg-gradient-to-br from-blue-600 to-indigo-700 p-5 text-white shadow-lg shadow-blue-500/30">
+            <div className="col-span-2 rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-700 p-5 text-white shadow-lg shadow-blue-500/30">
               <div className="flex items-center justify-between mb-2">
                 <p className="text-xs font-medium text-blue-100 uppercase tracking-wider">Dòng tiền ròng</p>
                 <div className="flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[10px]">
@@ -497,7 +497,7 @@ const ReportPage = () => {
               </div>
             </div>
 
-            <div className="rounded-2xl bg-white p-4 shadow-lg border border-slate-100">
+            <div className="rounded-3xl bg-white p-4 shadow-lg border border-slate-100">
               <div className="flex items-center gap-2 mb-2">
                 <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
                   <FaArrowUp className="h-3 w-3" />
@@ -507,7 +507,7 @@ const ReportPage = () => {
               <p className="text-lg font-bold text-emerald-600">{formatCurrency(stats.income)}</p>
             </div>
 
-            <div className="rounded-2xl bg-white p-4 shadow-lg border border-slate-100">
+            <div className="rounded-3xl bg-white p-4 shadow-lg border border-slate-100">
               <div className="flex items-center gap-2 mb-2">
                 <div className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-100 text-rose-600">
                   <FaArrowDown className="h-3 w-3" />
@@ -519,12 +519,12 @@ const ReportPage = () => {
           </div>
 
           {/* Tabs */}
-          <div className="flex rounded-xl bg-slate-100 p-1 shadow-inner">
+          <div className="flex rounded-2xl bg-slate-100 p-1 shadow-inner">
             {(['overview', 'income', 'expense'] as const).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`flex-1 rounded-lg py-2 text-xs font-bold transition-all ${activeTab === tab
+                className={`flex-1 rounded-xl py-2 text-xs font-bold transition-all ${activeTab === tab
                   ? 'bg-white text-slate-900 shadow-sm'
                   : 'text-slate-500 hover:text-slate-700'
                   }`}
@@ -567,7 +567,7 @@ const ReportPage = () => {
                 <section className="space-y-3">
                   <h3 className="font-bold text-slate-900 px-1">Top nguồn thu</h3>
                   {getTopCategories('Thu').map((item) => (
-                    <div key={item.category!.id} className="flex items-center justify-between rounded-2xl bg-white p-3 shadow-lg border border-slate-100">
+                    <div key={item.category!.id} className="flex items-center justify-between rounded-3xl bg-white p-3 shadow-lg border border-slate-100">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 shrink-0">
                           {categoryIcons[item.category!.id]}
@@ -599,7 +599,7 @@ const ReportPage = () => {
                 <section className="space-y-3">
                   <h3 className="font-bold text-slate-900 px-1">Top chi tiêu</h3>
                   {getTopCategories('Chi').map((item) => (
-                    <div key={item.category!.id} className="flex items-center justify-between rounded-2xl bg-white p-3 shadow-lg border border-slate-100">
+                    <div key={item.category!.id} className="flex items-center justify-between rounded-3xl bg-white p-3 shadow-lg border border-slate-100">
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 shrink-0">
                           {categoryIcons[item.category!.id]}
@@ -620,7 +620,7 @@ const ReportPage = () => {
           <div className="flex justify-center pt-4">
             <button
               onClick={handleExport}
-              className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-3xl bg-blue-500 text-white hover:bg-blue-600"
+              className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-2xl bg-blue-500 text-white hover:bg-blue-600 shadow-lg"
             >
               <FaDownload /> Xuất báo cáo chi tiết
             </button>

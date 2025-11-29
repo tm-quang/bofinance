@@ -38,7 +38,7 @@ export const DateRangeFilter = ({
               key={option.value}
               type="button"
               onClick={() => onRangeTypeChange(option.value)}
-              className={`rounded-xl px-2 py-2 text-xs font-semibold transition-all truncate ${isActive
+              className={`rounded-3xl px-2 py-2 text-xs font-semibold transition-all truncate ${isActive
                 ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md shadow-sky-500/30'
                 : 'bg-white text-slate-600 border border-slate-200 hover:border-sky-300 hover:bg-sky-50'
                 }`}
@@ -55,14 +55,14 @@ export const DateRangeFilter = ({
           }`}
       >
         <div className="min-h-0">
-          <div className="grid grid-cols-2 gap-3 rounded-xl bg-white border border-slate-200 p-3 shadow-sm">
+          <div className="grid grid-cols-2 gap-3 rounded-3xl bg-white border border-slate-200 p-3 shadow-sm">
             <div className="relative">
               <span className="absolute left-3 top-2 text-[10px] text-slate-400 font-semibold uppercase">Từ ngày</span>
               <input
                 type="date"
                 value={startDate || ''}
                 onChange={(e) => onStartDateChange?.(e.target.value)}
-                className="h-12 w-full rounded-lg bg-slate-50 pl-3 pr-3 pt-4 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-sky-100 transition font-medium"
+                className="h-12 w-full rounded-3xl bg-slate-50 pl-3 pr-3 pt-4 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-sky-100 transition font-medium"
               />
             </div>
             <div className="relative">
@@ -71,7 +71,7 @@ export const DateRangeFilter = ({
                 type="date"
                 value={endDate || ''}
                 onChange={(e) => onEndDateChange?.(e.target.value)}
-                className="h-12 w-full rounded-lg bg-slate-50 pl-3 pr-3 pt-4 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-sky-100 transition font-medium"
+                className="h-12 w-full rounded-3xl bg-slate-50 pl-3 pr-3 pt-4 text-xs text-slate-900 outline-none focus:ring-2 focus:ring-sky-100 transition font-medium"
               />
             </div>
           </div>

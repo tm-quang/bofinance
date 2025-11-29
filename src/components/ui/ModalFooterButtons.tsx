@@ -39,7 +39,7 @@ export const ModalFooterButtons: React.FC<ModalFooterButtonsProps> = ({
         <button
           type="button"
           onClick={onCancel}
-          className="flex-1 rounded-xl border-2 border-red-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 hover:border-red-300 disabled:opacity-50 sm:py-3 sm:text-base"
+          className="flex-1 rounded-2xl border-2 border-red-200 bg-slate-50 px-4 py-2.5 text-sm font-semibold text-red-600 transition hover:bg-red-50 hover:border-red-300 disabled:opacity-50 sm:py-3 sm:text-base"
           disabled={isSubmitting || disabled}
         >
           {cancelText}
@@ -48,7 +48,7 @@ export const ModalFooterButtons: React.FC<ModalFooterButtonsProps> = ({
           type={confirmButtonType}
           onClick={confirmButtonType === 'button' ? onConfirm : undefined}
           form={formId}
-          className="flex-1 rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:bg-blue-700 disabled:opacity-50 sm:py-3 sm:text-base whitespace-nowrap min-w-fit"
+          className="flex-1 rounded-2xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:bg-blue-700 disabled:opacity-50 sm:py-3 sm:text-base whitespace-nowrap min-w-fit"
           disabled={isSubmitting || disabled}
         >
           {confirmText}

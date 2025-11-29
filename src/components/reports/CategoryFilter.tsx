@@ -68,7 +68,7 @@ export const CategoryFilter = ({
         key={category.id}
         type="button"
         onClick={() => onCategoryToggle(category.id)}
-        className={`flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-medium transition sm:px-4 sm:py-2.5 sm:text-sm ${
+        className={`flex items-center gap-2 rounded-3xl px-3 py-2 text-xs font-medium transition sm:px-4 sm:py-2.5 sm:text-sm ${
           isSelected
             ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md shadow-sky-500/30'
             : 'bg-white text-slate-700 border border-slate-200 hover:border-sky-300 hover:bg-sky-50'
@@ -83,7 +83,7 @@ export const CategoryFilter = ({
 
   if (useHierarchical && filteredParentCategories.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-xl bg-slate-50 p-6 text-center">
+      <div className="flex flex-col items-center justify-center rounded-3xl bg-slate-50 p-6 text-center">
         <div className="mb-3 rounded-full bg-white p-3">
           <FaFolder className="h-5 w-5 text-slate-400" />
         </div>
@@ -96,7 +96,7 @@ export const CategoryFilter = ({
 
   if (!useHierarchical && filteredCategories.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-xl bg-slate-50 p-6 text-center">
+      <div className="flex flex-col items-center justify-center rounded-3xl bg-slate-50 p-6 text-center">
         <div className="mb-3 rounded-full bg-white p-3">
           <FaFolder className="h-5 w-5 text-slate-400" />
         </div>

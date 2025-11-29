@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
-import { FaCalendar, FaImage, FaWallet, FaArrowDown, FaArrowUp, FaChevronDown, FaTimes, FaClock, FaStar, FaEdit, FaPlus, FaChevronRight, FaCamera, FaMapMarkerAlt, FaUser, FaPhone, FaMoneyBillWave, FaChartLine, FaExternalLinkAlt, FaMicrophone } from 'react-icons/fa'
+import { FaCalendar, FaImage, FaWallet, FaArrowDown, FaArrowUp, FaChevronDown, FaTimes, FaClock, FaStar, FaEdit, FaPlus, FaChevronRight, FaCamera, FaMapMarkerAlt, FaUser, FaPhone, FaMoneyBillWave, FaChartLine, FaExternalLinkAlt, FaMicrophone, FaCalculator } from 'react-icons/fa'
 
 import HeaderBar from '../components/layout/HeaderBar'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
@@ -24,6 +24,7 @@ import { getSupabaseClient } from '../lib/supabaseClient'
 import { formatDateUTC7, getNowUTC7, getDateComponentsUTC7 } from '../utils/dateUtils'
 import { reverseGeocode, isCoordinates, parseCoordinates, getMapsUrl } from '../utils/geocoding'
 import { VoiceTransactionModal } from '../components/transactions/VoiceTransactionModal'
+import { CalculatorModal } from '../components/settings/CalculatorModal'
 
 type TransactionFormState = {
   type: TransactionType
@@ -86,6 +87,7 @@ export const AddTransactionPage = () => {
   const [isGettingLocation, setIsGettingLocation] = useState(false)
   const [locationCoordinates, setLocationCoordinates] = useState<{ lat: number; lng: number } | null>(null)
   const [isVoiceModalOpen, setIsVoiceModalOpen] = useState(false)
+  const [isCalculatorModalOpen, setIsCalculatorModalOpen] = useState(false)
   const cameraInputRef = useRef<HTMLInputElement>(null)
   const galleryInputRef = useRef<HTMLInputElement>(null)
 
@@ -590,6 +592,63 @@ export const AddTransactionPage = () => {
       const message = err instanceof Error ? err.message : (isEditMode ? 'Không thể cập nhật giao dịch' : 'Không thể tạo giao dịch')
       setError(message)
       showError(message)
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  // Hàm submit transaction từ voice input
+  const submitTransactionFromVoice = async (transactionData: {
+    type: 'Thu' | 'Chi'
+    amount: number
+    category_id?: string
+    wallet_id?: string
+    transaction_date?: string
+    description?: string
+  }) => {
+    // Validate required fields
+    if (!transactionData.wallet_id && !defaultWalletId) {
+      showError('Vui lòng chọn ví trước khi ghi âm')
+      return false
+    }
+    if (!transactionData.category_id) {
+      showError('Không thể nhận diện hạng mục. Vui lòng chọn thủ công.')
+      return false
+    }
+    
+    setIsSubmitting(true)
+    try {
+      const finalTransactionDate = transactionData.transaction_date || formatDateUTC7(getNowUTC7())
+      const walletId = transactionData.wallet_id || defaultWalletId || ''
+      
+      const result = await createTransaction({
+        wallet_id: walletId,
+        category_id: transactionData.category_id,
+        type: transactionData.type,
+        amount: transactionData.amount,
+        description: transactionData.description?.trim() || undefined,
+        transaction_date: finalTransactionDate,
+      })
+
+      if (result.budgetWarning) {
+        showError(result.budgetWarning)
+      } else {
+        success(`Đã thêm ${transactionData.type === 'Thu' ? 'khoản thu' : 'khoản chi'} thành công từ giọng nói!`)
+      }
+      
+      // Reload data
+      try {
+        const { queryClient } = await import('../lib/react-query')
+        await queryClient.invalidateQueries({ queryKey: ['fetchWallets'] })
+      } catch (err) {
+        console.error('Error invalidating queries:', err)
+      }
+      
+      return true
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Không thể tạo giao dịch'
+      showError(message)
+      return false
     } finally {
       setIsSubmitting(false)
     }
@@ -1460,19 +1519,27 @@ export const AddTransactionPage = () => {
       <VoiceTransactionModal
         isOpen={isVoiceModalOpen}
         onClose={() => setIsVoiceModalOpen(false)}
-        onSuccess={(transactionData) => {
-          // Điền dữ liệu từ voice vào form
-          setFormState((prev) => ({
-            ...prev,
-            type: transactionData.type,
-            amount: transactionData.amount.toString(),
-            category_id: transactionData.category_id || prev.category_id,
-            wallet_id: transactionData.wallet_id || prev.wallet_id || defaultWalletId,
-            transaction_date: transactionData.transaction_date || prev.transaction_date,
-            description: transactionData.description || prev.description,
-          }))
+        onSuccess={async (transactionData) => {
+          console.log('Voice transaction data received:', transactionData)
+          
           setIsVoiceModalOpen(false)
-          success('Đã nhận diện giao dịch từ giọng nói! Vui lòng kiểm tra và lưu.')
+          
+          // Tự động submit transaction từ voice data
+          const success = await submitTransactionFromVoice(transactionData)
+          
+          if (!success) {
+            // Nếu submit không thành công, điền dữ liệu vào form để người dùng có thể chỉnh sửa và submit thủ công
+            setFormState((prev) => ({
+              ...prev,
+              type: transactionData.type,
+              amount: transactionData.amount.toString(),
+              category_id: transactionData.category_id || prev.category_id,
+              wallet_id: transactionData.wallet_id || prev.wallet_id || defaultWalletId,
+              transaction_date: transactionData.transaction_date || prev.transaction_date,
+              description: transactionData.description || prev.description,
+            }))
+            showError('Không thể tự động lưu. Vui lòng kiểm tra và lưu thủ công.')
+          }
         }}
         categories={categories}
         wallets={wallets}
@@ -1483,13 +1550,32 @@ export const AddTransactionPage = () => {
         <button
           type="button"
           onClick={() => setIsVoiceModalOpen(true)}
-          className="fixed bottom-20 right-5 z-40 flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-2xl transition-all hover:scale-110 active:scale-95 hover:shadow-blue-500/50"
+          className="fixed bottom-32 right-2 z-40 flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-blue-500 to-purple-500 text-white shadow-2xl transition-all hover:scale-110 active:scale-95 hover:shadow-blue-500/50"
           title="Ghi chép bằng giọng nói"
           aria-label="Ghi chép bằng giọng nói"
         >
           <FaMicrophone className="h-5 w-5" />
         </button>
       )}
+
+      {/* Floating Calculator Button */}
+      {!isEditMode && (
+        <button
+          type="button"
+          onClick={() => setIsCalculatorModalOpen(true)}
+          className="fixed bottom-20 right-2 z-40 flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-r from-orange-500 to-red-500 text-white shadow-2xl transition-all hover:scale-110 active:scale-95 hover:shadow-orange-500/50"
+          title="Máy tính cầm tay"
+          aria-label="Máy tính cầm tay"
+        >
+          <FaCalculator className="h-5 w-5" />
+        </button>
+      )}
+
+      {/* Calculator Modal */}
+      <CalculatorModal
+        isOpen={isCalculatorModalOpen}
+        onClose={() => setIsCalculatorModalOpen(false)}
+      />
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useEffect } from 'react'
-import { FaTimes, FaCheckCircle, FaCalendar, FaListUl } from 'react-icons/fa'
+import { FaTimes, FaCheckCircle, FaCalendar, FaListUl, FaStickyNote, FaTasks, FaClipboardList } from 'react-icons/fa'
 import type { TaskRecord } from '../../lib/taskService'
 import type { ReminderRecord } from '../../lib/reminderService'
 import { getDateComponentsUTC7 } from '../../utils/dateUtils'
@@ -13,6 +13,9 @@ type PlanDayModalProps = {
   date: string
   onTaskClick?: (task: TaskRecord) => void
   onReminderClick?: (reminder: ReminderRecord) => void
+  onCreateNote?: (date: string) => void
+  onCreateTask?: (date: string) => void
+  onCreatePlan?: (date: string) => void
   anchorPosition?: { top: number; left: number } // Position of the date button that triggered this modal
 }
 
@@ -24,6 +27,9 @@ export const PlanDayModal = ({
   date, 
   onTaskClick,
   onReminderClick,
+  onCreateNote,
+  onCreateTask,
+  onCreatePlan,
   anchorPosition
 }: PlanDayModalProps) => {
   // Lock body scroll when modal is open
@@ -146,6 +152,59 @@ export const PlanDayModal = ({
             >
               <FaTimes className="h-4 w-4" />
             </button>
+          </div>
+
+          {/* Quick Create Buttons */}
+          <div className="px-4 pt-4 pb-2 border-b border-slate-200">
+            <div className="grid grid-cols-3 gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (onCreateNote) {
+                    onCreateNote(date)
+                  }
+                  onClose()
+                }}
+                className="flex flex-col items-center gap-2 p-3 rounded-xl bg-amber-50 hover:bg-amber-100 border-2 border-amber-200 hover:border-amber-300 transition-all active:scale-95"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-amber-500 text-white">
+                  <FaStickyNote className="h-5 w-5" />
+                </div>
+                <span className="text-xs font-semibold text-amber-700">Ghi chú</span>
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => {
+                  if (onCreateTask) {
+                    onCreateTask(date)
+                  }
+                  onClose()
+                }}
+                className="flex flex-col items-center gap-2 p-3 rounded-xl bg-indigo-50 hover:bg-indigo-100 border-2 border-indigo-200 hover:border-indigo-300 transition-all active:scale-95"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-indigo-500 text-white">
+                  <FaTasks className="h-5 w-5" />
+                </div>
+                <span className="text-xs font-semibold text-indigo-700">Công việc</span>
+              </button>
+              
+              <button
+                type="button"
+                onClick={() => {
+                  if (onCreatePlan) {
+                    onCreatePlan(date)
+                  }
+                  onClose()
+                }}
+                className="flex flex-col items-center gap-2 p-3 rounded-xl bg-purple-50 hover:bg-purple-100 border-2 border-purple-200 hover:border-purple-300 transition-all active:scale-95"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-full bg-purple-500 text-white">
+                  <FaClipboardList className="h-5 w-5" />
+                </div>
+                <span className="text-xs font-semibold text-purple-700">Kế hoạch</span>
+              </button>
+            </div>
           </div>
 
           {/* Content */}

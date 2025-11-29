@@ -21,6 +21,7 @@ import { DashboardTasksSection } from '../components/dashboard/DashboardTasksSec
 import { BudgetAlertsSection } from '../components/dashboard/BudgetAlertsSection'
 import { PlanCalendar } from '../components/dashboard/PlanCalendar'
 import { PlanDayModal } from '../components/dashboard/PlanDayModal'
+import { UnifiedItemModal } from '../components/notesPlans/UnifiedItemModal'
 import { getAllNotifications } from '../lib/notificationService'
 import { CATEGORY_ICON_MAP } from '../constants/categoryIcons'
 import { getIconNodeFromCategory } from '../utils/iconLoader'
@@ -186,6 +187,8 @@ export const DashboardPage = () => {
   const [reminders, setReminders] = useState<ReminderRecord[]>([])
   const [isPlanDayModalOpen, setIsPlanDayModalOpen] = useState(false)
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | undefined>(undefined)
+  const [isUnifiedModalOpen, setIsUnifiedModalOpen] = useState(false)
+  const [editingItem, setEditingItem] = useState<{ type: 'task' | 'reminder' | 'note'; task?: TaskRecord; reminder?: ReminderRecord } | null>(null)
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
   const [isReloading, setIsReloading] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
@@ -1239,6 +1242,44 @@ export const DashboardPage = () => {
         onReminderClick={() => {
           navigate('/notes-plans')
         }}
+        onCreateNote={(date) => {
+          setEditingItem({ type: 'note' })
+          setSelectedCalendarDate(date)
+          setIsPlanDayModalOpen(false)
+          setIsUnifiedModalOpen(true)
+        }}
+        onCreateTask={(date) => {
+          setEditingItem({ type: 'task' })
+          setSelectedCalendarDate(date)
+          setIsPlanDayModalOpen(false)
+          setIsUnifiedModalOpen(true)
+        }}
+        onCreatePlan={(date) => {
+          setEditingItem({ type: 'reminder' })
+          setSelectedCalendarDate(date)
+          setIsPlanDayModalOpen(false)
+          setIsUnifiedModalOpen(true)
+        }}
+      />
+
+      {/* Unified Item Modal for quick create */}
+      <UnifiedItemModal
+        isOpen={isUnifiedModalOpen}
+        onClose={() => {
+          setIsUnifiedModalOpen(false)
+          setEditingItem(null)
+        }}
+        onSuccess={async () => {
+          // Refresh data
+          setRefreshTrigger(prev => prev + 1)
+          setIsUnifiedModalOpen(false)
+          setEditingItem(null)
+        }}
+        editingItem={editingItem}
+        defaultDate={selectedCalendarDate}
+        categories={categories}
+        wallets={wallets}
+        categoryIcons={categoryIcons}
       />
 
       {/* Task Detail Modal */}
