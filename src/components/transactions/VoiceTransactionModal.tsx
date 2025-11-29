@@ -28,7 +28,6 @@ export const VoiceTransactionModal = ({
   const [transcript, setTranscript] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [audioLevel, setAudioLevel] = useState(0)
-  const [frequencyData, setFrequencyData] = useState<number[]>(Array(12).fill(0))
   const animationRef = useRef<number | null>(null)
   const audioContextRef = useRef<AudioContext | null>(null)
   const analyserRef = useRef<AnalyserNode | null>(null)
@@ -82,7 +81,6 @@ export const VoiceTransactionModal = ({
         setTranscript('')
         setError(null)
         setAudioLevel(0)
-        setFrequencyData(Array(12).fill(0))
   }
 
   const startAudioVisualization = async () => {
@@ -133,19 +131,6 @@ export const VoiceTransactionModal = ({
         const normalizedLevel = Math.min(Math.max(combinedLevel / 128, 0), 1) // Normalize to 0-1
         
         setAudioLevel(normalizedLevel)
-        
-        // Extract frequency bins for each bar (12 bars from frequency data)
-        const binsPerBar = Math.floor(dataArray.length / 12)
-        const barData: number[] = []
-        for (let i = 0; i < 12; i++) {
-          let sum = 0
-          for (let j = 0; j < binsPerBar; j++) {
-            sum += dataArray[i * binsPerBar + j] || 0
-          }
-          const avg = sum / binsPerBar
-          barData.push(Math.min(avg / 255, 1)) // Normalize to 0-1
-        }
-        setFrequencyData(barData)
 
         if (isListening) {
           animationRef.current = requestAnimationFrame(animate)
@@ -300,23 +285,6 @@ export const VoiceTransactionModal = ({
                 }}
               />
               
-              {/* Audio bars - Waveform visualization */}
-              <div className="relative flex items-end justify-center gap-1 h-20 w-32">
-                {Array.from({ length: 12 }).map((_, i) => {
-                  const barLevel = frequencyData[i] || 0
-                  const height = Math.max(15, 15 + (barLevel * 65)) // 15% to 80% height
-                  return (
-                    <div
-                      key={i}
-                      className="w-2 bg-gradient-to-t from-blue-500 to-purple-500 rounded-full transition-all duration-100"
-                      style={{
-                        height: `${height}%`,
-                      }}
-                    />
-                  )
-                })}
-              </div>
-
               {/* Microphone icon */}
               <FaMicrophone className="absolute h-8 w-8 text-blue-600 z-10" />
             </div>
@@ -336,7 +304,7 @@ export const VoiceTransactionModal = ({
               </p>
             ) : (
               <p className="text-sm text-slate-400 italic text-center">
-                {isListening ? 'Đang nghe...' : 'Bấm "Chạm để nói" để bắt đầu ghi âm'}
+                {isListening ? 'Đang nghe...' : 'Bấm "Chạm để nói" để bắt đầu ghi âm,'}
               </p>
             )}
           </div>
@@ -372,7 +340,7 @@ export const VoiceTransactionModal = ({
               className="flex-1 rounded-2xl bg-red-500 py-3 text-sm font-semibold text-white shadow-lg hover:bg-red-600 transition flex items-center justify-center gap-2"
             >
               <FaSpinner className="h-4 w-4 animate-spin" />
-              Dừng ghi âm
+              Bấm để dừng
             </button>
           )}
         </div>
