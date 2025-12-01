@@ -59,8 +59,9 @@ html/
 *.bat
 *.cmd
 
-# SQL files
+# SQL files (except main schema file)
 *.sql
+!database_schema.sql
 *.db
 *.sqlite
 *.sqlite3

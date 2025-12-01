@@ -15,6 +15,7 @@ interface ReportFilterModalProps {
     typeFilter: FilterType
     onTypeFilterChange: (type: FilterType) => void
     onReset: () => void
+    onCategoryClick?: (category: CategoryRecord | CategoryWithChildren) => void
 }
 
 export const ReportFilterModal = ({
@@ -28,6 +29,7 @@ export const ReportFilterModal = ({
     typeFilter,
     onTypeFilterChange,
     onReset,
+    onCategoryClick,
 }: ReportFilterModalProps) => {
     if (!isOpen) return null
 
@@ -87,6 +89,7 @@ export const ReportFilterModal = ({
                             onCategoryToggle={onCategoryToggle}
                             onClearAll={onClearCategories}
                             type={typeFilter}
+                            onCategoryClick={onCategoryClick}
                         />
                     </section>
                 </div>

@@ -10,6 +10,7 @@ type CategoryFilterProps = {
   onCategoryToggle: (categoryId: string) => void
   onClearAll: () => void
   type?: 'Thu' | 'Chi' | 'all'
+  onCategoryClick?: (category: CategoryRecord | CategoryWithChildren) => void
 }
 
 export const CategoryFilter = ({
@@ -19,6 +20,7 @@ export const CategoryFilter = ({
   onCategoryToggle,
   onClearAll,
   type = 'all',
+  onCategoryClick,
 }: CategoryFilterProps) => {
   const [expandedParents, setExpandedParents] = useState<Set<string>>(new Set())
 
@@ -60,24 +62,42 @@ export const CategoryFilter = ({
     })
   }
 
-  const renderCategoryButton = (category: CategoryRecord, isChild = false) => {
+  const renderCategoryButton = (category: CategoryRecord | CategoryWithChildren, isChild = false) => {
     const isSelected = selectedCategoryIds.includes(category.id)
+    const hasChildren = 'children' in category && category.children && category.children.length > 0
 
     return (
-      <button
-        key={category.id}
-        type="button"
-        onClick={() => onCategoryToggle(category.id)}
-        className={`flex items-center gap-2 rounded-3xl px-3 py-2 text-xs font-medium transition sm:px-4 sm:py-2.5 sm:text-sm ${
-          isSelected
-            ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md shadow-sky-500/30'
-            : 'bg-white text-slate-700 border border-slate-200 hover:border-sky-300 hover:bg-sky-50'
-        } ${isChild ? 'ml-6' : ''}`}
-      >
-        <CategoryIcon iconId={category.icon_id} iconUrl={category.icon_url} className="h-4 w-4" />
-        <span>{category.name}</span>
-        {isSelected && <FaTimes className="h-3.5 w-3.5" />}
-      </button>
+      <div key={category.id} className="flex items-center gap-2">
+        <button
+          type="button"
+          onClick={() => onCategoryToggle(category.id)}
+          className={`flex items-center gap-2 rounded-3xl px-3 py-2 text-xs font-medium transition sm:px-4 sm:py-2.5 sm:text-sm flex-1 ${
+            isSelected
+              ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md shadow-sky-500/30'
+              : 'bg-white text-slate-700 border border-slate-200 hover:border-sky-300 hover:bg-sky-50'
+          } ${isChild ? 'ml-6' : ''}`}
+        >
+          <CategoryIcon iconId={category.icon_id} iconUrl={category.icon_url} className="h-4 w-4" />
+          <span>{category.name}</span>
+          {hasChildren && !isChild && (
+            <span className="text-xs opacity-70">({category.children!.length})</span>
+          )}
+          {isSelected && <FaTimes className="h-3.5 w-3.5" />}
+        </button>
+        {onCategoryClick && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              onCategoryClick(category)
+            }}
+            className="flex h-8 w-8 items-center justify-center rounded-xl bg-slate-100 text-slate-600 hover:bg-slate-200 transition"
+            title="Xem chi tiết"
+          >
+            <FaChevronRight className="h-3 w-3" />
+          </button>
+        )}
+      </div>
     )
   }
 
@@ -148,7 +168,7 @@ export const CategoryFilter = ({
             </button>
                   )}
                   {!hasChildren && <div className="w-6" />}
-                  {renderCategoryButton(parent, false)}
+                  {renderCategoryButton(parent as CategoryWithChildren, false)}
                 </div>
 
                 {/* Children Categories */}

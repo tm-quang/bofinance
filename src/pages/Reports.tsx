@@ -18,6 +18,7 @@ import { DonutChartWithLegend } from '../components/charts/DonutChartWithLegend'
 import { DateRangeFilter } from '../components/reports/DateRangeFilter'
 import { ReportFilterModal } from '../components/reports/ReportFilterModal'
 import { ExportExcelModal } from '../components/reports/ExportExcelModal'
+import { CategoryDetailModal } from '../components/reports/CategoryDetailModal'
 import { exportTransactionsToExcel, type ExportOptions } from '../utils/exportExcel'
 import { fetchWallets, type WalletRecord } from '../lib/walletService'
 import { useNotification } from '../contexts/notificationContext.helpers'
@@ -124,12 +125,14 @@ const ReportPage = () => {
   const { success, error: showError } = useNotification()
 
   // Data State
-  const [transactions, setTransactions] = useState<TransactionRecord[]>([])
+  const [allTransactions, setAllTransactions] = useState<TransactionRecord[]>([]) // Load all transactions once
+  const [transactions, setTransactions] = useState<TransactionRecord[]>([]) // Filtered transactions
   const [categories, setCategories] = useState<CategoryRecord[]>([])
   const [parentCategories, setParentCategories] = useState<CategoryWithChildren[]>([])
   const [categoryIcons, setCategoryIcons] = useState<Record<string, React.ReactNode>>({})
   const [wallets, setWallets] = useState<WalletRecord[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [isInitialLoad, setIsInitialLoad] = useState(true) // Track initial load
 
   // UI State
   const [activeTab, setActiveTab] = useState<TabType>('overview')
@@ -137,6 +140,8 @@ const ReportPage = () => {
   const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isFilterModalOpen, setIsFilterModalOpen] = useState(false)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
+  const [isCategoryDetailModalOpen, setIsCategoryDetailModalOpen] = useState(false)
+  const [selectedCategoryForDetail, setSelectedCategoryForDetail] = useState<CategoryRecord | CategoryWithChildren | null>(null)
 
   // Filter State
   const [typeFilter, setTypeFilter] = useState<'all' | 'Thu' | 'Chi'>('all')
@@ -150,17 +155,11 @@ const ReportPage = () => {
     [rangeType, customStartDate, customEndDate]
   )
 
-  // Load data
+  // Load all data once on mount (categories, wallets, icons)
   useEffect(() => {
-    const loadData = async () => {
-      setIsLoading(true)
+    const loadStaticData = async () => {
       try {
-        const [transactionsData, categoriesData, hierarchicalCategories, walletsData] = await Promise.all([
-          fetchTransactions({
-            start_date: dateRange.start,
-            end_date: dateRange.end,
-            exclude_from_reports: false,
-          }),
+        const [categoriesData, hierarchicalCategories, walletsData] = await Promise.all([
           fetchCategories(),
           fetchCategoriesHierarchical(),
           fetchWallets(false)
@@ -187,21 +186,67 @@ const ReportPage = () => {
           })
         )
         setCategoryIcons(iconsMap)
-
-        setTransactions(transactionsData)
         setCategories(categoriesData)
         setParentCategories(hierarchicalCategories)
         setWallets(walletsData)
       } catch (err) {
-        console.error('Error loading report data:', err)
+        console.error('Error loading static data:', err)
         showError('Không thể tải dữ liệu báo cáo')
+      }
+    }
+
+    void loadStaticData()
+  }, [showError])
+
+  // Load all transactions once on mount (load last 3 years for better performance)
+  useEffect(() => {
+    const loadAllTransactions = async () => {
+      if (!isInitialLoad) return // Only load once
+      
+      setIsLoading(true)
+      try {
+        // Load transactions from last 3 years to current year
+        const now = getNowUTC7()
+        const components = getDateComponentsUTC7(now)
+        const startYear = components.year - 2 // 3 years: current year + 2 previous years
+        const startOfRange = getFirstDayOfMonthUTC7(startYear, 1)
+        const endOfRange = getLastDayOfMonthUTC7(components.year, 12)
+        
+        const transactionsData = await fetchTransactions({
+          start_date: formatDateUTC7(startOfRange),
+          end_date: formatDateUTC7(endOfRange),
+          exclude_from_reports: false,
+        })
+
+        setAllTransactions(transactionsData)
+        setIsInitialLoad(false)
+      } catch (err) {
+        console.error('Error loading transactions:', err)
+        showError('Không thể tải dữ liệu giao dịch')
       } finally {
         setIsLoading(false)
       }
     }
 
-    void loadData()
-  }, [dateRange.start, dateRange.end, showError])
+    void loadAllTransactions()
+  }, [isInitialLoad, showError])
+
+  // Filter transactions by date range (client-side)
+  useEffect(() => {
+    if (dateRange.start && dateRange.end) {
+      const startDateStr = dateRange.start.split('T')[0]
+      const endDateStr = dateRange.end.split('T')[0]
+      
+      const filtered = allTransactions.filter((t) => {
+        const transactionDateStr = t.transaction_date.split('T')[0]
+        return transactionDateStr >= startDateStr && transactionDateStr <= endDateStr
+      })
+      
+      setTransactions(filtered)
+    } else {
+      setTransactions(allTransactions)
+    }
+  }, [allTransactions, dateRange.start, dateRange.end])
 
   // Filter transactions
   const filteredTransactions = useMemo(() => {
@@ -567,7 +612,14 @@ const ReportPage = () => {
                 <section className="space-y-3">
                   <h3 className="font-bold text-slate-900 px-1">Top nguồn thu</h3>
                   {getTopCategories('Thu').map((item) => (
-                    <div key={item.category!.id} className="flex items-center justify-between rounded-3xl bg-white p-3 shadow-lg border border-slate-100">
+                    <button
+                      key={item.category!.id}
+                      onClick={() => {
+                        setSelectedCategoryForDetail(item.category!)
+                        setIsCategoryDetailModalOpen(true)
+                      }}
+                      className="w-full flex items-center justify-between rounded-3xl bg-white p-3 shadow-lg border border-slate-100 hover:shadow-xl transition-all active:scale-95"
+                    >
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 shrink-0">
                           {categoryIcons[item.category!.id]}
@@ -578,7 +630,7 @@ const ReportPage = () => {
                         </div>
                       </div>
                       <p className="font-bold text-emerald-600">+{formatCurrency(item.amount)}</p>
-                    </div>
+                    </button>
                   ))}
                 </section>
               </>
@@ -599,7 +651,14 @@ const ReportPage = () => {
                 <section className="space-y-3">
                   <h3 className="font-bold text-slate-900 px-1">Top chi tiêu</h3>
                   {getTopCategories('Chi').map((item) => (
-                    <div key={item.category!.id} className="flex items-center justify-between rounded-3xl bg-white p-3 shadow-lg border border-slate-100">
+                    <button
+                      key={item.category!.id}
+                      onClick={() => {
+                        setSelectedCategoryForDetail(item.category!)
+                        setIsCategoryDetailModalOpen(true)
+                      }}
+                      className="w-full flex items-center justify-between rounded-3xl bg-white p-3 shadow-lg border border-slate-100 hover:shadow-xl transition-all active:scale-95"
+                    >
                       <div className="flex items-center gap-3">
                         <div className="h-10 w-10 shrink-0">
                           {categoryIcons[item.category!.id]}
@@ -610,7 +669,7 @@ const ReportPage = () => {
                         </div>
                       </div>
                       <p className="font-bold text-rose-600">-{formatCurrency(item.amount)}</p>
-                    </div>
+                    </button>
                   ))}
                 </section>
               </>
@@ -641,6 +700,11 @@ const ReportPage = () => {
         typeFilter={typeFilter}
         onTypeFilterChange={setTypeFilter}
         onReset={handleResetFilters}
+        onCategoryClick={(category) => {
+          setSelectedCategoryForDetail(category)
+          setIsCategoryDetailModalOpen(true)
+          setIsFilterModalOpen(false)
+        }}
       />
 
       <ExportExcelModal
@@ -654,6 +718,23 @@ const ReportPage = () => {
         }}
         typeFilter={typeFilter}
         categoryIds={selectedCategoryIds}
+      />
+
+      <CategoryDetailModal
+        isOpen={isCategoryDetailModalOpen}
+        onClose={() => {
+          setIsCategoryDetailModalOpen(false)
+          setSelectedCategoryForDetail(null)
+        }}
+        category={selectedCategoryForDetail}
+        transactions={allTransactions}
+        wallets={wallets}
+        dateRange={{
+          start: dateRange.start,
+          end: dateRange.end,
+          type: rangeType,
+        }}
+        allCategories={categories}
       />
     </div>
   )
