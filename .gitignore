@@ -29,9 +29,15 @@ build
 .env.test.local
 *.env
 *.env.local
-# Allow template file
-!.env.example
-!env.template
+env.local
+# Ignore example/template files that might contain sensitive patterns
+*.example
+*.exemple
+*.template
+*.sample
+# Allow only specific template files if needed (uncomment if you want to keep templates)
+# !.env.example
+# !env.template
 
 # Development tools and scripts (not needed for production)
 Tool/
@@ -48,6 +54,42 @@ html/
 
 # Documentation files
 *.md
+
+# Batch files
+*.bat
+*.cmd
+
+# SQL files
+*.sql
+*.db
+*.sqlite
+*.sqlite3
+
+# Security-related files (files containing API keys, secrets, tokens, credentials)
+*key*
+*secret*
+*api*
+*token*
+*credential*
+*password*
+*passwd*
+*auth*
+*private*
+*secure*
+*config.local*
+*settings.local*
+# Common security file patterns
+secrets.json
+credentials.json
+api-keys.json
+config.json
+settings.json
+*.pem
+*.key
+*.cert
+*.crt
+*.p12
+*.pfx
 
 # Editor directories and files
 .vscode/*
