@@ -230,6 +230,9 @@ const SettingsPage = () => {
         console.warn('SignOut error (ignored):', error)
       }
 
+      // Đợi một chút để đảm bảo dialog đóng hoàn toàn trước khi redirect
+      await new Promise(resolve => setTimeout(resolve, 150))
+      
       window.location.replace('/login')
     })
   }

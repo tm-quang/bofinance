@@ -46,13 +46,28 @@ export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
     try {
       const supabase = getSupabaseClient()
 
-      const { error: authError } = await supabase.auth.signInWithPassword({
-        email: formData.email,
+      const { data, error: authError } = await supabase.auth.signInWithPassword({
+        email: formData.email.trim(),
         password: formData.password,
       })
 
+      // Log full response để debug
+      console.log('Login response:', { data: data ? 'session exists' : 'no session', error: authError })
+
       if (authError) {
+        // Log chi tiết error object
+        console.error('Auth error details:', {
+          message: authError.message,
+          status: authError.status,
+          name: authError.name,
+          error: authError,
+        })
         throw authError
+      }
+
+      // Kiểm tra xem có session không
+      if (!data?.session) {
+        throw new Error('Đăng nhập thất bại. Không nhận được session.')
       }
 
       // Save or remove email based on remember me checkbox
@@ -72,10 +87,29 @@ export const LoginForm = ({ onSuccess, onError }: LoginFormProps) => {
       success('Đăng nhập thành công!')
       onSuccess?.(formData.email)
     } catch (error) {
-      const rawMessage =
-        error instanceof Error
-          ? error.message
-          : 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin và thử lại.'
+      // Log chi tiết lỗi để debug
+      console.error('Login error:', error)
+      console.error('Error type:', typeof error)
+      console.error('Error keys:', error && typeof error === 'object' ? Object.keys(error) : 'N/A')
+      
+      let rawMessage = 'Đăng nhập thất bại. Vui lòng kiểm tra lại thông tin và thử lại.'
+      
+      // Xử lý Supabase AuthError
+      if (error && typeof error === 'object') {
+        // Supabase error thường có cấu trúc: { message, status, name, ... }
+        if ('message' in error && typeof error.message === 'string') {
+          rawMessage = error.message
+        } else if ('error' in error && typeof error.error === 'string') {
+          rawMessage = error.error
+        } else if ('statusText' in error && typeof error.statusText === 'string') {
+          rawMessage = error.statusText
+        }
+      } else if (error instanceof Error) {
+        rawMessage = error.message
+      } else if (typeof error === 'string') {
+        rawMessage = error
+      }
+      
       const message = translateAuthError(rawMessage)
       setError(message)
       showError(message)

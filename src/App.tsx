@@ -25,6 +25,7 @@ const NotificationsPage = lazy(() => import('./pages/Notifications'))
 const NotesPlansPage = lazy(() => import('./pages/NotesPlans'))
 const ShoppingListPage = lazy(() => import('./pages/ShoppingList'))
 const AddTransactionPage = lazy(() => import('./pages/AddTransaction'))
+const VoiceToTextPage = lazy(() => import('./pages/VoiceToText'))
 const AddBudgetPage = lazy(() => import('./pages/AddBudget'))
 const LoginPage = lazy(() => import('./pages/Login'))
 const RegisterPage = lazy(() => import('./pages/Register'))
@@ -274,6 +275,14 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <QRResultPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/voice-to-text"
+              element={
+                <ProtectedRoute>
+                  <VoiceToTextPage />
                 </ProtectedRoute>
               }
             />

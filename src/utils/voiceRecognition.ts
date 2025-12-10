@@ -1,135 +1,63 @@
 /**
  * Voice Recognition Utility
- * Sử dụng Web Speech API để nhận diện giọng nói
+ * Wrapper cho Speech Recognition Manager để tương thích với code cũ
+ * 
+ * @deprecated Sử dụng speechRecognitionManager từ src/lib/speechRecognition/SpeechRecognitionManager.ts
+ * File này giữ lại để backward compatibility
  */
+
+import { speechRecognitionManager } from '../lib/speechRecognition/SpeechRecognitionManager'
 
 export interface VoiceRecognitionOptions {
   onResult: (transcript: string) => void
   onError?: (error: Error) => void
   onStart?: () => void
   onEnd?: () => void
-  language?: string // Mặc định 'vi-VN' hoặc 'en-US'
-  continuous?: boolean // Tiếp tục nhận diện sau khi nói xong
+  language?: string
+  continuous?: boolean
 }
 
 export class VoiceRecognitionService {
-  private recognition: any = null
-  private isSupported: boolean = false
-  private isListening: boolean = false
-
-  constructor() {
-    // Kiểm tra browser support
-    if (typeof window !== 'undefined') {
-      const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
-      this.isSupported = !!SpeechRecognition
-
-      if (this.isSupported) {
-        this.recognition = new SpeechRecognition()
-        this.recognition.continuous = false
-        this.recognition.interimResults = false
-        this.recognition.lang = 'vi-VN' // Tiếng Việt
-      }
-    }
-  }
-
   /**
    * Kiểm tra xem browser có hỗ trợ voice recognition không
    */
   isBrowserSupported(): boolean {
-    return this.isSupported
+    return speechRecognitionManager.isSupported()
   }
 
   /**
    * Bắt đầu nhận diện giọng nói
    */
   start(options: VoiceRecognitionOptions): void {
-    if (!this.isSupported) {
-      options.onError?.(new Error('Trình duyệt của bạn không hỗ trợ nhận diện giọng nói. Vui lòng sử dụng Chrome, Edge hoặc Safari.'))
-      return
-    }
-
-    if (this.isListening) {
-      this.stop()
-    }
-
-    this.recognition.lang = options.language || 'vi-VN'
-    this.recognition.continuous = options.continuous || false
-
-    this.recognition.onstart = () => {
-      this.isListening = true
-      options.onStart?.()
-    }
-
-    this.recognition.onresult = (event: any) => {
-      let finalTranscript = ''
-      
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const transcript = event.results[i][0].transcript
-        if (event.results[i].isFinal) {
-          finalTranscript += transcript
+    speechRecognitionManager.start({
+      language: options.language || 'vi-VN',
+      continuous: options.continuous || false,
+      interimResults: false,
+      onResult: (transcript: string, isFinal: boolean) => {
+        if (isFinal) {
+          options.onResult(transcript)
         }
-      }
-
-      if (finalTranscript) {
-        options.onResult(finalTranscript.trim())
-      }
-    }
-
-    this.recognition.onerror = (event: any) => {
-      this.isListening = false
-      let errorMessage = 'Lỗi nhận diện giọng nói'
-      
-      switch (event.error) {
-        case 'no-speech':
-          errorMessage = 'Không phát hiện giọng nói. Vui lòng thử lại.'
-          break
-        case 'audio-capture':
-          errorMessage = 'Không thể truy cập microphone. Vui lòng kiểm tra quyền truy cập.'
-          break
-        case 'not-allowed':
-          errorMessage = 'Quyền truy cập microphone bị từ chối. Vui lòng cấp quyền trong cài đặt trình duyệt.'
-          break
-        case 'network':
-          errorMessage = 'Lỗi kết nối mạng. Vui lòng kiểm tra kết nối.'
-          break
-        default:
-          errorMessage = `Lỗi: ${event.error}`
-      }
-
-      options.onError?.(new Error(errorMessage))
-    }
-
-    this.recognition.onend = () => {
-      this.isListening = false
-      options.onEnd?.()
-    }
-
-    try {
-      this.recognition.start()
-    } catch (error) {
-      options.onError?.(new Error('Không thể bắt đầu nhận diện giọng nói. Vui lòng thử lại.'))
-    }
+      },
+      onError: options.onError,
+      onStart: options.onStart,
+      onEnd: options.onEnd,
+    }).catch((error) => {
+      options.onError?.(error instanceof Error ? error : new Error('Lỗi khởi động nhận diện giọng nói'))
+    })
   }
 
   /**
    * Dừng nhận diện giọng nói
    */
   stop(): void {
-    if (this.recognition && this.isListening) {
-      try {
-        this.recognition.stop()
-      } catch (error) {
-        // Ignore errors when stopping
-      }
-      this.isListening = false
-    }
+    speechRecognitionManager.stop()
   }
 
   /**
    * Kiểm tra trạng thái đang lắng nghe
    */
   getIsListening(): boolean {
-    return this.isListening
+    return speechRecognitionManager.isListening()
   }
 }
 
@@ -167,8 +95,6 @@ function wordToNumber(word: string): string | null {
 /**
  * Parse text từ giọng nói thành danh sách items với số lượng
  * Hỗ trợ cả số và số bằng chữ tiếng Việt
- * Ví dụ: "mua 2 chai nước, 3 gói mì, năm quả táo"
- * => [{name: "chai nước", quantity: "2"}, {name: "gói mì", quantity: "3"}, {name: "quả táo", quantity: "5"}]
  */
 export function parseVoiceInputToItems(text: string): Array<{ name: string; quantity: string }> {
   const items: Array<{ name: string; quantity: string }> = []
@@ -176,19 +102,17 @@ export function parseVoiceInputToItems(text: string): Array<{ name: string; quan
   // Loại bỏ dấu câu và chuẩn hóa
   let normalizedText = text
     .toLowerCase()
-    .replace(/[,，、]/g, ',') // Chuẩn hóa dấu phẩy
-    .replace(/[\.。]/g, '') // Loại bỏ dấu chấm
-    .replace(/\s+/g, ' ') // Chuẩn hóa khoảng trắng
+    .replace(/[,，、]/g, ',')
+    .replace(/[\.。]/g, '')
+    .replace(/\s+/g, ' ')
     .trim()
 
   // Tách theo dấu phẩy hoặc từ khóa
   let parts: string[] = []
   
-  // Tách theo dấu phẩy
   if (normalizedText.includes(',')) {
     parts = normalizedText.split(',').map(p => p.trim()).filter(p => p)
   } else {
-    // Nếu không có dấu phẩy, thử tách theo số hoặc từ khóa
     parts = normalizedText.split(/(?=\s*\d+\s+|\s+(?:một|hai|ba|bốn|năm|sáu|bảy|tám|chín|mười)\s+)/).map(p => p.trim()).filter(p => p)
     if (parts.length === 1) {
       parts = [normalizedText]
@@ -196,10 +120,9 @@ export function parseVoiceInputToItems(text: string): Array<{ name: string; quan
   }
 
   for (const part of parts) {
-    // Loại bỏ các từ khóa không cần thiết ở đầu
     let cleanPart = part.replace(/^(mua|thêm|cho|và|với|cần)\s+/i, '').trim()
 
-    let quantity = '1' // Mặc định là 1
+    let quantity = '1'
     let itemName = cleanPart
 
     // Tìm số bằng chữ tiếng Việt trước
@@ -223,14 +146,11 @@ export function parseVoiceInputToItems(text: string): Array<{ name: string; quan
     const unitPattern = /^(cái|chiếc|chai|gói|hộp|kg|kí|kilo|quả|trái|con|bịch|túi|lon|chén|bát|đĩa|bộ|ly|tách|bình|thùng)\s+/i
     itemName = cleanPart.replace(unitPattern, '').trim()
 
-    // Loại bỏ các từ không cần thiết ở cuối
+    // Loại bỏ các từ không cần thiết
     itemName = itemName.replace(/\s+(và|với|cho|nữa)$/i, '').trim()
-
-    // Loại bỏ các từ không cần thiết ở đầu
     itemName = itemName.replace(/^(và|với|cho|mua|thêm|tôi|cần)\s+/i, '').trim()
 
     if (itemName && itemName.length > 0) {
-      // Viết hoa chữ cái đầu
       const capitalizedName = itemName.charAt(0).toUpperCase() + itemName.slice(1)
       
       items.push({
@@ -242,7 +162,6 @@ export function parseVoiceInputToItems(text: string): Array<{ name: string; quan
 
   // Nếu không tách được, thử tách đơn giản
   if (items.length === 0 && normalizedText) {
-    // Loại bỏ từ khóa "mua"
     const withoutKeyword = normalizedText.replace(/^(mua|thêm|tôi cần|tôi muốn)\s+/i, '').trim()
     
     if (withoutKeyword && withoutKeyword.length > 2) {
@@ -258,4 +177,3 @@ export function parseVoiceInputToItems(text: string): Array<{ name: string; quan
 
 // Export singleton instance
 export const voiceRecognitionService = new VoiceRecognitionService()
-

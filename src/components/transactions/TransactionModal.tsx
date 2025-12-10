@@ -354,10 +354,19 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
   }
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || [])
-    if (files.length === 0) return
-
     try {
+      const files = Array.from(e.target.files || [])
+      if (files.length === 0) {
+        // User cancelled or no files selected - this is normal, just reset input
+        if (e.target === cameraInputRef.current && cameraInputRef.current) {
+          cameraInputRef.current.value = ''
+        }
+        if (e.target === galleryInputRef.current && galleryInputRef.current) {
+          galleryInputRef.current.value = ''
+        }
+        return
+      }
+
       // Compress all images before adding to state
       const compressedFiles = await Promise.all(
         files.map(async (file) => {
@@ -378,12 +387,14 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
 
       // Filter out null values (failed compressions)
       const validFiles = compressedFiles.filter((f): f is File => f !== null)
-      setUploadedFiles((prev) => [...prev, ...validFiles])
+      if (validFiles.length > 0) {
+        setUploadedFiles((prev) => [...prev, ...validFiles])
+      }
     } catch (error) {
       console.error('Error handling files:', error)
       showError('Có lỗi xảy ra khi xử lý ảnh. Vui lòng thử lại.')
     } finally {
-      // Reset input value
+      // Reset input value to allow selecting the same file again
       if (e.target === cameraInputRef.current && cameraInputRef.current) {
         cameraInputRef.current.value = ''
       }
@@ -761,9 +772,14 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
                   <button
                     type="button"
                     onClick={() => {
-                      // Đảm bảo chỉ mở camera
-                      if (cameraInputRef.current) {
-                        cameraInputRef.current.click()
+                      try {
+                        // Đảm bảo chỉ mở camera
+                        if (cameraInputRef.current) {
+                          cameraInputRef.current.click()
+                        }
+                      } catch (error) {
+                        console.error('Error opening camera:', error)
+                        showError('Không thể mở camera. Vui lòng kiểm tra quyền truy cập camera.')
                       }
                     }}
                     className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-medium text-slate-600 transition-all hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"
@@ -775,9 +791,14 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
                   <button
                     type="button"
                     onClick={() => {
-                      // Đảm bảo chỉ mở thư viện
-                      if (galleryInputRef.current) {
-                        galleryInputRef.current.click()
+                      try {
+                        // Đảm bảo chỉ mở thư viện
+                        if (galleryInputRef.current) {
+                          galleryInputRef.current.click()
+                        }
+                      } catch (error) {
+                        console.error('Error opening gallery:', error)
+                        showError('Không thể mở bộ sưu tập. Vui lòng thử lại.')
                       }
                     }}
                     className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 p-4 text-sm font-medium text-slate-600 transition-all hover:border-sky-400 hover:bg-sky-50 hover:text-sky-700"

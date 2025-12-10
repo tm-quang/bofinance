@@ -495,7 +495,13 @@ export const IconManagementModal = ({ isOpen, onClose }: IconManagementModalProp
                     />
                     <button
                       type="button"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => {
+                        try {
+                          fileInputRef.current?.click()
+                        } catch (error) {
+                          console.error('Error opening file picker:', error)
+                        }
+                      }}
                       className="flex items-center gap-2 rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:border-slate-300 transition-all"
                     >
                       <FaImage className="h-5 w-5" />

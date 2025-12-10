@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { FaTimes, FaArrowLeft, FaCalendar, FaClock, FaChevronDown, FaArrowDown, FaArrowUp, FaCheckSquare, FaSquare, FaPlus, FaTrash, FaChartLine } from 'react-icons/fa'
+import { FaTimes, FaArrowLeft, FaCalendar, FaClock, FaChevronDown, FaArrowDown, FaArrowUp, FaCheckSquare, FaSquare, FaPlus, FaTrash, FaChartLine, FaMicrophone } from 'react-icons/fa'
 import { CustomSelect } from '../ui/CustomSelect'
 import { NumberPadModal } from '../ui/NumberPadModal'
 import { DateTimePickerModal } from '../ui/DateTimePickerModal'
@@ -13,6 +13,7 @@ import { formatVNDInput, parseVNDInput } from '../../utils/currencyInput'
 import { formatDateUTC7, getNowUTC7 } from '../../utils/dateUtils'
 import { getIconNode } from '../../utils/iconLoader'
 import { CATEGORY_ICON_MAP } from '../../constants/categoryIcons'
+import { useVoiceInput } from '../../hooks/useVoiceInput'
 
 type ItemType = 'task' | 'reminder' | 'note'
 type EditingItem = {
@@ -119,6 +120,33 @@ export const UnifiedItemModal = ({
   const [taskTagInput, setTaskTagInput] = useState('')
   const [taskSubtasks, setTaskSubtasks] = useState<Subtask[]>([])
   const [taskSubtaskInput, setTaskSubtaskInput] = useState('')
+  
+  // Voice input hook - Quản lý tất cả voice recognition
+  const voiceInput = useVoiceInput({
+    fields: [
+      {
+        id: 'taskTitle',
+        onResult: (text) => setTaskTitle(text),
+      },
+      {
+        id: 'taskDescription',
+        onResult: (text) => setTaskDescription(text),
+      },
+      {
+        id: 'taskSubtask',
+        onResult: (text) => setTaskSubtaskInput(text),
+      },
+      {
+        id: 'reminderTitle',
+        onResult: (text) => setReminderTitle(text),
+      },
+      {
+        id: 'reminderNotes',
+        onResult: (text) => setReminderNotes(text),
+      },
+    ],
+    onError: (error) => showError(error),
+  })
 
   // Reminder/Note form state
   const [reminderType, setReminderType] = useState<ReminderType>('Chi')
@@ -243,6 +271,8 @@ export const UnifiedItemModal = ({
         setTaskTags(task.tags || [])
         setTaskColor(task.color || '#3B82F6')
         setTaskSubtasks(task.subtasks || [])
+        // Reset voice recognition states
+        voiceInput.reset()
       } else if ((editingItem.type === 'reminder' || editingItem.type === 'note') && editingItem.reminder) {
         const reminder = editingItem.reminder
         setReminderType(reminder.type)
@@ -272,6 +302,8 @@ export const UnifiedItemModal = ({
       setTaskColor('#3B82F6')
       setTaskSubtasks([])
       setTaskSubtaskInput('')
+      // Reset voice recognition states
+      voiceInput.reset()
 
       setReminderType('Chi')
       setReminderTitle('')
@@ -535,7 +567,7 @@ export const UnifiedItemModal = ({
                 type="submit"
                 form="unified-item-form"
                 disabled={isSubmitting}
-                className={`rounded-2xl px-5 py-2.5 text-sm font-bold text-white shadow-lg transition-all whitespace-nowrap min-w-fit disabled:opacity-50 disabled:cursor-not-allowed ${
+                className={`rounded-3xl px-5 py-2.5 text-sm font-bold text-white shadow-lg transition-all whitespace-nowrap min-w-fit disabled:opacity-50 disabled:cursor-not-allowed ${
                   itemType === 'task' 
                     ? 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 hover:shadow-xl hover:scale-105 active:scale-95' 
                     : itemType === 'note'
@@ -610,15 +642,29 @@ export const UnifiedItemModal = ({
                   <label htmlFor="task-title" className="mb-1.5 block text-xs font-semibold text-slate-700 sm:text-sm">
                     Tiêu đề <span className="text-rose-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    id="task-title"
-                    value={taskTitle}
-                    onChange={(e) => setTaskTitle(e.target.value)}
-                    placeholder="Nhập tiêu đề công việc..."
-                    className="w-full rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 text-sm font-medium text-slate-900 transition-all placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:shadow-lg sm:p-4"
-                    required
-                  />
+                  <div className="relative">
+                    <input
+                      type="text"
+                      id="task-title"
+                      value={taskTitle}
+                      onChange={(e) => setTaskTitle(e.target.value)}
+                      placeholder="Nhập tiêu đề công việc..."
+                      className="w-full rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 pr-12 text-sm font-medium text-slate-900 transition-all placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:shadow-lg sm:p-4 sm:pr-12"
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={voiceInput.isListening('taskTitle') ? voiceInput.stopListening : () => voiceInput.startListening('taskTitle')}
+                      className={`absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-2 transition-all ${
+                        voiceInput.isListening('taskTitle')
+                          ? 'bg-red-100 text-red-600 animate-pulse'
+                          : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:scale-110 active:scale-95'
+                      }`}
+                      title={voiceInput.isListening('taskTitle') ? 'Dừng nhận diện giọng nói' : 'Nhập bằng giọng nói'}
+                    >
+                      <FaMicrophone className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Description - Common field for all tabs */}
@@ -626,14 +672,28 @@ export const UnifiedItemModal = ({
                   <label htmlFor="task-description" className="mb-1.5 block text-xs font-semibold text-slate-700 sm:text-sm">
                     Mô tả (tùy chọn)
                   </label>
-                  <textarea
-                    id="task-description"
-                    value={taskDescription}
-                    onChange={(e) => setTaskDescription(e.target.value)}
-                    placeholder="Nhập mô tả công việc..."
-                    rows={3}
-                    className="w-full rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 text-sm font-medium text-slate-900 transition-all placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:shadow-lg sm:p-4 resize-none"
-                  />
+                  <div className="relative">
+                    <textarea
+                      id="task-description"
+                      value={taskDescription}
+                      onChange={(e) => setTaskDescription(e.target.value)}
+                      placeholder="Nhập mô tả công việc..."
+                      rows={3}
+                      className="w-full rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 pr-12 text-sm font-medium text-slate-900 transition-all placeholder:text-slate-400 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:shadow-lg sm:p-4 sm:pr-12 resize-none"
+                    />
+                    <button
+                      type="button"
+                      onClick={voiceInput.isListening('taskDescription') ? voiceInput.stopListening : () => voiceInput.startListening('taskDescription')}
+                      className={`absolute right-3 top-3 rounded-full p-2 transition-all ${
+                        voiceInput.isListening('taskDescription')
+                          ? 'bg-red-100 text-red-600 animate-pulse'
+                          : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:scale-110 active:scale-95'
+                      }`}
+                      title={voiceInput.isListening('taskDescription') ? 'Dừng nhận diện giọng nói' : 'Nhập bằng giọng nói'}
+                    >
+                      <FaMicrophone className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Subtasks - Task specific field */}
@@ -665,19 +725,33 @@ export const UnifiedItemModal = ({
                     ))}
 
                     <div className="flex gap-2">
-                      <input
-                        type="text"
-                        value={taskSubtaskInput}
-                        onChange={(e) => setTaskSubtaskInput(e.target.value)}
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') {
-                            e.preventDefault()
-                            handleSubtaskAdd()
-                          }
-                        }}
-                        placeholder="Thêm công việc phụ..."
-                        className="flex-1 rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-slate-50 p-3 text-sm font-medium text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:shadow-lg placeholder:text-slate-400"
-                      />
+                      <div className="relative flex-1">
+                        <input
+                          type="text"
+                          value={taskSubtaskInput}
+                          onChange={(e) => setTaskSubtaskInput(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault()
+                              handleSubtaskAdd()
+                            }
+                          }}
+                          placeholder="Thêm công việc phụ..."
+                          className="w-full rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-slate-50 p-3 pr-12 text-sm font-medium text-slate-900 focus:border-indigo-400 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:shadow-lg placeholder:text-slate-400"
+                        />
+                        <button
+                          type="button"
+                          onClick={voiceInput.isListening('taskSubtask') ? voiceInput.stopListening : () => voiceInput.startListening('taskSubtask')}
+                          className={`absolute right-2 top-1/2 -translate-y-1/2 rounded-full p-1.5 transition-all ${
+                            voiceInput.isListening('taskSubtask')
+                              ? 'bg-red-100 text-red-600 animate-pulse'
+                              : 'bg-indigo-50 text-indigo-600 hover:bg-indigo-100 hover:scale-110 active:scale-95'
+                          }`}
+                          title={voiceInput.isListening('taskSubtask') ? 'Dừng nhận diện giọng nói' : 'Nhập bằng giọng nói'}
+                        >
+                          <FaMicrophone className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
                       <button
                         type="button"
                         onClick={handleSubtaskAdd}
@@ -916,19 +990,35 @@ export const UnifiedItemModal = ({
                   <label htmlFor="reminder-title" className="mb-1.5 block text-xs font-semibold text-slate-700 sm:text-sm">
                     {itemType === 'note' ? 'Tiêu đề ghi chú' : 'Mô tả nhắc nhở'} <span className="text-rose-500">*</span>
                   </label>
-                  <input
-                    type="text"
-                    id="reminder-title"
-                    value={reminderTitle}
-                    onChange={(e) => setReminderTitle(e.target.value)}
-                    placeholder={itemType === 'note' ? 'Nhập tiêu đề ghi chú...' : 'Nhập mô tả nhắc nhở...'}
-                    className={`w-full rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 text-sm font-medium text-slate-900 transition-all placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:shadow-lg sm:p-4 ${
-                      itemType === 'note' 
-                        ? 'focus:border-amber-400 focus:ring-amber-500/20' 
+                  <div className="relative">
+                    <input
+                      type="text"
+                      id="reminder-title"
+                      value={reminderTitle}
+                      onChange={(e) => setReminderTitle(e.target.value)}
+                      placeholder={itemType === 'note' ? 'Nhập tiêu đề ghi chú...' : 'Nhập mô tả nhắc nhở...'}
+                      className={`w-full rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 pr-12 text-sm font-medium text-slate-900 transition-all placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:shadow-lg sm:p-4 sm:pr-12 ${
+                        itemType === 'note' 
+                          ? 'focus:border-amber-400 focus:ring-amber-500/20' 
                         : 'focus:border-emerald-400 focus:ring-emerald-500/20'
                     }`}
-                    required
-                  />
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={voiceInput.isListening('reminderTitle') ? voiceInput.stopListening : () => voiceInput.startListening('reminderTitle')}
+                      className={`absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-2 transition-all ${
+                        voiceInput.isListening('reminderTitle')
+                          ? 'bg-red-100 text-red-600 animate-pulse'
+                          : itemType === 'note'
+                          ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 hover:scale-110 active:scale-95'
+                          : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:scale-110 active:scale-95'
+                      }`}
+                      title={voiceInput.isListening('reminderTitle') ? 'Dừng nhận diện giọng nói' : 'Nhập bằng giọng nói'}
+                    >
+                      <FaMicrophone className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
 
                 {itemType === 'reminder' && (
@@ -1081,18 +1171,34 @@ export const UnifiedItemModal = ({
                   <label htmlFor="reminder-notes" className="mb-1.5 block text-xs font-semibold text-slate-700 sm:text-sm">
                     {itemType === 'note' ? 'Nội dung ghi chú (tùy chọn)' : 'Ghi chú (tùy chọn)'}
                   </label>
-                  <textarea
-                    id="reminder-notes"
-                    value={reminderNotes}
-                    onChange={(e) => setReminderNotes(e.target.value)}
-                    placeholder={itemType === 'note' ? 'Nhập nội dung chi tiết...' : 'Nhập ghi chú...'}
-                    rows={itemType === 'note' ? 4 : 3}
-                    className={`w-full rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 text-sm font-medium text-slate-900 transition-all placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:shadow-lg sm:p-4 resize-none ${
-                      itemType === 'note' 
-                        ? 'focus:border-amber-400 focus:ring-amber-500/20' 
-                        : 'focus:border-emerald-400 focus:ring-emerald-500/20'
-                    }`}
-                  />
+                  <div className="relative">
+                    <textarea
+                      id="reminder-notes"
+                      value={reminderNotes}
+                      onChange={(e) => setReminderNotes(e.target.value)}
+                      placeholder={itemType === 'note' ? 'Nhập nội dung chi tiết...' : 'Nhập ghi chú...'}
+                      rows={itemType === 'note' ? 4 : 3}
+                      className={`w-full rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-slate-50 p-4 pr-12 text-sm font-medium text-slate-900 transition-all placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:shadow-lg sm:p-4 sm:pr-12 resize-none ${
+                        itemType === 'note' 
+                          ? 'focus:border-amber-400 focus:ring-amber-500/20' 
+                          : 'focus:border-emerald-400 focus:ring-emerald-500/20'
+                      }`}
+                    />
+                    <button
+                      type="button"
+                      onClick={voiceInput.isListening('reminderNotes') ? voiceInput.stopListening : () => voiceInput.startListening('reminderNotes')}
+                      className={`absolute right-3 top-3 rounded-full p-2 transition-all ${
+                        voiceInput.isListening('reminderNotes')
+                          ? 'bg-red-100 text-red-600 animate-pulse'
+                          : itemType === 'note'
+                          ? 'bg-amber-50 text-amber-600 hover:bg-amber-100 hover:scale-110 active:scale-95'
+                          : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 hover:scale-110 active:scale-95'
+                      }`}
+                      title={voiceInput.isListening('reminderNotes') ? 'Dừng nhận diện giọng nói' : 'Nhập bằng giọng nói'}
+                    >
+                      <FaMicrophone className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Icon Picker - Common field, positioned after color (same as task) */}

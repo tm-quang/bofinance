@@ -19,7 +19,15 @@ export const DialogProvider = ({ children }: DialogProviderProps) => {
           setIsLoading(true)
           try {
             if (options.onConfirm) {
-              await options.onConfirm()
+              // Bắt đầu chạy callback, sau đó đóng dialog ngay để tránh bị treo khi có redirect
+              const callbackPromise = options.onConfirm()
+              // Đóng dialog ngay sau khi callback bắt đầu (không đợi nó hoàn thành)
+              // Điều này giúp dialog không bị treo khi có window.location.replace
+              setIsOpen(false)
+              // Đợi một chút để animation đóng dialog kịp render
+              await new Promise(resolve => setTimeout(resolve, 50))
+              // Đợi callback hoàn thành
+              await callbackPromise
             }
             resolve(true)
           } catch (error) {

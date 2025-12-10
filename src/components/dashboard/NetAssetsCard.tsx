@@ -33,7 +33,7 @@ export const NetAssetsCard = ({ className = '', refreshTrigger = 0 }: NetAssetsC
   const [income, setIncome] = useState(0)
   const [expense, setExpense] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
-  const [isBalanceHidden, setIsBalanceHidden] = useState(false)
+  const [isBalanceHidden, setIsBalanceHidden] = useState(true) // Mặc định ẩn số dư
 
   useEffect(() => {
     const loadData = async () => {
@@ -182,7 +182,7 @@ export const NetAssetsCard = ({ className = '', refreshTrigger = 0 }: NetAssetsC
                 </p>
                 <button
                   onClick={() => setIsBalanceHidden(!isBalanceHidden)}
-                  className="shrink-0 rounded-lg p-1.5 hover:bg-white/10 transition"
+                  className="shrink-0 rounded-full p-1.5 hover:bg-white/10 transition"
                   title={isBalanceHidden ? 'Hiện số dư' : 'Ẩn số dư'}
                 >
                   {isBalanceHidden ? (
@@ -210,14 +210,14 @@ export const NetAssetsCard = ({ className = '', refreshTrigger = 0 }: NetAssetsC
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-white/70 sm:text-[10px]">Thu nhập</p>
                 <p className="mt-1 break-words text-sm font-bold leading-tight sm:text-base">
-                  {isLoading ? '...' : formatCurrency(income || 0)}
+                  {isLoading ? '...' : isBalanceHidden ? '******' : formatCurrency(income || 0)}
                 </p>
               </div>
               <div className="h-12 w-px shrink-0 bg-white/20" />
               <div className="flex-1 min-w-0 text-right">
                 <p className="text-sm text-white/70 sm:text-[10px]">Chi tiêu</p>
                 <p className="mt-1 break-words text-sm font-bold leading-tight sm:text-base">
-                  {isLoading ? '...' : formatCurrency(expense || 0)}
+                  {isLoading ? '...' : isBalanceHidden ? '******' : formatCurrency(expense || 0)}
                 </p>
               </div>
             </div>

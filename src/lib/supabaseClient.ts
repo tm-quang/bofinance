@@ -79,7 +79,8 @@ export const getSupabaseClient = (): SupabaseClient => {
         detectSessionInUrl: true,
         storage: typeof window !== 'undefined' ? window.localStorage : undefined,
         storageKey: 'bofin-auth-token',
-        flowType: 'pkce', // More secure auth flow
+        // Không set flowType để Supabase tự chọn flow phù hợp
+        // Với signInWithPassword, Supabase sẽ tự động chọn flow tốt nhất
       },
       global: {
         headers: {

@@ -461,7 +461,13 @@ export default function AdminIconImages() {
             </div>
             <div className="flex items-center gap-2">
               <button
-                onClick={() => bulkFileInputRef.current?.click()}
+                onClick={() => {
+                  try {
+                    bulkFileInputRef.current?.click()
+                  } catch (error) {
+                    console.error('Error opening file picker:', error)
+                  }
+                }}
                 className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-500 to-teal-600 px-4 py-2.5 text-white text-sm font-semibold shadow-lg hover:from-emerald-600 hover:to-teal-700 transition-all"
               >
                 <FaImage className="h-4 w-4" />
@@ -571,7 +577,13 @@ export default function AdminIconImages() {
                     />
                     <button
                       type="button"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={() => {
+                        try {
+                          fileInputRef.current?.click()
+                        } catch (error) {
+                          console.error('Error opening file picker:', error)
+                        }
+                      }}
                       className="flex items-center gap-2 rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm font-medium text-slate-700 hover:border-slate-300 transition-all"
                     >
                       <FaImage className="h-5 w-5" />

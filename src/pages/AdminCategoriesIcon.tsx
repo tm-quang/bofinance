@@ -1428,7 +1428,13 @@ export default function AdminCategoriesIcon() {
                   className="hidden"
                 />
                 <button
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => {
+                    try {
+                      fileInputRef.current?.click()
+                    } catch (error) {
+                      console.error('Error opening file picker:', error)
+                    }
+                  }}
                   className="px-6 py-3 bg-sky-500 text-white rounded-lg hover:bg-sky-600 transition flex items-center gap-2"
                 >
                   <FaUpload />

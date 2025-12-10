@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useDataPreloader } from '../hooks/useDataPreloader'
-import { FaPlus, FaPaperPlane, FaCog, FaFolder, FaArrowRight, FaClock, FaTasks, FaShoppingCart } from 'react-icons/fa'
+import { FaPlus, FaPaperPlane, FaCog, FaFolder, FaArrowRight, FaClock, FaTasks, FaShoppingCart, FaMicrophone } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
@@ -123,6 +123,15 @@ const ALL_QUICK_ACTIONS = [
     id: 'shopping-list',
     label: 'Danh sách mua sắm',
     icon: FaShoppingCart,
+    image: '/images/heoBO/heo5.png', // Thêm link ảnh ở đây (tùy chọn)
+    color: 'from-sky-500 to-blue-600',
+    bgColor: 'bg-sky-50',
+    textColor: 'text-sky-700',
+  },
+  {
+    id: 'voice-to-text',
+    label: 'Chuyển giọng nói thành văn bản',
+    icon: FaMicrophone,
     image: '/images/heoBO/heo5.png', // Thêm link ảnh ở đây (tùy chọn)
     color: 'from-sky-500 to-blue-600',
     bgColor: 'bg-sky-50',
@@ -1050,6 +1059,8 @@ export const DashboardPage = () => {
                         navigate('/notes-plans')
                       } else if (id === 'shopping-list') {
                         navigate('/shopping-list')
+                      } else if (id === 'voice-to-text') {
+                        navigate('/voice-to-text')
                       } else if (id === 'reminder') {
                         // Giữ tương thích ngược cho người dùng cũ có thể đã lưu cài đặt cũ
                         navigate('/notes-plans')

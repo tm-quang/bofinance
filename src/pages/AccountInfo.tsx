@@ -90,43 +90,66 @@ const AccountInfoPage = () => {
   }, [avatarPreview])
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-
-    if (!file.type.startsWith('image/')) {
-      setError('Vui lòng chọn file ảnh')
-      return
-    }
-
-    const maxInitialSize = 10 * 1024 * 1024 // 10MB max before compression
-    if (file.size > maxInitialSize) {
-      setError('Kích thước ảnh quá lớn. Vui lòng chọn ảnh nhỏ hơn 10MB')
-      return
-    }
-
-    setIsAvatarProcessing(true)
-    setError(null)
     try {
-      const compressedFile = await compressImageForAvatar(file, 200, 200, 250, 0.8)
-      
-      if (!isFileSizeAcceptable(compressedFile, 250)) {
-        setError('Không thể nén ảnh xuống dưới 250KB. Vui lòng chọn ảnh khác')
+      const file = e.target.files?.[0]
+      if (!file) {
+        // User cancelled or no file selected - this is normal, just reset input
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
         return
       }
 
-      setPendingAvatarFile(compressedFile)
-      const newPreviewUrl = URL.createObjectURL(compressedFile)
-      if (avatarPreview) {
-        URL.revokeObjectURL(avatarPreview)
+      if (!file.type.startsWith('image/')) {
+        setError('Vui lòng chọn file ảnh')
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
+        return
       }
-      setAvatarPreview(newPreviewUrl)
-      success('Ảnh đã sẵn sàng, nhấn "Lưu thay đổi" để cập nhật.')
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Không thể upload avatar'
-      setError(message)
-      showError(message)
-    } finally {
-      setIsAvatarProcessing(false)
+
+      const maxInitialSize = 10 * 1024 * 1024 // 10MB max before compression
+      if (file.size > maxInitialSize) {
+        setError('Kích thước ảnh quá lớn. Vui lòng chọn ảnh nhỏ hơn 10MB')
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
+        return
+      }
+
+      setIsAvatarProcessing(true)
+      setError(null)
+      try {
+        const compressedFile = await compressImageForAvatar(file, 200, 200, 250, 0.8)
+        
+        if (!isFileSizeAcceptable(compressedFile, 250)) {
+          setError('Không thể nén ảnh xuống dưới 250KB. Vui lòng chọn ảnh khác')
+          if (fileInputRef.current) {
+            fileInputRef.current.value = ''
+          }
+          return
+        }
+
+        setPendingAvatarFile(compressedFile)
+        const newPreviewUrl = URL.createObjectURL(compressedFile)
+        if (avatarPreview) {
+          URL.revokeObjectURL(avatarPreview)
+        }
+        setAvatarPreview(newPreviewUrl)
+        success('Ảnh đã sẵn sàng, nhấn "Lưu thay đổi" để cập nhật.')
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Không thể upload avatar'
+        setError(message)
+        showError(message)
+      } finally {
+        setIsAvatarProcessing(false)
+        if (fileInputRef.current) {
+          fileInputRef.current.value = ''
+        }
+      }
+    } catch (error) {
+      console.error('Error handling file change:', error)
+      showError('Có lỗi xảy ra khi xử lý ảnh. Vui lòng thử lại.')
       if (fileInputRef.current) {
         fileInputRef.current.value = ''
       }
@@ -310,7 +333,14 @@ const AccountInfoPage = () => {
                   )}
                   <button
                     type="button"
-                    onClick={() => fileInputRef.current?.click()}
+                    onClick={() => {
+                      try {
+                        fileInputRef.current?.click()
+                      } catch (error) {
+                        console.error('Error opening file picker:', error)
+                        showError('Không thể mở bộ sưu tập. Vui lòng thử lại.')
+                      }
+                    }}
                     disabled={isSubmitting || isAvatarProcessing || isAvatarUploading}
                     className="absolute bottom-0 right-0 flex h-8 w-8 items-center justify-center rounded-full bg-sky-500 text-white shadow-lg transition hover:bg-sky-600 disabled:opacity-50 sm:h-10 sm:w-10"
                   >
