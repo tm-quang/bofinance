@@ -143,7 +143,8 @@ export default defineConfig({
       }
     })
   ],
-  server: (() => {
+  // Server config only for local development, not needed for production build
+  server: process.env.NODE_ENV === 'development' ? (() => {
     const baseConfig = {
       host: '192.168.1.200',
       port: 3000,
@@ -180,5 +181,5 @@ export default defineConfig({
 
     // Default: HTTP
     return baseConfig
-  })(),
+  })() : undefined,
 })
