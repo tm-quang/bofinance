@@ -21,6 +21,13 @@ import { useNotification } from '../../contexts/notificationContext.helpers'
 import { formatVNDInput, parseVNDInput } from '../../utils/currencyInput'
 import { getSupabaseClient } from '../../lib/supabaseClient'
 import { formatDateUTC7, getNowUTC7 } from '../../utils/dateUtils'
+import {
+  isAndroidApp,
+  openNativeCamera,
+  openNativeGallery,
+  setupNativeImageCallback,
+  cleanupNativeCallbacks
+} from '../../utils/androidBridge'
 
 type TransactionModalProps = {
   isOpen: boolean
@@ -132,8 +139,34 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
       }
     }
 
+
     loadData()
   }, [isOpen])
+
+  // Setup native bridge listener for Android
+  useEffect(() => {
+    if (isAndroidApp() && isOpen) {
+      setupNativeImageCallback(async (base64Data) => {
+        try {
+          // Convert base64 to File object
+          const res = await fetch(base64Data);
+          const blob = await res.blob();
+          const file = new File([blob], `native_image_${Date.now()}.jpg`, { type: 'image/jpeg' });
+
+          // Compress and add to state
+          const compressed = await compressImageForTransaction(file, 1200, 1200, 50, 0.7);
+          setUploadedFiles((prev) => [...prev, compressed]);
+        } catch (error) {
+          console.error('Error processing native image:', error);
+          showError('Không thể xử lý ảnh từ thiết bị');
+        }
+      });
+
+      return () => {
+        cleanupNativeCallbacks();
+      };
+    }
+  }, [isOpen]);
 
   // Populate form when editing
   useEffect(() => {
@@ -768,14 +801,19 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
                 />
                 {/* Two buttons: Camera and Gallery - Chức năng cố định */}
                 <div className="grid grid-cols-2 gap-3">
-                  {/* Nút Chụp ảnh - CỐ ĐỊNH: luôn mở camera */}
+                  {/* Nút Chụp ảnh */}
                   <button
                     type="button"
                     onClick={() => {
                       try {
-                        // Đảm bảo chỉ mở camera
-                        if (cameraInputRef.current) {
-                          cameraInputRef.current.click()
+                        if (isAndroidApp()) {
+                          // Use native bridge
+                          openNativeCamera();
+                        } else {
+                          // Web fallback
+                          if (cameraInputRef.current) {
+                            cameraInputRef.current.click()
+                          }
                         }
                       } catch (error) {
                         console.error('Error opening camera:', error)
@@ -787,14 +825,19 @@ export const TransactionModal = ({ isOpen, onClose, onSuccess, defaultType = 'Ch
                     <FaCamera className="h-6 w-6" />
                     <span>Chụp ảnh</span>
                   </button>
-                  {/* Nút Chọn từ thư viện - CỐ ĐỊNH: luôn mở bộ sưu tập */}
+                  {/* Nút Chọn từ thư viện */}
                   <button
                     type="button"
                     onClick={() => {
                       try {
-                        // Đảm bảo chỉ mở thư viện
-                        if (galleryInputRef.current) {
-                          galleryInputRef.current.click()
+                        if (isAndroidApp()) {
+                          // Use native bridge
+                          openNativeGallery();
+                        } else {
+                          // Web fallback
+                          if (galleryInputRef.current) {
+                            galleryInputRef.current.click()
+                          }
                         }
                       } catch (error) {
                         console.error('Error opening gallery:', error)

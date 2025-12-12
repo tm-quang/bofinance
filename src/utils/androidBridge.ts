@@ -9,11 +9,15 @@ declare global {
         Android?: {
             startScan: () => void;
             showToast?: (message: string) => void;
+            openCamera?: () => void;
+            openGallery?: () => void;
         };
         // The global callback function that Android will call
         onNativeScanResult?: (result: string) => void;
         // Global callback for QR code scanned results (can be called by external systems)
         onQRCodeScanned?: (scanResult: string) => void;
+        // Global callback for native image selection results
+        onNativeImageResult?: (base64Data: string) => void;
     }
 }
 
@@ -37,16 +41,40 @@ export const startNativeScan = (): void => {
 };
 
 /**
+ * Trigger the native camera for taking photos
+ */
+export const openNativeCamera = (): void => {
+    if (isAndroidApp() && window.Android?.openCamera) {
+        console.log('Opening native camera...');
+        window.Android.openCamera();
+    } else {
+        console.warn('Android camera interface not found.');
+    }
+};
+
+/**
+ * Trigger the native gallery for selecting photos
+ */
+export const openNativeGallery = (): void => {
+    if (isAndroidApp() && window.Android?.openGallery) {
+        console.log('Opening native gallery...');
+        window.Android.openGallery();
+    } else {
+        console.warn('Android gallery interface not found.');
+    }
+};
+
+/**
  * Setup the global callback for scan results
  * @param callback Function to handle the scanned result
  */
 export const setupNativeScanCallback = (callback: (result: string) => void) => {
     window.onNativeScanResult = (result: string) => {
         console.log('Received native scan result:', result);
-        
+
         // Call the provided callback
         callback(result);
-        
+
         // Also trigger the global onQRCodeScanned function if it exists
         // This ensures external systems can also receive the result
         if (typeof window.onQRCodeScanned === 'function') {
@@ -60,7 +88,28 @@ export const setupNativeScanCallback = (callback: (result: string) => void) => {
 };
 
 /**
- * Cleanup the global callback
+ * Setup the global callback for image results (camera/gallery)
+ * @param callback Function to handle the image result (base64)
+ */
+export const setupNativeImageCallback = (callback: (base64Data: string) => void) => {
+    window.onNativeImageResult = (base64Data: string) => {
+        console.log('Received native image result'); // Don't log full base64 to avoid clutter
+        callback(base64Data);
+    };
+};
+
+/**
+ * Cleanup the global callbacks
+ */
+export const cleanupNativeCallbacks = () => {
+    if (typeof window !== 'undefined') {
+        window.onNativeScanResult = undefined;
+        window.onNativeImageResult = undefined;
+    }
+};
+
+/**
+ * Cleanup the global callback (scan only - deprecated in favor of cleanupNativeCallbacks)
  */
 export const cleanupNativeScanCallback = () => {
     if (typeof window !== 'undefined') {
