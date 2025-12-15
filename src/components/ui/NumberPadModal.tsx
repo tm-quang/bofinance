@@ -14,7 +14,7 @@ const QUICK_VALUES = [10000, 30000, 50000, 100000]
 
 const getNumericValue = (formatted: string) => formatted.replace(/\./g, '')
 
-// Memoized button component for better performance
+// Memoized button component for better performance and responsiveness
 const NumberButton = ({ 
   children, 
   onClick, 
@@ -27,9 +27,11 @@ const NumberButton = ({
   disabled?: boolean
 }) => {
   const buttonRef = useRef<HTMLButtonElement>(null)
+  const touchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const handleTouchStart = useCallback((e: React.TouchEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     if (!disabled && buttonRef.current) {
       buttonRef.current.classList.add('active-touch')
     }
@@ -37,16 +39,37 @@ const NumberButton = ({
 
   const handleTouchEnd = useCallback((e: React.TouchEvent) => {
     e.preventDefault()
+    e.stopPropagation()
+    
+    if (touchTimeoutRef.current) {
+      clearTimeout(touchTimeoutRef.current)
+    }
+    
     if (!disabled) {
+      // Immediate execution for better responsiveness
       onClick()
+    }
+    
+    // Delay removal for visual feedback
+    touchTimeoutRef.current = setTimeout(() => {
+      if (buttonRef.current) {
+        buttonRef.current.classList.remove('active-touch')
+      }
+    }, 100)
+  }, [disabled, onClick])
+
+  const handleTouchCancel = useCallback(() => {
+    if (touchTimeoutRef.current) {
+      clearTimeout(touchTimeoutRef.current)
     }
     if (buttonRef.current) {
       buttonRef.current.classList.remove('active-touch')
     }
-  }, [disabled, onClick])
+  }, [])
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     if (!disabled && buttonRef.current) {
       buttonRef.current.classList.add('active-touch')
     }
@@ -54,6 +77,7 @@ const NumberButton = ({
 
   const handleMouseUp = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
+    e.stopPropagation()
     if (!disabled) {
       onClick()
     }
@@ -68,6 +92,15 @@ const NumberButton = ({
     }
   }, [])
 
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (touchTimeoutRef.current) {
+        clearTimeout(touchTimeoutRef.current)
+      }
+    }
+  }, [])
+
   return (
     <button
       ref={buttonRef}
@@ -75,11 +108,17 @@ const NumberButton = ({
       disabled={disabled}
       onTouchStart={handleTouchStart}
       onTouchEnd={handleTouchEnd}
+      onTouchCancel={handleTouchCancel}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseLeave}
-      className={`touch-manipulation select-none ${className}`}
-      style={{ touchAction: 'manipulation', WebkitTapHighlightColor: 'transparent' }}
+      className={`touch-manipulation select-none active:outline-none focus:outline-none ${className}`}
+      style={{ 
+        touchAction: 'manipulation', 
+        WebkitTapHighlightColor: 'transparent',
+        WebkitUserSelect: 'none',
+        userSelect: 'none'
+      }}
     >
       {children}
     </button>
@@ -164,17 +203,33 @@ export const NumberPadModal = ({ isOpen, onClose, value, onChange, onConfirm }: 
           -webkit-tap-highlight-color: transparent;
           -webkit-touch-callout: none;
           user-select: none;
+          -webkit-user-select: none;
         }
         .active-touch {
-          transform: scale(0.95);
-          opacity: 0.8;
+          transform: scale(0.92) !important;
+          opacity: 0.85 !important;
+          filter: brightness(0.95);
         }
         .number-pad-button {
-          transition: transform 0.1s ease-out, opacity 0.1s ease-out, background-color 0.15s ease-out;
-          will-change: transform, opacity;
+          transition: transform 0.08s cubic-bezier(0.4, 0, 0.2, 1), 
+                      opacity 0.08s cubic-bezier(0.4, 0, 0.2, 1), 
+                      background-color 0.12s cubic-bezier(0.4, 0, 0.2, 1),
+                      filter 0.08s cubic-bezier(0.4, 0, 0.2, 1);
+          will-change: transform, opacity, filter;
+          backface-visibility: hidden;
+          -webkit-backface-visibility: hidden;
+          transform: translateZ(0);
         }
         .number-pad-button:active {
-          transform: scale(0.95);
+          transform: scale(0.92) translateZ(0);
+        }
+        .number-pad-button:hover:not(:disabled) {
+          transform: scale(1.02) translateZ(0);
+        }
+        @media (hover: none) {
+          .number-pad-button:hover:not(:disabled) {
+            transform: translateZ(0);
+          }
         }
       `}</style>
       <div 
@@ -185,27 +240,24 @@ export const NumberPadModal = ({ isOpen, onClose, value, onChange, onConfirm }: 
           }
         }}
       >
-        <div className="flex w-full max-w-md mx-auto max-h-[75vh] flex-col rounded-t-2xl bg-white shadow-2xl overflow-hidden">
+        <div className="flex w-full max-w-md mx-auto max-h-[75vh] flex-col rounded-t-3xl shadow-2xl overflow-hidden" style={{ backgroundColor: '#F2F4F7' }}>
           {/* Header */}
-          <div className="flex shrink-0 items-center justify-between border-b border-slate-200 bg-white px-3 py-2">
+          <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-3 py-2" style={{ backgroundColor: '#F2F4F7' }}>
             <div>
-              <h3 className="text-sm font-bold text-slate-900">Nhập số tiền</h3>
-              <p className="mt-0.5 text-xs text-slate-500">
-                {formattedDisplay} ₫
-              </p>
+              <h3 className="text-lg font-bold text-slate-900">Nhập số tiền</h3>
             </div>
             <button
               type="button"
               onClick={onClose}
-              className="flex h-7 w-7 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200 active:bg-slate-300 active:scale-95 touch-manipulation"
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-colors hover:bg-slate-200 active:bg-slate-300 active:scale-95 touch-manipulation"
               style={{ touchAction: 'manipulation' }}
             >
-              <FaTimes className="h-3.5 w-3.5" />
+              <FaTimes className="h-5 w-5" />
             </button>
           </div>
 
           {/* Display */}
-          <div className="px-3 py-3 bg-slate-50 border-b border-slate-200">
+          <div className="px-3 py-3 border-b border-slate-200" style={{ backgroundColor: '#F2F4F7' }}>
             <div className="text-right">
               <p className="text-2xl font-bold text-slate-900">
                 {formattedDisplay || '0'} <span className="text-base text-slate-500">₫</span>
@@ -219,13 +271,13 @@ export const NumberPadModal = ({ isOpen, onClose, value, onChange, onConfirm }: 
           </div>
 
           {/* Quick Value Buttons */}
-          <div className="px-3 py-2 border-b border-slate-200">
-            <div className="grid grid-cols-4 gap-1.5">
+          <div className="px-3 py-2.5 border-b border-slate-200" style={{ backgroundColor: '#F2F4F7' }}>
+            <div className="grid grid-cols-4 gap-2">
               {QUICK_VALUES.map((quickValue) => (
                 <NumberButton
                   key={quickValue}
                   onClick={() => handleQuickValueClick(quickValue)}
-                  className="number-pad-button rounded-lg bg-slate-100 px-2 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-200"
+                  className="number-pad-button rounded-xl bg-white px-3 py-2.5 text-xs font-bold text-slate-800 shadow-md hover:bg-slate-50 active:shadow-inner"
                 >
                   +{formatVNDInput(quickValue.toString())}
                 </NumberButton>
@@ -234,32 +286,32 @@ export const NumberPadModal = ({ isOpen, onClose, value, onChange, onConfirm }: 
           </div>
 
           {/* Number Pad */}
-          <div className="flex-1 overflow-y-auto px-3 py-3">
-            <div className="grid grid-cols-4 gap-1.5">
+          <div className="flex-1 overflow-y-auto px-3 py-3" style={{ backgroundColor: '#F2F4F7' }}>
+            <div className="grid grid-cols-4 gap-2">
               {/* Row 1: Clear, Divide, Multiply, Backspace */}
               <NumberButton
                 onClick={handleClear}
-                className="number-pad-button rounded-xl bg-emerald-100 px-2 py-3 text-sm font-semibold text-emerald-700 hover:bg-emerald-200"
+                className="number-pad-button rounded-2xl bg-red-400 px-3 py-4 text-base font-bold text-slate-900 shadow-md hover:bg-slate-50 active:shadow-inner"
               >
                 C
               </NumberButton>
               <NumberButton
                 onClick={() => {}}
                 disabled
-                className="rounded-xl bg-blue-100 px-2 py-3 text-sm font-semibold text-blue-700 opacity-50 cursor-not-allowed"
+                className="rounded-2xl bg-blue-400 px-3 py-4 text-base font-bold text-gray-700 shadow-md opacity-90 cursor-not-allowed"
               >
                 ÷
               </NumberButton>
               <NumberButton
                 onClick={() => {}}
                 disabled
-                className="rounded-xl bg-amber-100 px-2 py-3 text-sm font-semibold text-amber-700 opacity-50 cursor-not-allowed"
+                className="rounded-2xl bg-amber-300 px-3 py-4 text-base font-bold text-gray-700 shadow-md opacity-90 cursor-not-allowed"
               >
                 ×
               </NumberButton>
               <NumberButton
                 onClick={handleBackspace}
-                className="number-pad-button rounded-xl bg-slate-100 px-2 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-200"
+                className="number-pad-button rounded-2xl bg-white px-3 py-4 text-base font-bold text-slate-800 shadow-md hover:bg-slate-50 active:shadow-inner"
               >
                 ⌫
               </NumberButton>
@@ -267,26 +319,26 @@ export const NumberPadModal = ({ isOpen, onClose, value, onChange, onConfirm }: 
               {/* Row 2: 7, 8, 9, Minus */}
               <NumberButton
                 onClick={() => handleNumberClick('7')}
-                className="number-pad-button rounded-xl bg-slate-100 px-2 py-3 text-base font-semibold text-slate-900 hover:bg-slate-200"
+                className="number-pad-button rounded-2xl bg-white px-3 py-4 text-xl font-bold text-slate-900 shadow-md hover:bg-slate-50 active:shadow-inner"
               >
                 7
               </NumberButton>
               <NumberButton
                 onClick={() => handleNumberClick('8')}
-                className="number-pad-button rounded-xl bg-slate-100 px-2 py-3 text-base font-semibold text-slate-900 hover:bg-slate-200"
+                className="number-pad-button rounded-2xl bg-white px-3 py-4 text-xl font-bold text-slate-900 shadow-md hover:bg-slate-50 active:shadow-inner"
               >
                 8
               </NumberButton>
               <NumberButton
                 onClick={() => handleNumberClick('9')}
-                className="number-pad-button rounded-xl bg-slate-100 px-2 py-3 text-base font-semibold text-slate-900 hover:bg-slate-200"
+                className="number-pad-button rounded-2xl bg-white px-3 py-4 text-xl font-bold text-slate-900 shadow-md hover:bg-slate-50 active:shadow-inner"
               >
                 9
               </NumberButton>
               <NumberButton
                 onClick={() => {}}
                 disabled
-                className="rounded-xl bg-rose-100 px-2 py-3 text-sm font-semibold text-rose-700 opacity-50 cursor-not-allowed"
+                className="rounded-2xl bg-rose-300 px-3 py-4 text-base font-bold text-gray-700 shadow-md opacity-90 cursor-not-allowed"
               >
                 −
               </NumberButton>
@@ -294,26 +346,26 @@ export const NumberPadModal = ({ isOpen, onClose, value, onChange, onConfirm }: 
               {/* Row 3: 4, 5, 6, Plus */}
               <NumberButton
                 onClick={() => handleNumberClick('4')}
-                className="number-pad-button rounded-xl bg-slate-100 px-2 py-3 text-base font-semibold text-slate-900 hover:bg-slate-200"
+                className="number-pad-button rounded-2xl bg-white px-3 py-4 text-xl font-bold text-slate-900 shadow-md hover:bg-slate-50 active:shadow-inner"
               >
                 4
               </NumberButton>
               <NumberButton
                 onClick={() => handleNumberClick('5')}
-                className="number-pad-button rounded-xl bg-slate-100 px-2 py-3 text-base font-semibold text-slate-900 hover:bg-slate-200"
+                className="number-pad-button rounded-2xl bg-white px-3 py-4 text-xl font-bold text-slate-900 shadow-md hover:bg-slate-50 active:shadow-inner"
               >
                 5
               </NumberButton>
               <NumberButton
                 onClick={() => handleNumberClick('6')}
-                className="number-pad-button rounded-xl bg-slate-100 px-2 py-3 text-base font-semibold text-slate-900 hover:bg-slate-200"
+                className="number-pad-button rounded-2xl bg-white px-3 py-4 text-xl font-bold text-slate-900 shadow-md hover:bg-slate-50 active:shadow-inner"
               >
                 6
               </NumberButton>
               <NumberButton
                 onClick={() => {}}
                 disabled
-                className="rounded-xl bg-emerald-100 px-2 py-3 text-sm font-semibold text-emerald-700 opacity-50 cursor-not-allowed"
+                className="rounded-2xl bg-emerald-300 px-3 py-4 text-base font-bold text-gray-700 shadow-md opacity-90 cursor-not-allowed"
               >
                 +
               </NumberButton>
@@ -321,46 +373,46 @@ export const NumberPadModal = ({ isOpen, onClose, value, onChange, onConfirm }: 
               {/* Row 4: 1, 2, 3, Confirm (spans 2 rows) */}
               <NumberButton
                 onClick={() => handleNumberClick('1')}
-                className="number-pad-button rounded-xl bg-slate-100 px-2 py-3 text-base font-semibold text-slate-900 hover:bg-slate-200"
+                className="number-pad-button rounded-2xl bg-white px-3 py-4 text-xl font-bold text-slate-900 shadow-md hover:bg-slate-50 active:shadow-inner"
               >
                 1
               </NumberButton>
               <NumberButton
                 onClick={() => handleNumberClick('2')}
-                className="number-pad-button rounded-xl bg-slate-100 px-2 py-3 text-base font-semibold text-slate-900 hover:bg-slate-200"
+                className="number-pad-button rounded-2xl bg-white px-3 py-4 text-xl font-bold text-slate-900 shadow-md hover:bg-slate-50 active:shadow-inner"
               >
                 2
               </NumberButton>
               <NumberButton
                 onClick={() => handleNumberClick('3')}
-                className="number-pad-button rounded-xl bg-slate-100 px-2 py-3 text-base font-semibold text-slate-900 hover:bg-slate-200"
+                className="number-pad-button rounded-2xl bg-white px-3 py-4 text-xl font-bold text-slate-900 shadow-md hover:bg-slate-50 active:shadow-inner"
               >
                 3
               </NumberButton>
               <NumberButton
                 onClick={handleConfirm}
-                className="number-pad-button row-span-2 rounded-xl bg-gradient-to-br from-sky-500 to-blue-600 px-2 py-3 text-white shadow-md hover:from-sky-600 hover:to-blue-700 flex items-center justify-center"
+                className="number-pad-button row-span-2 rounded-2xl bg-gradient-to-br from-sky-500 via-blue-500 to-blue-600 px-3 py-4 text-white shadow-lg hover:from-sky-600 hover:via-blue-600 hover:to-blue-700 active:shadow-inner flex items-center justify-center"
               >
-                <FaChevronRight className="h-5 w-5" />
+                <FaChevronRight className="h-6 w-6" />
               </NumberButton>
 
               {/* Row 5: 0, 000, Comma */}
               <NumberButton
                 onClick={() => handleNumberClick('0')}
-                className="number-pad-button rounded-xl bg-slate-100 px-2 py-3 text-base font-semibold text-slate-900 hover:bg-slate-200"
+                className="number-pad-button rounded-2xl bg-white px-3 py-4 text-xl font-bold text-slate-900 shadow-md hover:bg-slate-50 active:shadow-inner"
               >
                 0
               </NumberButton>
               <NumberButton
                 onClick={() => handleNumberClick('000')}
-                className="number-pad-button rounded-xl bg-slate-100 px-2 py-3 text-base font-semibold text-slate-900 hover:bg-slate-200"
+                className="number-pad-button rounded-2xl bg-white px-3 py-4 text-lg font-bold text-slate-900 shadow-md hover:bg-slate-50 active:shadow-inner"
               >
                 000
               </NumberButton>
               <NumberButton
                 onClick={() => {}}
                 disabled
-                className="rounded-xl bg-slate-100 px-2 py-3 text-base font-semibold text-slate-900 opacity-50 cursor-not-allowed"
+                className="rounded-2xl bg-gray-500 px-3 py-4 text-xl font-bold text-white shadow-md opacity-90 cursor-not-allowed"
               >
                 ,
               </NumberButton>

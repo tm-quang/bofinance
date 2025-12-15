@@ -1,15 +1,19 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { speechRecognitionManager } from '../lib/speechRecognition/SpeechRecognitionManager'
 
 export interface VoiceInputField {
   id: string
   onResult: (transcript: string) => void
+  onInterimResult?: (transcript: string) => void
 }
 
 export interface UseVoiceInputOptions {
   fields: VoiceInputField[]
   onError?: (error: string) => void
   language?: string
+  continuous?: boolean
+  autoRestart?: boolean
+  enableVietnameseProcessing?: boolean
 }
 
 export interface VoiceInputControls {
@@ -18,10 +22,13 @@ export interface VoiceInputControls {
   stopListening: () => void
   reset: () => void
   isSupported: boolean
+  interimText: string
+  getInterimText: (fieldId: string) => string
 }
 
 /**
  * Custom hook để quản lý nhận diện giọng nói cho nhiều input fields
+ * Enhanced version với real-time interim results
  * 
  * @param options - Cấu hình cho voice input
  * @returns Controls để quản lý voice recognition
@@ -32,28 +39,49 @@ export interface VoiceInputControls {
  *   fields: [
  *     {
  *       id: 'title',
- *       onResult: (text) => setTitle(text)
+ *       onResult: (text) => setTitle(text),
+ *       onInterimResult: (text) => setInterimTitle(text) // Optional: real-time preview
  *     },
  *     {
  *       id: 'description',
  *       onResult: (text) => setDescription(text)
  *     }
  *   ],
- *   onError: (error) => showError(error)
+ *   onError: (error) => showError(error),
+ *   continuous: true, // Lắng nghe liên tục
+ *   enableVietnameseProcessing: true // Bật xử lý tiếng Việt
  * })
  * 
  * // Sử dụng
  * <button onClick={() => voiceInput.startListening('title')}>
  *   {voiceInput.isListening('title') ? 'Đang nghe...' : 'Bắt đầu'}
  * </button>
+ * 
+ * // Hiển thị interim text
+ * {voiceInput.interimText && (
+ *   <p className="text-gray-400 italic">{voiceInput.interimText}</p>
+ * )}
  * ```
  */
 export const useVoiceInput = (options: UseVoiceInputOptions): VoiceInputControls => {
-  const { fields, onError, language = 'vi-VN' } = options
+  const {
+    fields,
+    onError,
+    language = 'vi-VN',
+    continuous = true,
+    autoRestart = true,
+    enableVietnameseProcessing = true,
+  } = options
 
   // Track listening state cho từng field
   const [listeningStates, setListeningStates] = useState<Record<string, boolean>>({})
-  
+
+  // Track interim text cho từng field
+  const [interimTexts, setInterimTexts] = useState<Record<string, string>>({})
+
+  // Track active field
+  const activeFieldRef = useRef<string | null>(null)
+
   // Check browser support
   const isSupported = speechRecognitionManager.isSupported()
 
@@ -61,14 +89,17 @@ export const useVoiceInput = (options: UseVoiceInputOptions): VoiceInputControls
   const reset = useCallback(() => {
     speechRecognitionManager.stop()
     setListeningStates({})
+    setInterimTexts({})
+    activeFieldRef.current = null
   }, [])
 
-    // Dừng tất cả recognition đang chạy (trừ field được chỉ định)
+  // Dừng tất cả recognition đang chạy (trừ field được chỉ định)
   const stopAllExcept = useCallback((exceptFieldId?: string) => {
     Object.keys(listeningStates).forEach((fieldId) => {
       if (fieldId !== exceptFieldId && listeningStates[fieldId]) {
         speechRecognitionManager.stop()
         setListeningStates((prev) => ({ ...prev, [fieldId]: false }))
+        setInterimTexts((prev) => ({ ...prev, [fieldId]: '' }))
       }
     })
   }, [listeningStates])
@@ -91,42 +122,82 @@ export const useVoiceInput = (options: UseVoiceInputOptions): VoiceInputControls
     // Dừng tất cả recognition khác
     stopAllExcept(fieldId)
 
+    // Set active field
+    activeFieldRef.current = fieldId
+
     // Bắt đầu recognition cho field này
     setListeningStates((prev) => ({ ...prev, [fieldId]: true }))
+    setInterimTexts((prev) => ({ ...prev, [fieldId]: '' }))
 
     speechRecognitionManager.start({
       language,
-      continuous: false,
-      interimResults: false,
-      onResult: (transcript: string, isFinal: boolean) => {
-        if (isFinal) {
-          field.onResult(transcript.trim())
-          setListeningStates((prev) => ({ ...prev, [fieldId]: false }))
+      continuous,
+      interimResults: true,
+      autoRestart,
+      enableVietnameseProcessing,
+
+      // Callback cho interim results (real-time)
+      onInterimResult: (transcript: string) => {
+        if (activeFieldRef.current === fieldId) {
+          setInterimTexts((prev) => ({ ...prev, [fieldId]: transcript }))
+          field.onInterimResult?.(transcript)
         }
       },
+
+      // Callback cho final results
+      onResult: (transcript: string, isFinal: boolean) => {
+        if (activeFieldRef.current !== fieldId) return
+
+        if (isFinal && transcript) {
+          // Clear interim text khi có final result
+          setInterimTexts((prev) => ({ ...prev, [fieldId]: '' }))
+          field.onResult(transcript.trim())
+        } else if (!isFinal) {
+          // Interim result
+          setInterimTexts((prev) => ({ ...prev, [fieldId]: transcript }))
+          field.onInterimResult?.(transcript)
+        }
+      },
+
       onError: (error) => {
         onError?.(error.message)
         setListeningStates((prev) => ({ ...prev, [fieldId]: false }))
+        setInterimTexts((prev) => ({ ...prev, [fieldId]: '' }))
       },
+
       onEnd: () => {
-        setListeningStates((prev) => ({ ...prev, [fieldId]: false }))
+        // Chỉ set false nếu không có auto-restart hoặc manual stop
+        if (!autoRestart || !continuous) {
+          setListeningStates((prev) => ({ ...prev, [fieldId]: false }))
+        }
       },
     }).catch((error) => {
       onError?.(error instanceof Error ? error.message : 'Lỗi khởi động nhận diện giọng nói')
       setListeningStates((prev) => ({ ...prev, [fieldId]: false }))
+      setInterimTexts((prev) => ({ ...prev, [fieldId]: '' }))
     })
-  }, [fields, isSupported, language, onError, stopAllExcept])
+  }, [fields, isSupported, language, continuous, autoRestart, enableVietnameseProcessing, onError, stopAllExcept])
 
   // Dừng recognition cho tất cả fields
   const stopListening = useCallback(() => {
     speechRecognitionManager.stop()
     setListeningStates({})
+    setInterimTexts({})
+    activeFieldRef.current = null
   }, [])
 
   // Kiểm tra xem một field có đang lắng nghe không
   const isListening = useCallback((fieldId: string): boolean => {
     return listeningStates[fieldId] === true
   }, [listeningStates])
+
+  // Lấy interim text cho một field cụ thể
+  const getInterimText = useCallback((fieldId: string): string => {
+    return interimTexts[fieldId] || ''
+  }, [interimTexts])
+
+  // Lấy interim text của active field
+  const currentInterimText = activeFieldRef.current ? (interimTexts[activeFieldRef.current] || '') : ''
 
   // Cleanup khi unmount
   useEffect(() => {
@@ -141,6 +212,7 @@ export const useVoiceInput = (options: UseVoiceInputOptions): VoiceInputControls
     stopListening,
     reset,
     isSupported,
+    interimText: currentInterimText,
+    getInterimText,
   }
 }
-

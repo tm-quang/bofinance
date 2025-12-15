@@ -1,19 +1,28 @@
 /**
- * Speech Recognition Manager
+ * Speech Recognition Manager - Enhanced Version
  * Quản lý và chọn provider tốt nhất, với fallback và post-processing
+ * - Tích hợp VietnameseTextProcessor cho xử lý tiếng Việt
+ * - Hỗ trợ real-time interim results
  */
 
 import type { ISpeechProvider, SpeechRecognitionOptions } from './ISpeechProvider'
-import { WebSpeechProvider } from './WebSpeechProvider'
+import { WebSpeechProvider, type EnhancedSpeechOptions } from './WebSpeechProvider'
 import { OpenAIWhisperProvider } from './OpenAIWhisperProvider'
+import { vietnameseTextProcessor } from './VietnameseTextProcessor'
 
 export type ProviderType = 'auto' | 'web-speech' | 'openai-whisper'
+
+export interface EnhancedManagerOptions extends SpeechRecognitionOptions {
+  onInterimResult?: (transcript: string) => void
+  enableVietnameseProcessing?: boolean
+  autoRestart?: boolean
+}
 
 export class SpeechRecognitionManager {
   private providers: Map<string, ISpeechProvider> = new Map()
   private currentProvider: ISpeechProvider | null = null
-  // @ts-ignore - Reserved for future provider selection
   private preferredProvider: ProviderType = 'auto'
+  private enableVietnameseProcessing: boolean = true
 
   constructor() {
     // Đăng ký các providers
@@ -78,6 +87,13 @@ export class SpeechRecognitionManager {
   }
 
   /**
+   * Bật/tắt xử lý tiếng Việt
+   */
+  setVietnameseProcessing(enabled: boolean): void {
+    this.enableVietnameseProcessing = enabled
+  }
+
+  /**
    * Lấy provider hiện tại
    */
   getCurrentProvider(): ISpeechProvider | null {
@@ -92,6 +108,13 @@ export class SpeechRecognitionManager {
   }
 
   /**
+   * Lấy loại provider ưa thích
+   */
+  getPreferredProvider(): ProviderType {
+    return this.preferredProvider
+  }
+
+  /**
    * Kiểm tra xem có provider nào được hỗ trợ không
    */
   isSupported(): boolean {
@@ -101,22 +124,47 @@ export class SpeechRecognitionManager {
   /**
    * Bắt đầu nhận diện giọng nói với provider hiện tại
    */
-  async start(options: SpeechRecognitionOptions): Promise<void> {
+  async start(options: EnhancedManagerOptions): Promise<void> {
     if (!this.currentProvider) {
       throw new Error('Không có speech recognition provider nào khả dụng')
     }
 
+    const useVietnamese = options.enableVietnameseProcessing !== false && this.enableVietnameseProcessing
+
     // Enhanced options với post-processing
-    const enhancedOptions: SpeechRecognitionOptions = {
+    const enhancedOptions: EnhancedSpeechOptions = {
       ...options,
+      continuous: options.continuous !== false, // Mặc định true
+      interimResults: options.interimResults !== false, // Mặc định true
+      autoRestart: options.autoRestart !== false, // Mặc định true
+
+      // Xử lý interim results
+      onInterimResult: (transcript: string) => {
+        if (useVietnamese) {
+          const processed = vietnameseTextProcessor.processInterim(transcript)
+          options.onInterimResult?.(processed)
+        } else {
+          options.onInterimResult?.(transcript)
+        }
+      },
+
+      // Xử lý final results
       onResult: (transcript: string, isFinal: boolean) => {
-        // Post-process transcript
-        const processed = this.postProcess(transcript, this.currentProvider!)
-        
-        if (isFinal && processed) {
-          options.onResult?.(processed, true)
-        } else if (!isFinal) {
-          options.onResult?.(transcript, false)
+        if (isFinal) {
+          // Post-process transcript hoàn chỉnh
+          const processed = useVietnamese
+            ? vietnameseTextProcessor.process(transcript)
+            : this.basicPostProcess(transcript)
+
+          if (processed) {
+            options.onResult?.(processed, true)
+          }
+        } else {
+          // Interim result - xử lý nhẹ
+          const processed = useVietnamese
+            ? vietnameseTextProcessor.processInterim(transcript)
+            : transcript
+          options.onResult?.(processed, false)
         }
       },
     }
@@ -139,44 +187,31 @@ export class SpeechRecognitionManager {
   }
 
   /**
-   * Post-process transcript để cải thiện độ chính xác
+   * Post-processing cơ bản (không dùng Vietnamese processor)
    */
-  private postProcess(text: string, _provider: ISpeechProvider): string {
+  private basicPostProcess(text: string): string {
     let processed = text.trim()
 
     // 1. Chuẩn hóa khoảng trắng
     processed = processed.replace(/\s+/g, ' ').trim()
 
-    // 2. Sửa lỗi phổ biến với tiếng Việt
-    const commonMistakes: Record<string, string> = {
-      // Lỗi dấu câu
+    // 2. Sửa lỗi dấu câu cơ bản
+    const punctuationFixes: Record<string, string> = {
       ' ,': ',',
       ' .': '.',
       ' :': ':',
       ' ;': ';',
-      // Lỗi từ phổ biến
-      'được rồi': 'được rồi',
-      'không được': 'không được',
-      'được không': 'được không',
-      // Lỗi số
-      ' một ': ' 1 ',
-      ' hai ': ' 2 ',
-      ' ba ': ' 3 ',
-      ' bốn ': ' 4 ',
-      ' năm ': ' 5 ',
+      ' !': '!',
+      ' ?': '?',
     }
 
-    // Apply corrections
-    Object.entries(commonMistakes).forEach(([wrong, correct]) => {
-      processed = processed.replace(new RegExp(wrong, 'gi'), correct)
+    Object.entries(punctuationFixes).forEach(([wrong, correct]) => {
+      processed = processed.replace(new RegExp(wrong.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'), correct)
     })
 
     // 3. Capitalize đầu câu
-    processed = processed.charAt(0).toUpperCase() + processed.slice(1)
-
-    // 4. Thêm dấu câu nếu thiếu (heuristic)
-    if (processed.length > 0 && !/[.!?]$/.test(processed)) {
-      // Có thể thêm logic phức tạp hơn ở đây
+    if (processed.length > 0) {
+      processed = processed.charAt(0).toUpperCase() + processed.slice(1)
     }
 
     return processed
@@ -187,7 +222,7 @@ export class SpeechRecognitionManager {
    */
   getAvailableProviders(): Array<{ type: string; name: string; accuracy: number; speed: number; supported: boolean }> {
     const result: Array<{ type: string; name: string; accuracy: number; speed: number; supported: boolean }> = []
-    
+
     this.providers.forEach((provider, type) => {
       result.push({
         type,
@@ -200,8 +235,14 @@ export class SpeechRecognitionManager {
 
     return result
   }
+
+  /**
+   * Lấy Vietnamese Text Processor để truy cập trực tiếp nếu cần
+   */
+  getTextProcessor() {
+    return vietnameseTextProcessor
+  }
 }
 
 // Export singleton instance
 export const speechRecognitionManager = new SpeechRecognitionManager()
-

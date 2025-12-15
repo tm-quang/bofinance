@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FaPlus, FaEdit, FaTrash, FaWallet, FaCalculator, FaArrowLeft } from 'react-icons/fa'
+import { createPortal } from 'react-dom'
+import { FaPlus, FaWallet, FaCalculator, FaEdit, FaTrash, FaChevronDown, FaCheck } from 'react-icons/fa'
 import { useDataPreloader } from '../hooks/useDataPreloader'
 
 import FooterNav from '../components/layout/FooterNav'
@@ -10,6 +11,8 @@ import { WalletListSkeleton } from '../components/skeletons'
 import { ModalFooterButtons } from '../components/ui/ModalFooterButtons'
 import { LoadingRing } from '../components/ui/LoadingRing'
 import { ConfirmDialog } from '../components/ui/ConfirmDialog'
+import { WalletTransferModal } from '../components/wallets/WalletTransferModal'
+import { WalletCardItem } from '../components/wallets/WalletCardItem'
 import {
   fetchWallets,
   createWallet,
@@ -20,6 +23,8 @@ import {
   type WalletRecord,
   type WalletType,
 } from '../lib/walletService'
+import { getLatestBalanceHistory, createBalanceHistory } from '../lib/walletBalanceHistoryService'
+import { transferWalletBalance } from '../lib/walletTransferService'
 import { useNotification } from '../contexts/notificationContext.helpers'
 import { useDialog } from '../contexts/dialogContext.helpers'
 import { formatVNDInput, parseVNDInput } from '../utils/currencyInput'
@@ -116,6 +121,22 @@ export const WalletsPage = () => {
   const [showHiddenWallets, setShowHiddenWallets] = useState(false)
   const [isNumberPadOpen, setIsNumberPadOpen] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [isWalletTypeDropdownOpen, setIsWalletTypeDropdownOpen] = useState(false)
+  const walletTypeButtonRef = useRef<HTMLButtonElement>(null)
+  const walletTypeDropdownRef = useRef<HTMLDivElement>(null)
+  const [walletTypeDropdownPosition, setWalletTypeDropdownPosition] = useState<{
+    top: number
+    left: number
+    width: number
+    maxHeight: number
+  }>({ top: 0, left: 0, width: 0, maxHeight: 400 })
+  const [transferModal, setTransferModal] = useState<{
+    isOpen: boolean
+    sourceWallet: WalletRecord | null
+  }>({
+    isOpen: false,
+    sourceWallet: null,
+  })
   const [confirmToggleBalance, setConfirmToggleBalance] = useState<{
     isOpen: boolean
     wallet: WalletRecord | null
@@ -124,6 +145,24 @@ export const WalletsPage = () => {
     isOpen: false,
     wallet: null,
     isEnabling: false,
+  })
+  const [confirmSyncBalance, setConfirmSyncBalance] = useState<{
+    isOpen: boolean
+    wallet: WalletRecord | null
+    oldBalance: number
+    newBalance: number
+  }>({
+    isOpen: false,
+    wallet: null,
+    oldBalance: 0,
+    newBalance: 0,
+  })
+  const [balanceHistory, setBalanceHistory] = useState<{
+    oldBalance: number | null
+    historyId: string | null
+  }>({
+    oldBalance: null,
+    historyId: null,
   })
   const [formData, setFormData] = useState({
     name: '',
@@ -181,7 +220,7 @@ export const WalletsPage = () => {
     }
   }
 
-  const handleOpenForm = (wallet?: WalletRecord) => {
+  const handleOpenForm = async (wallet?: WalletRecord) => {
     if (wallet) {
       setEditingWallet(wallet)
       setFormData({
@@ -191,6 +230,21 @@ export const WalletsPage = () => {
         currency: wallet.currency,
         description: wallet.description || '',
       })
+      // Load lịch sử số dư gần nhất để có thể hoàn tác
+      try {
+        const latestHistory = await getLatestBalanceHistory(wallet.id)
+        if (latestHistory) {
+          setBalanceHistory({
+            oldBalance: latestHistory.old_balance,
+            historyId: latestHistory.id,
+          })
+        } else {
+          setBalanceHistory({ oldBalance: null, historyId: null })
+        }
+      } catch (error) {
+        console.error('Error loading balance history:', error)
+        setBalanceHistory({ oldBalance: null, historyId: null })
+      }
     } else {
       setEditingWallet(null)
       setFormData({
@@ -200,6 +254,7 @@ export const WalletsPage = () => {
         currency: 'VND',
         description: '',
       })
+      setBalanceHistory({ oldBalance: null, historyId: null })
     }
     setIsFormOpen(true)
   }
@@ -208,6 +263,7 @@ export const WalletsPage = () => {
     setIsFormOpen(false)
     setEditingWallet(null)
     setIsNumberPadOpen(false)
+    setIsWalletTypeDropdownOpen(false)
   }
 
   // Lock body scroll when form modal is open
@@ -248,12 +304,43 @@ export const WalletsPage = () => {
     setIsSubmitting(true)
     try {
       if (editingWallet) {
+        const oldBalance = editingWallet.balance
+        const balanceChanged = oldBalance !== balance
+
         await updateWallet(editingWallet.id, {
           name: formData.name.trim(),
           balance,
           currency: formData.currency,
           description: formData.description.trim() || undefined,
         })
+
+        // Lưu lịch sử thay đổi số dư nếu có thay đổi
+        if (balanceChanged) {
+          // Xác định loại thay đổi: sync nếu có balanceHistory.oldBalance (đã đồng bộ), manual nếu không
+          const changeType = balanceHistory.oldBalance !== null ? 'sync' : 'manual'
+
+          try {
+            await createBalanceHistory({
+              wallet_id: editingWallet.id,
+              old_balance: oldBalance,
+              new_balance: balance,
+              change_type: changeType,
+              description: changeType === 'sync'
+                ? `Đồng bộ số dư từ giao dịch. Số dư cũ: ${oldBalance.toLocaleString('vi-VN')} ₫, Số dư mới: ${balance.toLocaleString('vi-VN')} ₫`
+                : `Cập nhật thủ công số dư. Số dư cũ: ${oldBalance.toLocaleString('vi-VN')} ₫, Số dư mới: ${balance.toLocaleString('vi-VN')} ₫`,
+            })
+
+            // Cập nhật lịch sử để có thể hoàn tác
+            setBalanceHistory({
+              oldBalance,
+              historyId: null,
+            })
+          } catch (historyError) {
+            // Lỗi lịch sử không ảnh hưởng đến việc cập nhật ví
+            console.warn('Không thể lưu lịch sử số dư (có thể do RLS policy chưa được cấu hình):', historyError)
+          }
+        }
+
         success('Đã cập nhật ví thành công!')
       } else {
         await createWallet({
@@ -443,6 +530,30 @@ export const WalletsPage = () => {
     }
   }
 
+  const handleOpenTransferModal = (wallet: WalletRecord) => {
+    setTransferModal({
+      isOpen: true,
+      sourceWallet: wallet,
+    })
+  }
+
+  const handleCloseTransferModal = () => {
+    setTransferModal({
+      isOpen: false,
+      sourceWallet: null,
+    })
+  }
+
+  const handleTransfer = async (sourceWalletId: string, targetWalletId: string, amount: number) => {
+    await transferWalletBalance(sourceWalletId, targetWalletId, amount)
+    success(`Đã chuyển đổi ${new Intl.NumberFormat('vi-VN', {
+      style: 'currency',
+      currency: 'VND',
+      maximumFractionDigits: 0,
+    }).format(amount)} thành công!`)
+    await loadWallets()
+  }
+
   return (
     <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
       <HeaderBar variant="page" title="VÍ CỦA BẠN" />
@@ -452,7 +563,7 @@ export const WalletsPage = () => {
           {/* Add button */}
           <button
             onClick={() => handleOpenForm()}
-            className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-6 py-4 font-semibold text-white shadow-lg shadow-sky-500/30 transition hover:from-sky-600 hover:to-blue-700 hover:shadow-xl active:scale-95"
+            className="flex items-center justify-center gap-2 rounded-3xl bg-gradient-to-r from-sky-500 to-blue-600 px-6 py-4 font-semibold text-white shadow-lg shadow-sky-500/30 transition hover:from-sky-600 hover:to-blue-700 hover:shadow-xl active:scale-95"
           >
             <FaPlus className="h-5 w-5" />
             Thêm ví mới
@@ -492,145 +603,24 @@ export const WalletsPage = () => {
                     {activeWallets.map((wallet) => {
                       const colors = getWalletTypeColors(wallet.type)
                       const isNegative = wallet.balance < 0
+                      const availableWalletsCount = wallets.filter((w) => w.id !== wallet.id && w.is_active).length
 
                       return (
-                        <div key={wallet.id} className="relative">
-                          <div
-                            className={`relative h-56 w-full overflow-hidden rounded-3xl bg-gradient-to-br ${colors.bg} p-5 ring-2 ${colors.border} ${colors.shadow} ring-1 transition-all duration-300 ${!wallet.is_active ? 'opacity-60' : ''}`}
-                          >
-
-                            {/* Decorative patterns - Kiểu ATM card hiện đại */}
-                            <div className="absolute inset-0 overflow-hidden rounded-3xl">
-                              {/* Geometric patterns - Blur circles */}
-                              <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-white/5 blur-2xl"></div>
-                              <div className="absolute -right-8 top-1/2 h-32 w-32 rounded-full bg-white/5 blur-xl"></div>
-                              <div className="absolute right-0 bottom-0 h-24 w-24 rounded-full bg-white/5 blur-lg"></div>
-                              <div className="absolute -left-12 bottom-0 h-36 w-36 rounded-full bg-white/5 blur-2xl"></div>
-
-                              {/* Wave patterns - Đường viền mờ dưới nền */}
-                              <svg className="absolute bottom-0 left-0 w-full opacity-15" viewBox="0 0 400 180" preserveAspectRatio="none">
-                                <path
-                                  d="M0,120 Q100,60 200,120 T400,120 L400,180 L0,180 Z"
-                                  fill="white"
-                                />
-                                <path
-                                  d="M0,150 Q150,90 300,150 T400,150 L400,180 L0,180 Z"
-                                  fill="white"
-                                  opacity="0.6"
-                                />
-                              </svg>
-
-                              {/* Thêm đường viền mờ thứ 2 */}
-                              <svg className="absolute bottom-0 left-0 w-full opacity-10" viewBox="0 0 400 180" preserveAspectRatio="none">
-                                <path
-                                  d="M0,100 Q120,40 240,100 T400,100 L400,180 L0,180 Z"
-                                  fill="white"
-                                  opacity="0.5"
-                                />
-                              </svg>
-
-                              {/* Thêm đường viền mờ thứ 3 */}
-                              <svg className="absolute bottom-0 left-0 w-full opacity-8" viewBox="0 0 400 180" preserveAspectRatio="none">
-                                <path
-                                  d="M0,130 Q80,70 160,130 T400,130 L400,180 L0,180 Z"
-                                  fill="white"
-                                  opacity="0.4"
-                                />
-                              </svg>
-
-                              {/* Logo mờ ở giữa 1/3 bên phải */}
-                              <WalletLogo className="h-32 w-32 object-contain" />
-                            </div>
-
-                            <div className="relative z-10 flex h-full flex-col justify-between">
-                              {/* Top section */}
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-center gap-2">
-                                    <h3 className={`truncate text-lg font-bold ${colors.text}`}>{wallet.name}</h3>
-                                    {!wallet.is_active && (
-                                      <span className="shrink-0 rounded-full bg-white/20 px-2 py-0.5 text-xs text-white/80 backdrop-blur-sm">
-                                        Đã ẩn
-                                      </span>
-                                    )}
-                                  </div>
-                                  <p className={`mt-1 text-sm font-medium ${colors.text} opacity-70`}>{wallet.type}</p>
-                                  <p className={`mt-2 text-2xl font-bold ${isNegative ? 'text-rose-300' : colors.text}`}>
-                                    {formatCurrency(wallet.balance)}
-                                  </p>
-                                </div>
-                                <div className="flex shrink-0 gap-2" onClick={(e) => e.stopPropagation()}>
-                                  <button
-                                    onClick={() => handleOpenForm(wallet)}
-                                    className="rounded-full p-2 text-white/70 transition hover:bg-white/20 hover:text-white"
-                                  >
-                                    <FaEdit className="h-5 w-5" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDelete(wallet.id)}
-                                    className="rounded-full p-2 text-white/70 transition hover:bg-white/20 hover:text-rose-300"
-                                  >
-                                    <FaTrash className="h-5 w-5" />
-                                  </button>
-                                </div>
-                              </div>
-
-                              {/* Description section - luôn có không gian */}
-                              <div className="mt-3 min-h-[2.5rem]">
-                                <div className="flex items-start justify-between gap-2">
-                                  {wallet.description ? (
-                                    <p className={`flex-1 line-clamp-2 text-xs leading-relaxed ${colors.text} opacity-60`}>
-                                      {wallet.description}
-                                    </p>
-                                  ) : (
-                                    <div className="flex-1 h-10"></div>
-                                  )}
-                                  <span className={`shrink-0 text-[10px] font-medium ${colors.text} opacity-60`}>
-                                    Ngày tạo ví: {formatDate(wallet.created_at)}
-                                  </span>
-                                </div>
-                              </div>
-
-                              {/* Bottom section */}
-                              <div className={`mt-auto flex items-center justify-between border-t ${colors.text} border-opacity-20 pt-4`}>
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation()
-                                    handleToggleActive(wallet)
-                                  }}
-                                  className={`rounded-full px-4 py-2 text-xs font-semibold transition ${wallet.is_active
-                                    ? 'bg-white/20 text-white hover:bg-white/30 backdrop-blur-sm'
-                                    : 'bg-sky-500/50 text-white hover:bg-sky-500/70 backdrop-blur-sm'
-                                    }`}
-                                >
-                                  {wallet.is_active ? 'Ẩn ví' : 'Hiện ví'}
-                                </button>
-                                <div className="flex items-center gap-3">
-                                  {/* Icon chọn ví vào tổng số dư */}
-                                  {wallet.is_active && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation()
-                                        handleToggleTotalBalance(wallet)
-                                      }}
-                                      className={`flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-semibold transition ${totalBalanceWalletIds.includes(wallet.id)
-                                        ? 'bg-sky-400/90 text-white shadow-lg hover:bg-sky-400'
-                                        : 'bg-white/20 text-white/80 hover:bg-white/30 hover:text-white backdrop-blur-sm'
-                                        }`}
-                                      title={totalBalanceWalletIds.includes(wallet.id) ? 'Đã chọn vào tổng số dư' : 'Chọn vào tổng số dư'}
-                                    >
-                                      <FaCalculator className="h-4 w-4 shrink-0" />
-                                      <span className="whitespace-nowrap">
-                                        {totalBalanceWalletIds.includes(wallet.id) ? 'Đã tính tổng số dư' : 'Tính tổng số dư'}
-                                      </span>
-                                    </button>
-                                  )}
-                                  <span className={`text-xs font-medium ${colors.text} opacity-70`}>{wallet.currency}</span>
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </div>
+                        <WalletCardItem
+                          key={wallet.id}
+                          wallet={wallet}
+                          colors={colors}
+                          isNegative={isNegative}
+                          totalBalanceWalletIds={totalBalanceWalletIds}
+                          availableWalletsCount={availableWalletsCount}
+                          onEdit={handleOpenForm}
+                          onDelete={handleDelete}
+                          onToggleActive={handleToggleActive}
+                          onToggleTotalBalance={handleToggleTotalBalance}
+                          onTransfer={handleOpenTransferModal}
+                          formatCurrency={formatCurrency}
+                          formatDate={formatDate}
+                        />
                       )
                     })}
                   </div>
@@ -792,23 +782,12 @@ export const WalletsPage = () => {
       {/* Form Modal - Full Screen */}
       {isFormOpen && (
         <div className="fixed inset-0 z-50 flex flex-col bg-[#F7F9FC] overflow-hidden">
-          {/* Header - Giống HeaderBar */}
-          <header className="flex-shrink-0 bg-[#F7F9FC]">
-            <div className="mx-auto flex w-full max-w-md items-center justify-between px-4 py-2">
-              <button
-                type="button"
-                onClick={handleCloseForm}
-                className="flex h-11 w-11 items-center justify-center rounded-full bg-white shadow-lg ring-1 ring-slate-100 transition hover:scale-110 active:scale-95"
-                aria-label="Quay lại"
-              >
-                <FaArrowLeft className="h-5 w-5 text-slate-800" />
-              </button>
-              <p className="flex-1 px-4 text-center text-base font-semibold uppercase tracking-[0.2em] text-slate-800">
-                {editingWallet ? 'CHỈNH SỬA VÍ' : 'THÊM VÍ MỚI'}
-              </p>
-              <div className="flex h-11 w-11 items-center justify-center" />
-            </div>
-          </header>
+          {/* Header - Sử dụng HeaderBar cho đồng bộ */}
+          <HeaderBar
+            variant="page"
+            title={editingWallet ? 'CHỈNH SỬA VÍ' : 'THÊM VÍ MỚI'}
+            onBack={handleCloseForm}
+          />
 
           {/* Scrollable Content */}
           <main className="flex-1 overflow-y-auto overscroll-contain bg-[#F7F9FC]">
@@ -823,7 +802,7 @@ export const WalletsPage = () => {
                     type="text"
                     value={formData.name}
                     onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                    className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 placeholder:text-slate-400 transition-all focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4 sm:text-base"
+                    className="w-full rounded-3xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 placeholder:text-slate-400 transition-all focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4 sm:text-base"
                     placeholder="Nhập tên ví (ví dụ: Ví chính, Ví tiết kiệm...)"
                     required
                   />
@@ -835,18 +814,118 @@ export const WalletsPage = () => {
                     <label className="mb-2 block text-xs font-semibold text-slate-700 sm:text-sm">
                       Loại ví <span className="text-rose-500">*</span>
                     </label>
-                    <select
-                      value={formData.type}
-                      onChange={(e) => setFormData({ ...formData, type: e.target.value as WalletType })}
-                      className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 transition-all focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 sm:p-4 sm:text-base"
-                      required
-                    >
-                      {WALLET_TYPES.map((type) => (
-                        <option key={type} value={type}>
-                          {type}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="relative">
+                      <button
+                        ref={walletTypeButtonRef}
+                        type="button"
+                        onClick={() => {
+                          if (walletTypeButtonRef.current) {
+                            const rect = walletTypeButtonRef.current.getBoundingClientRect()
+                            const viewportHeight = window.innerHeight
+                            const dropdownHeight = Math.min(300, WALLET_TYPES.length * 64 + 16)
+                            const spaceBelow = viewportHeight - rect.bottom
+                            const spaceAbove = rect.top
+
+                            let top = rect.bottom + 8
+                            let maxHeight = dropdownHeight
+
+                            // If not enough space below, show above
+                            if (spaceBelow < dropdownHeight && spaceAbove > spaceBelow) {
+                              top = rect.top - dropdownHeight - 8
+                              maxHeight = Math.min(dropdownHeight, spaceAbove - 16)
+                            } else {
+                              maxHeight = Math.min(dropdownHeight, spaceBelow - 16)
+                            }
+
+                            setWalletTypeDropdownPosition({
+                              top,
+                              left: rect.left,
+                              width: rect.width,
+                              maxHeight,
+                            })
+                          }
+                          setIsWalletTypeDropdownOpen(!isWalletTypeDropdownOpen)
+                        }}
+                        className={`flex w-full items-center justify-between rounded-3xl bg-white p-4 text-left transition-all min-h-[64px] shadow-md ${isWalletTypeDropdownOpen
+                          ? 'shadow-lg shadow-sky-500/20 ring-2 ring-sky-500/20'
+                          : 'hover:shadow-lg'
+                          }`}
+                      >
+                        <div className="flex min-w-0 flex-1 items-center gap-3">
+                          <div className={`h-12 w-12 shrink-0 rounded-3xl bg-gradient-to-br ${getWalletTypeColors(formData.type).bg} flex items-center justify-center shadow-md`}>
+                            <FaWallet className="h-6 w-6 text-white" />
+                          </div>
+                          <div className="min-w-0 flex-1 overflow-hidden">
+                            <div className="text-sm font-bold text-slate-900">{formData.type}</div>
+                          </div>
+                        </div>
+                        <FaChevronDown
+                          className={`h-5 w-5 shrink-0 text-slate-400 transition-transform ${isWalletTypeDropdownOpen ? 'rotate-180' : ''}`}
+                        />
+                      </button>
+
+                      {isWalletTypeDropdownOpen && typeof document !== 'undefined' && createPortal(
+                        <>
+                          <div
+                            className="fixed inset-0 z-[100] bg-black/20 backdrop-blur-sm"
+                            onClick={() => setIsWalletTypeDropdownOpen(false)}
+                            aria-hidden="true"
+                          />
+
+                          <div
+                            ref={walletTypeDropdownRef}
+                            className="fixed z-[110] rounded-3xl bg-white shadow-2xl overflow-hidden"
+                            style={{
+                              top: `${Math.max(0, walletTypeDropdownPosition.top)}px`,
+                              left: `${Math.max(0, walletTypeDropdownPosition.left)}px`,
+                              width: `${Math.max(200, walletTypeDropdownPosition.width || 200)}px`,
+                              maxHeight: `${Math.max(200, walletTypeDropdownPosition.maxHeight || 400)}px`,
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                            onMouseDown={(e) => e.stopPropagation()}
+                          >
+                            <div
+                              className="overflow-y-auto overscroll-contain py-2 custom-scrollbar w-full"
+                              style={{
+                                maxHeight: `${Math.max(184, (walletTypeDropdownPosition.maxHeight || 400) - 16)}px`,
+                                WebkitOverflowScrolling: 'touch',
+                                minHeight: '200px',
+                              }}
+                            >
+                              {WALLET_TYPES.map((type) => {
+                                const colors = getWalletTypeColors(type)
+                                const isSelected = formData.type === type
+                                return (
+                                  <button
+                                    key={type}
+                                    type="button"
+                                    onClick={() => {
+                                      setFormData({ ...formData, type })
+                                      setIsWalletTypeDropdownOpen(false)
+                                    }}
+                                    className={`flex w-full items-center gap-3 px-4 py-3.5 text-left transition-all hover:scale-[1.02] active:scale-100 ${isSelected
+                                      ? 'bg-gradient-to-r from-sky-50 to-blue-50 text-sky-700 font-semibold'
+                                      : 'text-slate-700 hover:bg-slate-50'
+                                      }`}
+                                  >
+                                    <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-3xl bg-gradient-to-br ${colors.bg} shadow-sm`}>
+                                      <FaWallet className="h-4 w-4 text-white" />
+                                    </div>
+                                    <div className="min-w-0 flex-1 overflow-hidden">
+                                      <div className="text-sm font-medium leading-relaxed break-words">{type}</div>
+                                    </div>
+                                    {isSelected && (
+                                      <FaCheck className="h-5 w-5 shrink-0 text-sky-600 drop-shadow-sm" />
+                                    )}
+                                  </button>
+                                )
+                              })}
+                            </div>
+                          </div>
+                        </>,
+                        document.body
+                      )}
+                    </div>
                   </div>
                 )}
 
@@ -857,35 +936,57 @@ export const WalletsPage = () => {
                       {editingWallet ? 'Số dư hiện tại' : 'Số dư ban đầu'} <span className="text-rose-500">*</span>
                     </label>
                     {editingWallet && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          if (!editingWallet) return
-                            // Wrap in async IIFE to properly handle promise
-                            ; (async () => {
-                              try {
-                                const { syncWalletBalanceFromTransactions } = await import('../lib/walletBalanceService')
-                                const updatedWallet = await syncWalletBalanceFromTransactions(editingWallet.id)
-                                setFormData((prev) => ({
-                                  ...prev,
-                                  balance: formatVNDInput(updatedWallet.balance.toString()), // Format với phần nghìn
-                                }))
-                                success('Đã đồng bộ số dư từ giao dịch!')
-                                await loadWallets()
-                              } catch (error) {
-                                console.error('Error syncing balance:', error)
-                                showError('Không thể đồng bộ số dư. Vui lòng thử lại.')
-                              }
-                            })().catch((error) => {
-                              // Catch any unhandled promise rejection
-                              console.error('Unhandled error in sync balance:', error)
-                              showError('Không thể đồng bộ số dư. Vui lòng thử lại.')
-                            })
-                        }}
-                        className="text-xs font-medium text-sky-600 hover:text-sky-700 hover:underline transition"
-                      >
-                        Đồng bộ từ giao dịch
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (!editingWallet) return
+                            try {
+                              // Tính toán số dư mới trước để hiển thị trong popup
+                              const { calculateWalletBalanceFromTransactions } = await import('../lib/walletBalanceService')
+                              const initialBalance = editingWallet.initial_balance ?? editingWallet.balance ?? 0
+                              const newBalance = await calculateWalletBalanceFromTransactions(editingWallet.id, initialBalance)
+
+                              // Hiển thị popup xác nhận
+                              setConfirmSyncBalance({
+                                isOpen: true,
+                                wallet: editingWallet,
+                                oldBalance: editingWallet.balance,
+                                newBalance,
+                              })
+                            } catch (error) {
+                              console.error('Error calculating balance:', error)
+                              showError('Không thể tính toán số dư. Vui lòng thử lại.')
+                            }
+                          }}
+                          className="text-xs font-medium text-sky-600 hover:text-sky-700 hover:underline transition"
+                        >
+                          Đồng bộ từ giao dịch
+                        </button>
+                        {balanceHistory.oldBalance !== null && balanceHistory.oldBalance !== undefined && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!editingWallet || balanceHistory.oldBalance === null || balanceHistory.oldBalance === undefined) return
+
+                              // Chỉ cập nhật form, không cập nhật database
+                              const oldBalanceValue = balanceHistory.oldBalance
+
+                              // Cập nhật form
+                              setFormData((prev) => ({
+                                ...prev,
+                                balance: formatVNDInput(oldBalanceValue.toString()),
+                              }))
+
+                              success('Đã hoàn tác số dư trong form. Nhấn "Cập nhật" để lưu thay đổi.')
+                            }}
+                            className="text-xs font-medium text-amber-600 hover:text-amber-700 hover:underline transition"
+                            title="Hoàn tác về số dư trước đó (chỉ trong form)"
+                          >
+                            Hoàn tác
+                          </button>
+                        )}
+                      </div>
                     )}
                   </div>
                   <div className="relative">
@@ -897,20 +998,43 @@ export const WalletsPage = () => {
                         setFormData({ ...formData, balance: formatted })
                       }}
                       onFocus={() => setIsNumberPadOpen(true)}
-                      className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 pr-12 text-sm text-slate-900 placeholder:text-slate-400 transition-all focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 cursor-pointer sm:p-4 sm:text-base"
+                      className={`w-full rounded-3xl border-2 p-3.5 pr-12 text-sm placeholder:text-slate-400 transition-all focus:outline-none focus:ring-2 cursor-pointer sm:p-4 sm:text-base ${(() => {
+                        const balanceValue = parseVNDInput(formData.balance)
+                        return balanceValue < 0
+                          ? 'border-rose-500 bg-rose-50 text-rose-700 focus:border-rose-500 focus:ring-rose-500/20'
+                          : 'border-slate-200 bg-white text-slate-900 focus:border-sky-500 focus:ring-sky-500/20'
+                      })()
+                        }`}
                       placeholder={editingWallet ? "Nhập số dư hiện tại (ví dụ: 1.000.000)" : "Nhập số dư ban đầu (ví dụ: 1.000.000)"}
                       required
                       readOnly
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-slate-500 font-semibold text-sm sm:text-base">
+                    <span className={`absolute right-4 top-1/2 -translate-y-1/2 font-semibold text-sm sm:text-base ${(() => {
+                      const balanceValue = parseVNDInput(formData.balance)
+                      return balanceValue < 0 ? 'text-rose-600' : 'text-slate-500'
+                    })()
+                      }`}>
                       ₫
                     </span>
                   </div>
-                  <p className="mt-1.5 text-xs text-slate-500">
-                    {editingWallet
-                      ? 'Số dư được cập nhật tự động theo các giao dịch thu/chi. Bạn có thể chỉnh sửa số dư tại đây hoặc nhấn "Đồng bộ từ giao dịch" để tính lại từ các giao dịch.'
-                      : 'Nhấn vào ô để mở bàn phím số. Số dư sẽ được cập nhật tự động theo các giao dịch thu/chi.'}
-                  </p>
+                  {(() => {
+                    const balanceValue = parseVNDInput(formData.balance)
+                    const isNegative = balanceValue < 0
+                    return (
+                      <p className={`mt-1.5 text-xs ${isNegative ? 'text-rose-600 font-semibold' : 'text-slate-500'}`}>
+                        {isNegative ? (
+                          <>
+                            <span className="font-bold">⚠️ Cảnh báo: </span>
+                            Số dư đang âm. Vui lòng kiểm tra lại các giao dịch hoặc điều chỉnh số dư ban đầu.
+                          </>
+                        ) : editingWallet ? (
+                          'Số dư được cập nhật tự động theo các giao dịch thu/chi. Bạn có thể chỉnh sửa số dư tại đây hoặc nhấn "Đồng bộ từ giao dịch" để tính lại từ các giao dịch.'
+                        ) : (
+                          'Nhấn vào ô để mở bàn phím số. Số dư sẽ được cập nhật tự động theo các giao dịch thu/chi.'
+                        )}
+                      </p>
+                    )
+                  })()}
                 </div>
 
                 {/* Mô tả */}
@@ -921,7 +1045,7 @@ export const WalletsPage = () => {
                   <textarea
                     value={formData.description}
                     onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                    className="w-full rounded-xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 placeholder:text-slate-400 transition-all focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 resize-none sm:p-4 sm:text-base"
+                    className="w-full rounded-3xl border-2 border-slate-200 bg-white p-3.5 text-sm text-slate-900 placeholder:text-slate-400 transition-all focus:border-sky-500 focus:outline-none focus:ring-2 focus:ring-sky-500/20 resize-none sm:p-4 sm:text-base"
                     rows={4}
                     placeholder="Nhập mô tả cho ví (ví dụ: Ví dùng cho chi tiêu hàng ngày, Ví tiết kiệm dài hạn...)"
                     required
@@ -957,6 +1081,17 @@ export const WalletsPage = () => {
         onConfirm={() => setIsNumberPadOpen(false)}
       />
 
+      {/* Wallet Transfer Modal */}
+      {transferModal.sourceWallet && (
+        <WalletTransferModal
+          isOpen={transferModal.isOpen}
+          onClose={handleCloseTransferModal}
+          sourceWallet={transferModal.sourceWallet}
+          wallets={wallets}
+          onTransfer={handleTransfer}
+        />
+      )}
+
       {/* Confirm Toggle Total Balance Dialog */}
       <ConfirmDialog
         isOpen={confirmToggleBalance.isOpen}
@@ -976,6 +1111,55 @@ export const WalletsPage = () => {
             : ''
         }
         confirmText={confirmToggleBalance.isEnabling ? 'Bật' : 'Tắt'}
+        cancelText="Hủy"
+      />
+
+      {/* Confirm Sync Balance Dialog */}
+      <ConfirmDialog
+        isOpen={confirmSyncBalance.isOpen}
+        onClose={() => setConfirmSyncBalance({
+          isOpen: false,
+          wallet: null,
+          oldBalance: 0,
+          newBalance: 0,
+        })}
+        onConfirm={() => {
+          if (!confirmSyncBalance.wallet) return
+
+          // Chỉ cập nhật form, không cập nhật database
+          // Lưu số dư cũ vào state để có thể hoàn tác
+          setBalanceHistory({
+            oldBalance: confirmSyncBalance.oldBalance,
+            historyId: null,
+          })
+
+          // Cập nhật form với số dư mới
+          setFormData((prev) => ({
+            ...prev,
+            balance: formatVNDInput(confirmSyncBalance.newBalance.toString()),
+          }))
+
+          if (confirmSyncBalance.newBalance < 0) {
+            showError(`Số dư sẽ bị âm: ${formatCurrency(confirmSyncBalance.newBalance)}. Vui lòng kiểm tra lại các giao dịch.`)
+          } else {
+            success('Đã tính toán số dư từ giao dịch. Nhấn "Cập nhật" để lưu thay đổi.')
+          }
+
+          setConfirmSyncBalance({
+            isOpen: false,
+            wallet: null,
+            oldBalance: 0,
+            newBalance: 0,
+          })
+        }}
+        type="warning"
+        title="Xác nhận đồng bộ số dư"
+        message={
+          confirmSyncBalance.wallet
+            ? `Bạn có chắc chắn muốn đồng bộ số dư từ giao dịch?\n\nSố dư hiện tại: ${formatCurrency(confirmSyncBalance.oldBalance)}\nSố dư sau đồng bộ: ${formatCurrency(confirmSyncBalance.newBalance)}\n\n${confirmSyncBalance.newBalance < 0 ? '⚠️ Cảnh báo: Số dư sẽ bị âm!' : ''}\n\nLưu ý: Thay đổi chỉ có hiệu lực sau khi nhấn "Cập nhật".`
+            : ''
+        }
+        confirmText="Đồng bộ"
         cancelText="Hủy"
       />
     </div>

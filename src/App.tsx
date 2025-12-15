@@ -34,6 +34,7 @@ const AdminIconImagesPage = lazy(() => import('./pages/AdminIconImages'))
 const AccountInfoPage = lazy(() => import('./pages/AccountInfo'))
 const AdminSettingsPage = lazy(() => import('./pages/AdminSettings'))
 const QRResultPage = lazy(() => import('./pages/QRResult'))
+const DebtManagerPage = lazy(() => import('./pages/DebtManager'))
 
 const PageFallback = () => {
   const { value: splashLogo } = useSystemSetting('app_splash_logo', '/logo-nontext.png')
@@ -211,6 +212,14 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <ShoppingListPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/debts"
+              element={
+                <ProtectedRoute>
+                  <DebtManagerPage />
                 </ProtectedRoute>
               }
             />

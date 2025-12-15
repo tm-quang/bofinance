@@ -12,6 +12,7 @@ import {
   FaChevronRight,
   FaQrcode,
   FaCalculator,
+  FaHandHoldingUsd,
 } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
@@ -232,7 +233,7 @@ const SettingsPage = () => {
 
       // Đợi một chút để đảm bảo dialog đóng hoàn toàn trước khi redirect
       await new Promise(resolve => setTimeout(resolve, 150))
-      
+
       window.location.replace('/login')
     })
   }
@@ -400,6 +401,20 @@ const SettingsPage = () => {
                 <div>
                   <p className="font-bold text-slate-800">Tài khoản</p>
                   <p className="text-xs text-slate-500">Bảo mật</p>
+                </div>
+              </button>
+
+              {/* Debt Manager - Sổ nợ */}
+              <button
+                onClick={() => navigate('/debts')}
+                className="group flex flex-col items-center justify-center gap-3 rounded-3xl bg-white p-4 text-center shadow-lg border border-slate-100 transition-all hover:-translate-y-1 hover:shadow-xl active:scale-95"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 shadow-inner group-hover:scale-110 transition-transform">
+                  <FaHandHoldingUsd className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-800">Sổ nợ</p>
+                  <p className="text-xs text-slate-500">Quản lý</p>
                 </div>
               </button>
 

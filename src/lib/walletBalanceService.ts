@@ -2,6 +2,7 @@ import { fetchTransactions } from './transactionService'
 import { getSupabaseClient } from './supabaseClient'
 import { getCachedUser } from './userCache'
 import type { WalletRecord } from './walletService'
+import { createBalanceHistory } from './walletBalanceHistoryService'
 
 /**
  * Tính số dư ví từ giao dịch
@@ -236,6 +237,9 @@ export const syncWalletBalanceFromTransactions = async (
     throw new Error('Không tìm thấy ví.')
   }
 
+  // Lưu số dư cũ để lưu vào lịch sử
+  const oldBalance = wallet.balance
+
   // Lấy tất cả giao dịch để tính số dư (chỉ lấy những giao dịch không bị exclude)
   const transactions = await fetchTransactions({ wallet_id: walletId, exclude_from_reports: false })
 
@@ -268,6 +272,20 @@ export const syncWalletBalanceFromTransactions = async (
     throw new Error('Không thể cập nhật số dư ví.')
   }
 
+  // Lưu lịch sử thay đổi số dư
+  try {
+    await createBalanceHistory({
+      wallet_id: walletId,
+      old_balance: oldBalance,
+      new_balance: calculatedBalance,
+      change_type: 'sync',
+      description: `Đồng bộ số dư từ giao dịch. Số dư cũ: ${oldBalance.toLocaleString('vi-VN')} ₫, Số dư mới: ${calculatedBalance.toLocaleString('vi-VN')} ₫`,
+    })
+  } catch (historyError) {
+    // Log warning thay vì error để không làm nhiễu console
+    // Lỗi RLS không ảnh hưởng đến chức năng chính
+    console.warn('Không thể lưu lịch sử số dư (có thể do RLS policy chưa được cấu hình):', historyError)
+  }
 
   return updatedWallet
 }
