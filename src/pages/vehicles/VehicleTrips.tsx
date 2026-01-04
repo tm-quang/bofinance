@@ -6,10 +6,12 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNotification } from '../../contexts/notificationContext.helpers'
 import HeaderBar from '../../components/layout/HeaderBar'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { SimpleLocationInput, type SimpleLocationData } from '../../components/vehicles/SimpleLocationInput'
 
 const TRIP_TYPES = {
     work: { label: 'Đi làm', color: 'blue' },
     business: { label: 'Công tác', color: 'purple' },
+    service: { label: 'Dịch vụ', color: 'teal' },
     leisure: { label: 'Đi chơi', color: 'green' },
     hometown: { label: 'Về quê', color: 'orange' },
     other: { label: 'Khác', color: 'gray' },
@@ -106,7 +108,7 @@ export default function VehicleTrips() {
                 {/* Add Button */}
                 <button
                     onClick={() => setShowAddModal(true)}
-                    className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl active:scale-95"
+                    className="w-full mb-4 flex items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-green-500 to-emerald-500 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl active:scale-95"
                 >
                     <Plus className="h-5 w-5" />
                     Thêm hành trình mới
@@ -257,17 +259,22 @@ function AddTripModal({
 }) {
     const { success, error: showError } = useNotification()
     const [loading, setLoading] = useState(false)
+
     const [formData, setFormData] = useState({
         vehicle_id: vehicle.id,
         trip_date: new Date().toISOString().split('T')[0],
         trip_time: new Date().toTimeString().slice(0, 5),
         trip_type: 'work' as const,
-        start_km: vehicle.current_odometer,
-        end_km: vehicle.current_odometer,
+        start_km: '',
+        end_km: '',
         start_location: '',
         end_location: '',
         notes: '',
     })
+
+    // Location data with GPS coordinates
+    const [startLocationData, setStartLocationData] = useState<SimpleLocationData | null>(null)
+    const [endLocationData, setEndLocationData] = useState<SimpleLocationData | null>(null)
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -279,7 +286,27 @@ function AddTripModal({
 
         setLoading(true)
         try {
-            await createTrip(formData as any)
+            // Include GPS coordinates if available
+            const tripData: any = {
+                ...formData,
+            }
+
+            // Add GPS data to notes if available
+            if (startLocationData || endLocationData) {
+                const gpsInfo = []
+                if (startLocationData) {
+                    gpsInfo.push(`📍 Điểm đi: ${startLocationData.lat.toFixed(6)}, ${startLocationData.lng.toFixed(6)}`)
+                    gpsInfo.push(`🔗 https://www.google.com/maps?q=${startLocationData.lat},${startLocationData.lng}`)
+                }
+                if (endLocationData) {
+                    gpsInfo.push(`📍 Điểm đến: ${endLocationData.lat.toFixed(6)}, ${endLocationData.lng.toFixed(6)}`)
+                    gpsInfo.push(`🔗 https://www.google.com/maps?q=${endLocationData.lat},${endLocationData.lng}`)
+                }
+
+                tripData.notes = [formData.notes, ...gpsInfo].filter(Boolean).join('\n')
+            }
+
+            await createTrip(tripData)
             success('Thêm hành trình thành công!')
             onSuccess()
         } catch (err) {
@@ -343,48 +370,63 @@ function AddTripModal({
 
                     <div className="grid grid-cols-2 gap-3">
                         <div>
-                            <label className="mb-1 block text-sm font-medium text-slate-700">Km bắt đầu</label>
+                            <label className="mb-1 block text-sm font-medium text-slate-700">Odo bắt đầu</label>
                             <input
                                 type="number"
                                 required
                                 value={formData.start_km}
-                                onChange={(e) => setFormData({ ...formData, start_km: parseInt(e.target.value) })}
+                                onChange={(e) => setFormData({ ...formData, start_km: e.target.value })}
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                             />
                         </div>
                         <div>
-                            <label className="mb-1 block text-sm font-medium text-slate-700">Km kết thúc</label>
+                            <label className="mb-1 block text-sm font-medium text-slate-700">Odo kết thúc</label>
                             <input
                                 type="number"
                                 required
                                 value={formData.end_km}
-                                onChange={(e) => setFormData({ ...formData, end_km: parseInt(e.target.value) })}
+                                onChange={(e) => setFormData({ ...formData, end_km: e.target.value })}
                                 className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
                             />
                         </div>
                     </div>
 
-                    <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Từ</label>
-                        <input
-                            type="text"
-                            value={formData.start_location}
-                            onChange={(e) => setFormData({ ...formData, start_location: e.target.value })}
-                            placeholder="Địa điểm xuất phát"
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                        />
-                    </div>
+                    {/* Distance Calculation Display */}
+                    {Number(formData.start_km) > 0 && Number(formData.end_km) > 0 && Number(formData.end_km) >= Number(formData.start_km) && (
+                        <div className="rounded-lg bg-blue-50 border border-blue-200 p-3">
+                            <div className="flex items-center justify-between">
+                                <span className="text-sm font-medium text-blue-800">
+                                    Khoảng cách đã di chuyển:
+                                </span>
+                                <span className="text-lg font-bold text-blue-600">
+                                    {(Number(formData.end_km) - Number(formData.start_km)).toLocaleString()} km
+                                </span>
+                            </div>
+                        </div>
+                    )}
 
-                    <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Đến</label>
-                        <input
-                            type="text"
-                            value={formData.end_location}
-                            onChange={(e) => setFormData({ ...formData, end_location: e.target.value })}
-                            placeholder="Địa điểm đến"
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                        />
-                    </div>
+                    {/* Simple Location Inputs */}
+                    <SimpleLocationInput
+                        label="Từ"
+                        value={formData.start_location}
+                        locationData={startLocationData}
+                        onChange={(address, locationData) => {
+                            setFormData({ ...formData, start_location: address })
+                            setStartLocationData(locationData || null)
+                        }}
+                        placeholder="Địa điểm xuất phát"
+                    />
+
+                    <SimpleLocationInput
+                        label="Đến"
+                        value={formData.end_location}
+                        locationData={endLocationData}
+                        onChange={(address, locationData) => {
+                            setFormData({ ...formData, end_location: address })
+                            setEndLocationData(locationData || null)
+                        }}
+                        placeholder="Địa điểm đến"
+                    />
 
                     <div>
                         <label className="mb-1 block text-sm font-medium text-slate-700">Ghi chú</label>

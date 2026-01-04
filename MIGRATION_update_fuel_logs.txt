@@ -1,0 +1,52 @@
+-- Migration: Update vehicle_fuel_logs table
+-- Description: Add columns for category, pricing, and receipt image
+-- Run this in Supabase SQL Editor AFTER creating fuel_price_settings
+
+-- 1. Add new columns
+ALTER TABLE vehicle_fuel_logs 
+ADD COLUMN IF NOT EXISTS fuel_category VARCHAR(20) DEFAULT 'fuel' CHECK (fuel_category IN ('fuel', 'electric')),
+ADD COLUMN IF NOT EXISTS unit_price DECIMAL(10, 2) CHECK (unit_price IS NULL OR unit_price > 0),
+ADD COLUMN IF NOT EXISTS total_cost DECIMAL(10, 2) CHECK (total_cost IS NULL OR total_cost >= 0),
+ADD COLUMN IF NOT EXISTS receipt_image_url TEXT;
+
+-- 2. Create indexes
+CREATE INDEX IF NOT EXISTS idx_fuel_logs_category ON vehicle_fuel_logs(fuel_category);
+CREATE INDEX IF NOT EXISTS idx_fuel_logs_vehicle ON vehicle_fuel_logs(vehicle_id);
+CREATE INDEX IF NOT EXISTS idx_fuel_logs_user_date ON vehicle_fuel_logs(user_id, refuel_date DESC);
+
+-- 3. Add comments
+COMMENT ON COLUMN vehicle_fuel_logs.fuel_category IS 'Category: fuel (xăng/dầu) or electric (điện)';
+COMMENT ON COLUMN vehicle_fuel_logs.unit_price IS 'Price per unit at time of purchase (VND/lít or VND/kWh)';
+COMMENT ON COLUMN vehicle_fuel_logs.total_cost IS 'Total cost = quantity * unit_price (VND)';
+COMMENT ON COLUMN vehicle_fuel_logs.receipt_image_url IS 'Cloudinary URL of receipt/invoice image';
+
+-- 4. Update existing data (set category based on fuel_type)
+UPDATE vehicle_fuel_logs 
+SET fuel_category = CASE 
+  WHEN fuel_type = 'electric' THEN 'electric'
+  ELSE 'fuel'
+END
+WHERE fuel_category IS NULL OR fuel_category = 'fuel';
+
+-- 5. Create function to auto-calculate total_cost (optional helper)
+CREATE OR REPLACE FUNCTION calculate_fuel_total_cost()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW.quantity IS NOT NULL AND NEW.unit_price IS NOT NULL THEN
+    NEW.total_cost := NEW.quantity * NEW.unit_price;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- 6. Create trigger to auto-calculate (optional)
+DROP TRIGGER IF EXISTS trigger_calculate_fuel_total ON vehicle_fuel_logs;
+CREATE TRIGGER trigger_calculate_fuel_total
+  BEFORE INSERT OR UPDATE ON vehicle_fuel_logs
+  FOR EACH ROW
+  EXECUTE FUNCTION calculate_fuel_total_cost();
+
+-- Verification queries:
+-- SELECT fuel_category, COUNT(*) as count FROM vehicle_fuel_logs GROUP BY fuel_category;
+-- SELECT * FROM vehicle_fuel_logs WHERE total_cost IS NOT NULL LIMIT 10;
+-- SELECT * FROM vehicle_fuel_logs WHERE receipt_image_url IS NOT NULL LIMIT 10;

@@ -50,15 +50,19 @@ export interface FuelLogRecord {
     refuel_time?: string
     odometer_at_refuel: number
     fuel_type: 'petrol_a95' | 'petrol_e5' | 'diesel' | 'electric'
+    fuel_category?: 'fuel' | 'electric' // NEW: Category for filtering
     liters?: number
     price_per_liter?: number
+    unit_price?: number // NEW: Price per unit (VND/lít or VND/kWh)
+    total_cost?: number // NEW: Auto-calculated total
     kwh?: number
     charge_duration_minutes?: number
     battery_start_percent?: number
     battery_end_percent?: number
-    total_amount: number
+    total_amount: number // Backward compatibility
     station_name?: string
     location?: string
+    receipt_image_url?: string // NEW: Cloudinary URL for receipt image
     notes?: string
     created_at: string
     updated_at: string

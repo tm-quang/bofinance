@@ -34,6 +34,7 @@ import { getCurrentProfile, type ProfileRecord } from '../lib/profileService'
 import { fetchReminders, type ReminderRecord } from '../lib/reminderService'
 import { useNotification } from '../contexts/notificationContext.helpers'
 import { checkAndSendBudgetAlerts } from '../lib/budgetAlertService'
+import { getQuickActionsSettings, saveQuickActionsSettings } from '../lib/quickActionsSettingsService'
 
 const formatCurrency = (value: number) =>
   new Intl.NumberFormat('vi-VN', {
@@ -113,6 +114,15 @@ const ALL_QUICK_ACTIONS = [
   {
     id: 'categories',
     label: 'Hạng mục',
+    icon: FaFolder,
+    image: '/images/heoBO/heo4.png', // Thêm link ảnh ở đây (tùy chọn)
+    color: 'from-sky-500 to-blue-600',
+    bgColor: 'bg-sky-50',
+    textColor: 'text-sky-700',
+  },
+  {
+    id: 'budgets',
+    label: 'Hạn mức',
     icon: FaFolder,
     image: '/images/heoBO/heo4.png', // Thêm link ảnh ở đây (tùy chọn)
     color: 'from-sky-500 to-blue-600',
@@ -217,42 +227,9 @@ export const DashboardPage = () => {
   const taskLongPressTimerRef = useRef<number | null>(null)
   const taskLongPressTargetRef = useRef<TaskRecord | null>(null)
 
-  // Load quick actions settings from localStorage
+  // Load quick actions settings from Supabase (with localStorage fallback)
   const getStoredActions = () => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY)
-      if (stored) {
-        const parsed = JSON.parse(stored)
-
-        // Migration: Nếu có 'tasks' hoặc 'reminder' được bật, chuyển sang 'notes-plans'
-        const notesPlansEnabled = parsed['notes-plans'] ??
-          (parsed['tasks'] || parsed['reminder']) ??
-          false
-
-        // Nếu đã migrate, xóa các key cũ
-        if (parsed['tasks'] !== undefined || parsed['reminder'] !== undefined) {
-          delete parsed['tasks']
-          delete parsed['reminder']
-          parsed['notes-plans'] = notesPlansEnabled
-          // Lưu lại sau khi migrate
-          try {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(parsed))
-          } catch (err) {
-            console.error('Error saving migrated settings:', err)
-          }
-        }
-
-        return ALL_QUICK_ACTIONS.map((action, index) => ({
-          id: action.id,
-          label: action.label,
-          // Mặc định: chỉ 4 chức năng đầu tiên (không bao gồm settings)
-          enabled: parsed[action.id] ?? (index < 4 && action.id !== 'settings'),
-        }))
-      }
-    } catch (error) {
-      console.error('Error loading quick actions settings:', error)
-    }
-    // Mặc định: chỉ 4 chức năng đầu tiên (Settings là chức năng thứ 5, mặc định tắt)
+    // Mặc định: chỉ 4 chức năng đầu tiên (Settings là chức năng thứ 7, mặc định tắt)
     return ALL_QUICK_ACTIONS.map((action, index) => ({
       id: action.id,
       label: action.label,
@@ -261,6 +238,81 @@ export const DashboardPage = () => {
   }
 
   const [quickActionsSettings, setQuickActionsSettings] = useState(getStoredActions)
+  const [isLoadingSettings, setIsLoadingSettings] = useState(true)
+
+  // Load settings from Supabase on mount
+  useEffect(() => {
+    const loadSettings = async () => {
+      try {
+        const savedSettings = await getQuickActionsSettings()
+
+        if (savedSettings) {
+          // Migration: Nếu có 'tasks' hoặc 'reminder' được bật, chuyển sang 'notes-plans'
+          const notesPlansEnabled = savedSettings['notes-plans'] ??
+            (savedSettings['tasks'] || savedSettings['reminder']) ??
+            false
+
+          // Nếu đã migrate, xóa các key cũ
+          if (savedSettings['tasks'] !== undefined || savedSettings['reminder'] !== undefined) {
+            delete savedSettings['tasks']
+            delete savedSettings['reminder']
+            savedSettings['notes-plans'] = notesPlansEnabled
+          }
+
+          const loadedActions = ALL_QUICK_ACTIONS.map((action, index) => ({
+            id: action.id,
+            label: action.label,
+            // Mặc định: chỉ 4 chức năng đầu tiên (không bao gồm settings)
+            enabled: savedSettings[action.id] ?? (index < 4 && action.id !== 'settings'),
+          }))
+
+          setQuickActionsSettings(loadedActions)
+        } else {
+          // Nếu chưa có settings trong Supabase, thử load từ localStorage (migration)
+          try {
+            const stored = localStorage.getItem(STORAGE_KEY)
+            if (stored) {
+              const parsed = JSON.parse(stored)
+
+              // Migration: Nếu có 'tasks' hoặc 'reminder' được bật, chuyển sang 'notes-plans'
+              const notesPlansEnabled = parsed['notes-plans'] ??
+                (parsed['tasks'] || parsed['reminder']) ??
+                false
+
+              // Nếu đã migrate, xóa các key cũ
+              if (parsed['tasks'] !== undefined || parsed['reminder'] !== undefined) {
+                delete parsed['tasks']
+                delete parsed['reminder']
+                parsed['notes-plans'] = notesPlansEnabled
+              }
+
+              const migratedActions = ALL_QUICK_ACTIONS.map((action, index) => ({
+                id: action.id,
+                label: action.label,
+                enabled: parsed[action.id] ?? (index < 4 && action.id !== 'settings'),
+              }))
+
+              setQuickActionsSettings(migratedActions)
+
+              // Lưu vào Supabase để migrate
+              await saveQuickActionsSettings(migratedActions)
+
+              // Xóa localStorage sau khi migrate thành công
+              localStorage.removeItem(STORAGE_KEY)
+            }
+          } catch (error) {
+            console.error('Error migrating settings from localStorage:', error)
+          }
+        }
+      } catch (error) {
+        console.error('Error loading quick actions settings:', error)
+      } finally {
+        setIsLoadingSettings(false)
+      }
+    }
+
+    loadSettings()
+  }, [])
 
   // Get enabled quick actions (exclude settings) - chỉ sử dụng ảnh từ ALL_QUICK_ACTIONS
   const enabledQuickActions = ALL_QUICK_ACTIONS.filter((action) => {
@@ -270,27 +322,32 @@ export const DashboardPage = () => {
   })
 
   // Handle update quick actions settings
-  const handleUpdateQuickActions = (updatedActions: typeof quickActionsSettings) => {
+  const handleUpdateQuickActions = async (updatedActions: typeof quickActionsSettings) => {
     // updatedActions đã được filter settings từ modal, chỉ cần lưu lại
     // Đảm bảo không có quá 4 tiện ích được bật
     const enabledCount = updatedActions.filter((a) => a.enabled).length
+    let finalActions = updatedActions
+
     if (enabledCount > 4) {
       // Nếu có lỗi, giới hạn lại
-      const limitedActions = updatedActions.map((action, index) => ({
+      finalActions = updatedActions.map((action, index) => ({
         ...action,
         enabled: action.enabled && index < 4
       }))
-      setQuickActionsSettings(limitedActions)
-    } else {
-      setQuickActionsSettings(updatedActions)
     }
 
-    // Save to localStorage (không lưu settings vì đã được filter)
-    const settingsMap: Record<string, boolean> = {}
-    updatedActions.forEach((action) => {
-      settingsMap[action.id] = action.enabled
-    })
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settingsMap))
+    setQuickActionsSettings(finalActions)
+
+    // Save to Supabase
+    try {
+      await saveQuickActionsSettings(finalActions)
+      success('Đã lưu cài đặt tiện ích thành công!')
+    } catch (error) {
+      console.error('Error saving quick actions settings:', error)
+      showError('Không thể lưu cài đặt. Vui lòng thử lại.')
+      // Rollback nếu lưu thất bại
+      setQuickActionsSettings(quickActionsSettings)
+    }
   }
 
   const handleAddClick = () => {
@@ -1057,6 +1114,8 @@ export const DashboardPage = () => {
                         navigate('/categories')
                       } else if (id === 'notes-plans') {
                         navigate('/notes-plans')
+                      } else if (id === 'budgets') {
+                        navigate('/budgets')
                       } else if (id === 'shopping-list') {
                         navigate('/shopping-list')
                       } else if (id === 'voice-to-text') {

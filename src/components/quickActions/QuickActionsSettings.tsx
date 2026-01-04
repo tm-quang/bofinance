@@ -35,6 +35,12 @@ const ACTION_INFO: Record<string, { icon: typeof FaPaperPlane; description: stri
     color: 'text-indigo-600',
     bgGradient: 'from-indigo-50 to-purple-50',
   },
+  'budgets': {
+    icon: FaFolder,
+    description: 'Quản lý hạn mức chi tiêu cho từng hạng mục theo tháng/quý/năm',
+    color: 'text-rose-600',
+    bgGradient: 'from-rose-50 to-pink-50',
+  },
   'notes-plans': {
     icon: FaTasks,
     description: 'Quản lý công việc, ghi chú và kế hoạch nhắc nhở trong tháng',
@@ -144,8 +150,8 @@ export const QuickActionsSettings = ({
 
   return (
     <div className="fixed inset-0 z-50 flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
-      <HeaderBar 
-        variant="page" 
+      <HeaderBar
+        variant="page"
         title="Cài đặt tiện ích"
         onBack={onClose}
       />
@@ -170,13 +176,12 @@ export const QuickActionsSettings = ({
               return (
                 <div
                   key={action.id}
-                  className={`group rounded-3xl bg-white shadow-lg ring-1 ring-slate-100 transition-all duration-300 overflow-hidden ${
-                    action.enabled
+                  className={`group rounded-3xl bg-white shadow-lg ring-1 ring-slate-100 transition-all duration-300 overflow-hidden ${action.enabled
                       ? 'shadow-md hover:shadow-lg'
                       : isDisabled
                         ? 'opacity-60'
                         : 'hover:shadow-lg'
-                  }`}
+                    }`}
                 >
                   {/* Header - Clickable to expand/collapse */}
                   <button
@@ -186,26 +191,23 @@ export const QuickActionsSettings = ({
                   >
                     <div className="flex items-center gap-4 flex-1 min-w-0">
                       {/* Icon with colored background */}
-                      <div className={`flex-shrink-0 flex h-12 w-12 items-center justify-center rounded-xl transition-all ${
-                        action.enabled
+                      <div className={`flex-shrink-0 flex h-12 w-12 items-center justify-center rounded-xl transition-all ${action.enabled
                           ? 'bg-gradient-to-br from-sky-500 to-blue-600 text-white shadow-lg'
                           : 'bg-slate-100 text-slate-400'
-                      }`}>
+                        }`}>
                         <Icon className="h-6 w-6" />
                       </div>
-                      
+
                       <div className="flex-1 min-w-0 text-left">
-                        <p className={`font-bold text-base transition-colors ${
-                          action.enabled ? 'text-slate-900' : 'text-slate-500'
-                        }`}>
+                        <p className={`font-bold text-base transition-colors ${action.enabled ? 'text-slate-900' : 'text-slate-500'
+                          }`}>
                           {action.label}
                         </p>
                         <div className="flex items-center gap-2 mt-0.5">
-                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold transition-all ${
-                            action.enabled
+                          <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold transition-all ${action.enabled
                               ? 'bg-sky-100 text-sky-700 ring-1 ring-sky-200'
                               : 'bg-slate-100 text-slate-500'
-                          }`}>
+                            }`}>
                             {action.enabled ? '✓ Đang hiển thị' : '○ Đã ẩn'}
                           </span>
                         </div>
@@ -215,18 +217,16 @@ export const QuickActionsSettings = ({
                     {/* Chevron Icon */}
                     <div className="ml-3 flex-shrink-0">
                       <FaChevronDown
-                        className={`h-5 w-5 text-slate-400 transition-transform duration-300 ${
-                          isExpanded ? 'rotate-180' : 'rotate-0'
-                        }`}
+                        className={`h-5 w-5 text-slate-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : 'rotate-0'
+                          }`}
                       />
                     </div>
                   </button>
 
                   {/* Expanded Content */}
                   <div
-                    className={`grid transition-all duration-300 ease-out ${
-                      isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
-                    }`}
+                    className={`grid transition-all duration-300 ease-out ${isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0'
+                      }`}
                   >
                     <div className="overflow-hidden">
                       <div className="px-4 pb-3 pt-2 border-t border-slate-200/50 bg-[#F7F9FC]">
@@ -249,18 +249,16 @@ export const QuickActionsSettings = ({
                               handleToggle(action.id)
                             }}
                             disabled={isDisabled}
-                            className={`relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 ${
-                              action.enabled 
-                                ? 'bg-gradient-to-r from-sky-500 to-blue-600 shadow-lg focus:ring-sky-500' 
-                                : isDisabled 
-                                  ? 'bg-slate-200 cursor-not-allowed opacity-50' 
+                            className={`relative inline-flex h-8 w-14 shrink-0 items-center rounded-full transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 ${action.enabled
+                                ? 'bg-gradient-to-r from-sky-500 to-blue-600 shadow-lg focus:ring-sky-500'
+                                : isDisabled
+                                  ? 'bg-slate-200 cursor-not-allowed opacity-50'
                                   : 'bg-slate-300 hover:bg-slate-400 focus:ring-slate-400'
-                            }`}
+                              }`}
                           >
                             <span
-                              className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform duration-300 ${
-                                action.enabled ? 'translate-x-7' : 'translate-x-1'
-                              }`}
+                              className={`inline-block h-6 w-6 transform rounded-full bg-white shadow-lg transition-transform duration-300 ${action.enabled ? 'translate-x-7' : 'translate-x-1'
+                                }`}
                             />
                           </button>
                         </div>

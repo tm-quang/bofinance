@@ -1,0 +1,240 @@
+# Hướng Dẫn Sử Dụng Chức Năng Lấy Vị Trí GPS
+
+## Tổng Quan
+
+Chức năng mới cho phép:
+- ✅ Lấy vị trí GPS hiện tại từ thiết bị
+- ✅ Tự động chuyển tọa độ thành địa chỉ (reverse geocoding)
+- ✅ Lưu tọa độ GPS cùng hành trình
+- ✅ Mở vị trí trên Google Maps
+
+## Không Cần API Key!
+
+Chức năng này sử dụng:
+- **GPS của thiết bị**: Miễn phí, không cần API key
+- **OpenStreetMap Nominatim**: Miễn phí cho reverse geocoding
+- Không phụ thuộc vào Google Maps API
+
+## Cách Sử Dụng
+
+### 1. Thêm Hành Trình Mới
+
+1. Vào **Quản Lý Hành Trình**
+2. Click **Thêm hành trình mới**
+3. Nhập thông tin cơ bản (ngày, giờ, loại hành trình, km)
+
+### 2. Lấy Vị Trí GPS
+
+**Tại ô "Từ" hoặc "Đến":**
+
+1. Click icon GPS (📍) bên phải ô input
+2. Trình duyệt sẽ hỏi quyền truy cập vị trí
+3. Click **Cho phép** / **Allow**
+4. Đợi vài giây để lấy vị trí
+
+**Kết quả:**
+- Địa chỉ tự động điền vào ô input
+- Hiển thị card màu xanh với:
+  - Tọa độ GPS chính xác
+  - Link "Mở trong Google Maps"
+
+### 3. Xem Vị Trí Trên Bản Đồ
+
+Click **"Mở trong Google Maps"** để:
+- Mở vị trí trong tab mới
+- Xem chính xác trên bản đồ
+- Lưu vị trí hoặc chia sẻ
+
+### 4. Lưu Hành Trình
+
+- Kiểm tra thông tin
+- Click **Thêm hành trình**
+- GPS coordinates và link Google Maps sẽ được lưu trong ghi chú
+
+## Dữ Liệu Được Lưu
+
+Khi lưu hành trình có GPS, phần ghi chú sẽ bao gồm:
+
+```
+[Ghi chú của bạn]
+
+📍 Điểm đi: 21.028511, 105.804817
+🔗 https://www.google.com/maps?q=21.028511,105.804817
+
+📍 Điểm đến: 21.027763, 105.834160
+🔗 https://www.google.com/maps?q=21.027763,105.834160
+```
+
+## Xử Lý Lỗi
+
+### Lỗi: "Bạn đã từ chối quyền truy cập vị trí"
+
+**Nguyên nhân**: Chưa cho phép trình duyệt truy cập GPS
+
+**Giải pháp**:
+
+**Chrome/Edge:**
+1. Click icon khóa/thông tin bên trái URL
+2. Tìm "Vị trí" / "Location"
+3. Chọn "Cho phép" / "Allow"
+4. Refresh trang
+
+**Firefox:**
+1. Click icon khóa/thông tin bên trái URL
+2. Click "Quyền" / "Permissions"
+3. Bật "Truy cập vị trí của bạn"
+4. Refresh trang
+
+**Safari (iOS):**
+1. Cài đặt → Safari → Vị trí
+2. Chọn "Cho phép khi sử dụng ứng dụng"
+
+### Lỗi: "Không thể xác định vị trí"
+
+**Nguyên nhân**: GPS thiết bị bị tắt hoặc tín hiệu yếu
+
+**Giải pháp**:
+1. Bật GPS trong cài đặt thiết bị
+2. Ra ngoài trời hoặc gần cửa sổ
+3. Đợi thiết bị kết nối GPS (có thể mất 30-60 giây)
+
+### Lỗi: "Hết thời gian chờ"
+
+**Nguyên nhân**: GPS mất quá lâu để xác định vị trí
+
+**Giải pháp**:
+1. Kiểm tra kết nối internet
+2. Thử lại sau vài giây
+3. Hoặc nhập địa chỉ thủ công
+
+## Độ Chính Xác GPS
+
+### Điều Kiện Tốt (5-10m)
+- Ngoài trời, trời quang
+- Thiết bị có GPS tốt
+- Tín hiệu mạnh
+
+### Điều Kiện Trung Bình (10-50m)
+- Trong nhà gần cửa sổ
+- Thời tiết xấu
+- Tín hiệu yếu
+
+### Điều Kiện Kém (>50m)
+- Trong nhà sâu
+- Tầng hầm
+- Khu vực che khuất
+
+## Lợi Ích
+
+### So với nhập thủ công:
+- ✅ Nhanh hơn (1 click vs gõ địa chỉ)
+- ✅ Chính xác hơn (GPS vs nhớ địa chỉ)
+- ✅ Có tọa độ chính xác
+- ✅ Có link Google Maps
+
+### So với Google Maps API:
+- ✅ Miễn phí 100%
+- ✅ Không cần API key
+- ✅ Không giới hạn số lần dùng
+- ✅ Không cần cấu hình
+
+## Tips & Tricks
+
+### Tăng Độ Chính Xác
+1. Đợi 10-20 giây sau khi click nút GPS
+2. Đứng yên khi đang lấy vị trí
+3. Bật "High Accuracy" trong cài đặt GPS
+
+### Tiết Kiệm Thời Gian
+1. Lấy vị trí "Từ" khi bắt đầu hành trình
+2. Lấy vị trí "Đến" khi kết thúc hành trình
+3. Không cần nhập địa chỉ thủ công
+
+### Sử Dụng Offline
+- GPS vẫn hoạt động offline
+- Reverse geocoding cần internet
+- Nếu offline: sẽ hiển thị tọa độ thay vì địa chỉ
+
+## Privacy & Security
+
+### Dữ Liệu GPS
+- Chỉ được lấy khi bạn click nút GPS
+- Không tự động theo dõi vị trí
+- Chỉ lưu vị trí bạn chọn lưu
+
+### Quyền Truy Cập
+- Trình duyệt luôn hỏi quyền trước
+- Bạn có thể thu hồi quyền bất cứ lúc nào
+- Không chia sẻ vị trí với bên thứ 3
+
+## Troubleshooting
+
+### Nút GPS Không Hiện
+
+**Kiểm tra:**
+- Trình duyệt có hỗ trợ Geolocation API không?
+- Đang dùng HTTPS? (GPS yêu cầu HTTPS)
+
+### Địa Chỉ Không Chính Xác
+
+**Nguyên nhân:**
+- Reverse geocoding có thể không chính xác 100%
+- Phụ thuộc vào dữ liệu OpenStreetMap
+
+**Giải pháp:**
+- Chỉnh sửa địa chỉ thủ công sau khi lấy GPS
+- GPS coordinates vẫn chính xác
+
+### Loading Mãi Không Xong
+
+**Nguyên nhân:**
+- Tín hiệu GPS yếu
+- Kết nối internet chậm
+
+**Giải pháp:**
+- Đợi thêm 30 giây
+- Hoặc cancel và thử lại
+- Hoặc nhập thủ công
+
+## Hỗ Trợ Trình Duyệt
+
+### Desktop
+- ✅ Chrome 50+
+- ✅ Firefox 45+
+- ✅ Edge 12+
+- ✅ Safari 10+
+- ✅ Opera 37+
+
+### Mobile
+- ✅ Chrome Android
+- ✅ Safari iOS
+- ✅ Samsung Internet
+- ✅ Firefox Mobile
+
+## FAQs
+
+**Q: Có tốn phí không?**
+A: Hoàn toàn miễn phí, không giới hạn
+
+**Q: Có cần internet không?**
+A: GPS không cần, nhưng reverse geocoding cần internet
+
+**Q: Độ chính xác bao nhiêu?**
+A: Thường 5-20m tùy điều kiện
+
+**Q: Có lưu lịch sử vị trí không?**
+A: Không, chỉ lưu vị trí bạn chọn lưu
+
+**Q: Có thể dùng offline không?**
+A: GPS có, nhưng sẽ hiển thị tọa độ thay vì địa chỉ
+
+**Q: Tại sao không dùng Google Maps?**
+A: Để tránh phụ thuộc API key và giới hạn miễn phí
+
+## Support
+
+Nếu gặp vấn đề:
+1. Kiểm tra quyền truy cập GPS
+2. Kiểm tra kết nối internet
+3. Thử trình duyệt khác
+4. Liên hệ team support

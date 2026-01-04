@@ -1,0 +1,57 @@
+-- Migration: Create fuel_price_settings table
+-- Description: Store user-specific fuel/electricity prices
+-- Run this in Supabase SQL Editor
+
+-- 1. Create table
+CREATE TABLE IF NOT EXISTS fuel_price_settings (
+  id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  user_id UUID REFERENCES auth.users(id) ON DELETE CASCADE NOT NULL,
+  fuel_type VARCHAR(50) NOT NULL,
+  price DECIMAL(10, 2) NOT NULL CHECK (price > 0),
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  CONSTRAINT unique_user_fuel_type UNIQUE(user_id, fuel_type)
+);
+
+-- 2. Create indexes
+CREATE INDEX IF NOT EXISTS idx_fuel_price_user ON fuel_price_settings(user_id);
+CREATE INDEX IF NOT EXISTS idx_fuel_price_type ON fuel_price_settings(fuel_type);
+
+-- 3. Add comments
+COMMENT ON TABLE fuel_price_settings IS 'User-specific fuel and electricity prices';
+COMMENT ON COLUMN fuel_price_settings.fuel_type IS 'Type: petrol_a95, petrol_e5, diesel, electric';
+COMMENT ON COLUMN fuel_price_settings.price IS 'Price per unit (VND/lít or VND/kWh)';
+
+-- 4. Enable RLS
+ALTER TABLE fuel_price_settings ENABLE ROW LEVEL SECURITY;
+
+-- 5. Create RLS policies
+CREATE POLICY "Users can view own fuel prices"
+  ON fuel_price_settings FOR SELECT
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can insert own fuel prices"
+  ON fuel_price_settings FOR INSERT
+  WITH CHECK (auth.uid() = user_id);
+
+CREATE POLICY "Users can update own fuel prices"
+  ON fuel_price_settings FOR UPDATE
+  USING (auth.uid() = user_id);
+
+CREATE POLICY "Users can delete own fuel prices"
+  ON fuel_price_settings FOR DELETE
+  USING (auth.uid() = user_id);
+
+-- 6. Insert default prices for all existing users (optional)
+-- This helps existing users have default prices
+INSERT INTO fuel_price_settings (user_id, fuel_type, price)
+SELECT 
+  id,
+  unnest(ARRAY['petrol_a95', 'petrol_e5', 'diesel', 'electric']),
+  unnest(ARRAY[25000, 23000, 21000, 3000])
+FROM auth.users
+ON CONFLICT (user_id, fuel_type) DO NOTHING;
+
+-- Verification queries:
+-- SELECT * FROM fuel_price_settings LIMIT 10;
+-- SELECT fuel_type, AVG(price) as avg_price FROM fuel_price_settings GROUP BY fuel_type;
