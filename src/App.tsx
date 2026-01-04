@@ -35,6 +35,14 @@ const AccountInfoPage = lazy(() => import('./pages/AccountInfo'))
 const AdminSettingsPage = lazy(() => import('./pages/AdminSettings'))
 const QRResultPage = lazy(() => import('./pages/QRResult'))
 const DebtManagerPage = lazy(() => import('./pages/DebtManager'))
+const VehicleManagementPage = lazy(() => import('./pages/vehicles'))
+const AddVehiclePage = lazy(() => import('./pages/vehicles/AddVehicle'))
+const EditVehiclePage = lazy(() => import('./pages/vehicles/EditVehicle'))
+const VehicleTripsPage = lazy(() => import('./pages/vehicles/VehicleTrips'))
+const VehicleFuelPage = lazy(() => import('./pages/vehicles/VehicleFuel'))
+const VehicleMaintenancePage = lazy(() => import('./pages/vehicles/VehicleMaintenance'))
+const VehicleExpensesPage = lazy(() => import('./pages/vehicles/VehicleExpenses'))
+const VehicleReportsPage = lazy(() => import('./pages/vehicles/VehicleReports'))
 
 const PageFallback = () => {
   const { value: splashLogo } = useSystemSetting('app_splash_logo', '/logo-nontext.png')
@@ -300,6 +308,70 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <AccountInfoPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vehicles"
+              element={
+                <ProtectedRoute>
+                  <VehicleManagementPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vehicles/add"
+              element={
+                <ProtectedRoute>
+                  <AddVehiclePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vehicles/edit/:id"
+              element={
+                <ProtectedRoute>
+                  <EditVehiclePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vehicles/trips"
+              element={
+                <ProtectedRoute>
+                  <VehicleTripsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vehicles/fuel"
+              element={
+                <ProtectedRoute>
+                  <VehicleFuelPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vehicles/maintenance"
+              element={
+                <ProtectedRoute>
+                  <VehicleMaintenancePage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vehicles/expenses"
+              element={
+                <ProtectedRoute>
+                  <VehicleExpensesPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vehicles/reports"
+              element={
+                <ProtectedRoute>
+                  <VehicleReportsPage />
                 </ProtectedRoute>
               }
             />

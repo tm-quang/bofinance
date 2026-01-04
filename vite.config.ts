@@ -147,7 +147,7 @@ export default defineConfig({
   server: process.env.NODE_ENV === 'development' ? (() => {
     const baseConfig = {
       host: '192.168.1.200',
-      port: 3000,
+      port: 3100,
     }
 
     // Enable HTTPS only if VITE_USE_HTTPS is set to 'true'
@@ -157,7 +157,7 @@ export default defineConfig({
       // Try to use mkcert certificate if available (recommended for local dev)
       const certPath = path.resolve(__dirname, 'localhost+2.pem')
       const keyPath = path.resolve(__dirname, 'localhost+2-key.pem')
-      
+
       if (fs.existsSync(certPath) && fs.existsSync(keyPath)) {
         console.log('✅ Using mkcert certificate for HTTPS')
         return {

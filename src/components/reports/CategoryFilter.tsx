@@ -29,25 +29,25 @@ export const CategoryFilter = ({
 
   const filteredParentCategories = useHierarchical
     ? parentCategories
-        .filter((cat) => {
-          if (type === 'all') return true
-          return type === 'Thu' ? cat.type === 'Thu nhập' : cat.type === 'Chi tiêu'
+      .filter((cat) => {
+        if (type === 'all') return true
+        return type === 'Thu' ? cat.type === 'Thu nhập' : cat.type === 'Chi tiêu'
+      })
+      .map((parent) => {
+        // Lọc children theo type nếu cần
+        if (type === 'all' || !parent.children) return parent
+        const filteredChildren = parent.children.filter((child) => {
+          return type === 'Thu' ? child.type === 'Thu nhập' : child.type === 'Chi tiêu'
         })
-        .map((parent) => {
-          // Lọc children theo type nếu cần
-          if (type === 'all' || !parent.children) return parent
-          const filteredChildren = parent.children.filter((child) => {
-            return type === 'Thu' ? child.type === 'Thu nhập' : child.type === 'Chi tiêu'
-          })
-          return { ...parent, children: filteredChildren }
-        })
+        return { ...parent, children: filteredChildren }
+      })
     : []
 
   const filteredCategories = !useHierarchical
     ? categories.filter((cat) => {
-    if (type === 'all') return true
-    return type === 'Thu' ? cat.type === 'Thu nhập' : cat.type === 'Chi tiêu'
-  })
+      if (type === 'all') return true
+      return type === 'Thu' ? cat.type === 'Thu nhập' : cat.type === 'Chi tiêu'
+    })
     : []
 
   const toggleParent = (parentId: string) => {
@@ -71,11 +71,10 @@ export const CategoryFilter = ({
         <button
           type="button"
           onClick={() => onCategoryToggle(category.id)}
-          className={`flex items-center gap-2 rounded-3xl px-3 py-2 text-xs font-medium transition sm:px-4 sm:py-2.5 sm:text-sm flex-1 ${
-            isSelected
+          className={`flex items-center gap-2 rounded-3xl px-3 py-2 text-xs font-medium transition sm:px-4 sm:py-2.5 sm:text-sm flex-1 ${isSelected
               ? 'bg-gradient-to-r from-sky-500 to-blue-600 text-white shadow-md shadow-sky-500/30'
               : 'bg-white text-slate-700 border border-slate-200 hover:border-sky-300 hover:bg-sky-50'
-          } ${isChild ? 'ml-6' : ''}`}
+            } ${isChild ? 'ml-6' : ''}`}
         >
           <CategoryIcon iconId={category.icon_id} iconUrl={category.icon_url} className="h-4 w-4" />
           <span>{category.name}</span>
@@ -150,13 +149,13 @@ export const CategoryFilter = ({
             const hasChildren = parent.children && parent.children.length > 0
             const isExpanded = expandedParents.has(parent.id)
 
-          return (
+            return (
               <div key={parent.id} className="space-y-2">
                 {/* Parent Category */}
                 <div className="flex items-center gap-2">
                   {hasChildren && (
-            <button
-              type="button"
+                    <button
+                      type="button"
                       onClick={() => toggleParent(parent.id)}
                       className="flex h-6 w-6 items-center justify-center rounded text-slate-500 hover:bg-slate-100"
                     >
@@ -165,7 +164,7 @@ export const CategoryFilter = ({
                       ) : (
                         <FaChevronRight className="h-3 w-3" />
                       )}
-            </button>
+                    </button>
                   )}
                   {!hasChildren && <div className="w-6" />}
                   {renderCategoryButton(parent as CategoryWithChildren, false)}
@@ -178,9 +177,9 @@ export const CategoryFilter = ({
                   </div>
                 )}
               </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
       ) : (
         <div className="flex flex-wrap gap-2">
           {filteredCategories.map((category) => renderCategoryButton(category, false))}

@@ -56,9 +56,9 @@ const getDateRange = (rangeType: DateRangeType, customStart?: string, customEnd?
       monday.setDate(now.getDate() + diff)
       monday.setHours(0, 0, 0, 0)
       const mondayComponents = getDateComponentsUTC7(monday)
-      
+
       startDate = createDateUTC7(mondayComponents.year, mondayComponents.month, mondayComponents.day, 0, 0, 0, 0)
-      
+
       const sunday = new Date(monday)
       sunday.setDate(monday.getDate() + 6)
       sunday.setHours(23, 59, 59, 999)
@@ -202,7 +202,7 @@ const ReportPage = () => {
   useEffect(() => {
     const loadAllTransactions = async () => {
       if (!isInitialLoad) return // Only load once
-      
+
       setIsLoading(true)
       try {
         // Load transactions from last 3 years to current year
@@ -211,7 +211,7 @@ const ReportPage = () => {
         const startYear = components.year - 2 // 3 years: current year + 2 previous years
         const startOfRange = getFirstDayOfMonthUTC7(startYear, 1)
         const endOfRange = getLastDayOfMonthUTC7(components.year, 12)
-        
+
         const transactionsData = await fetchTransactions({
           start_date: formatDateUTC7(startOfRange),
           end_date: formatDateUTC7(endOfRange),
@@ -236,12 +236,12 @@ const ReportPage = () => {
     if (dateRange.start && dateRange.end) {
       const startDateStr = dateRange.start.split('T')[0]
       const endDateStr = dateRange.end.split('T')[0]
-      
+
       const filtered = allTransactions.filter((t) => {
         const transactionDateStr = t.transaction_date.split('T')[0]
         return transactionDateStr >= startDateStr && transactionDateStr <= endDateStr
       })
-      
+
       setTransactions(filtered)
     } else {
       setTransactions(allTransactions)
@@ -257,7 +257,16 @@ const ReportPage = () => {
     }
 
     if (selectedCategoryIds.length > 0) {
-      result = result.filter((t) => selectedCategoryIds.includes(t.category_id))
+      // Get all category IDs including children if a parent is selected
+      const expandedCategoryIds = new Set<string>()
+      selectedCategoryIds.forEach(id => {
+        expandedCategoryIds.add(id)
+        const parent = parentCategories.find(p => p.id === id)
+        if (parent?.children) {
+          parent.children.forEach(child => expandedCategoryIds.add(child.id))
+        }
+      })
+      result = result.filter((t) => expandedCategoryIds.has(t.category_id))
     }
 
     if (searchTerm.trim()) {
@@ -381,7 +390,7 @@ const ReportPage = () => {
 
       // Sort by date if groupByDate
       if (options.groupByDate) {
-        transactionsToExport = transactionsToExport.sort((a, b) => 
+        transactionsToExport = transactionsToExport.sort((a, b) =>
           new Date(a.transaction_date).getTime() - new Date(b.transaction_date).getTime()
         )
       }
@@ -418,272 +427,263 @@ const ReportPage = () => {
     setSearchTerm('')
   }
 
-  if (isLoading) {
-    return (
-      <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC]">
-        {/* Header Skeleton */}
+  return (
+    <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
+      {isLoading ? (
         <div className="flex h-14 shrink-0 items-center justify-between bg-white px-4 shadow-sm">
           <div className="h-5 w-40 rounded-lg bg-slate-200 animate-pulse" />
           <div className="h-9 w-9 rounded-full bg-slate-200 animate-pulse" />
         </div>
-
-        <main className="flex-1 overflow-y-auto overscroll-contain">
-          <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 pt-2 pb-24">
-            {/* Date Filter Skeleton */}
-            <div className="flex items-start gap-2">
-              <div className="grid flex-1 grid-cols-3 gap-2">
-                {[...Array(6)].map((_, i) => (
-                  <div key={i} className="h-8 rounded-xl bg-slate-200 animate-pulse" />
-                ))}
+      ) : (
+        <HeaderBar
+          variant="page"
+          title={isSearchOpen ? '' : "BÁO CÁO & THỐNG KÊ"}
+          showIcon={
+            <button
+              type="button"
+              onClick={() => setIsSearchOpen(!isSearchOpen)}
+              className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-lg border border-slate-100 transition hover:scale-110 active:scale-95"
+            >
+              <FaSearch className="h-4 w-4 text-slate-600" />
+            </button>
+          }
+          customContent={
+            isSearchOpen ? (
+              <div className="flex-1 px-4">
+                <div className="relative">
+                  <FaSearch className="absolute left-4 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
+                  <input
+                    type="text"
+                    placeholder="Tìm kiếm..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    autoFocus
+                    className="w-full rounded-xl border-2 border-slate-200 bg-white py-2 pl-11 pr-4 text-sm outline-none focus:border-sky-400"
+                  />
+                </div>
               </div>
-              <div className="h-9 w-9 shrink-0 rounded-xl bg-slate-200 animate-pulse" />
-            </div>
-
-            {/* Summary Cards Skeleton */}
-            <div className="grid grid-cols-2 gap-3">
-              <div className="col-span-2 h-32 rounded-2xl bg-slate-200 animate-pulse" />
-              <div className="h-24 rounded-2xl bg-slate-200 animate-pulse" />
-              <div className="h-24 rounded-2xl bg-slate-200 animate-pulse" />
-            </div>
-
-            {/* Tabs Skeleton */}
-            <div className="h-10 rounded-xl bg-slate-200 animate-pulse" />
-
-            {/* Chart Area Skeleton */}
-            <div className="h-72 rounded-3xl bg-slate-200 animate-pulse" />
-          </div>
-        </main>
-
-        {/* Footer Placeholder */}
-        <div className="h-[72px] w-full shrink-0 bg-white border-t border-slate-200" />
-      </div>
-    )
-  }
-
-  return (
-    <div className="flex h-full flex-col overflow-hidden bg-[#F7F9FC] text-slate-900">
-      <HeaderBar
-        variant="page"
-        title={isSearchOpen ? '' : "BÁO CÁO & THỐNG KÊ"}
-        showIcon={
-          <button
-            type="button"
-            onClick={() => setIsSearchOpen(!isSearchOpen)}
-            className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-lg border border-slate-100 transition hover:scale-110 active:scale-95"
-          >
-            <FaSearch className="h-4 w-4 text-slate-600" />
-          </button>
-        }
-        customContent={
-          isSearchOpen ? (
-            <div className="flex-1 px-4">
-              <div className="relative">
-                <FaSearch className="absolute left-4 top-1/2 h-3 w-3 -translate-y-1/2 text-slate-400" />
-                <input
-                  type="text"
-                  placeholder="Tìm kiếm..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  autoFocus
-                  className="w-full rounded-xl border-2 border-slate-200 bg-white py-2 pl-11 pr-4 text-sm outline-none focus:border-sky-400"
-                />
-              </div>
-            </div>
-          ) : null
-        }
-      />
+            ) : null
+          }
+        />
+      )}
 
       <main className="flex-1 overflow-y-auto overscroll-contain">
         <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 pt-2 pb-24">
-
-          {/* Filters & Date */}
-          <div className="space-y-3">
-            <div className="flex items-start gap-2">
-              <div className="flex-1 min-w-0">
-                <DateRangeFilter
-                  rangeType={rangeType}
-                  onRangeTypeChange={setRangeType}
-                  startDate={customStartDate}
-                  endDate={customEndDate}
-                  onStartDateChange={setCustomStartDate}
-                  onEndDateChange={setCustomEndDate}
-                />
-              </div>
-              <button
-                onClick={() => setIsFilterModalOpen(true)}
-                className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-3xl border transition ${selectedCategoryIds.length > 0 || typeFilter !== 'all'
-                  ? 'bg-blue-50 border-blue-200 text-blue-600'
-                  : 'bg-white border-slate-200 text-slate-500'
-                  }`}
-              >
-                <FaFilter className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-
-          {/* Summary Cards */}
-          <div className="grid grid-cols-2 gap-3">
-            <div className="col-span-2 rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-700 p-5 text-white shadow-lg shadow-blue-500/30">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-medium text-blue-100 uppercase tracking-wider">Dòng tiền ròng</p>
-                <div className="flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[10px]">
-                  <FaWallet className="h-3 w-3" />
-                  <span>{RANGE_LABEL_MAP[rangeType]}</span>
-                </div>
-              </div>
-              <p className="text-2xl font-bold">{formatCurrency(stats.balance)}</p>
-              <div className="mt-3 flex items-center gap-4 text-xs text-blue-100">
-                <div className="flex items-center gap-1">
-                  <FaPiggyBank className="h-3 w-3" />
-                  <span>Tiết kiệm: {stats.savingsRate.toFixed(1)}%</span>
-                </div>
-                <div className="h-3 w-px bg-blue-400/50" />
-                <div>TB ngày: {formatCurrency(stats.dailyIncome - stats.dailyExpense)}</div>
-              </div>
-            </div>
-
-            <div className="rounded-3xl bg-white p-4 shadow-lg border border-slate-100">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
-                  <FaArrowUp className="h-3 w-3" />
-                </div>
-                <p className="text-xs font-semibold text-slate-500">Thu nhập</p>
-              </div>
-              <p className="text-lg font-bold text-emerald-600">{formatCurrency(stats.income)}</p>
-            </div>
-
-            <div className="rounded-3xl bg-white p-4 shadow-lg border border-slate-100">
-              <div className="flex items-center gap-2 mb-2">
-                <div className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-100 text-rose-600">
-                  <FaArrowDown className="h-3 w-3" />
-                </div>
-                <p className="text-xs font-semibold text-slate-500">Chi tiêu</p>
-              </div>
-              <p className="text-lg font-bold text-rose-600">{formatCurrency(stats.expense)}</p>
-            </div>
-          </div>
-
-          {/* Tabs */}
-          <div className="flex rounded-2xl bg-slate-100 p-1 shadow-inner">
-            {(['overview', 'income', 'expense'] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`flex-1 rounded-xl py-2 text-xs font-bold transition-all ${activeTab === tab
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700'
-                  }`}
-              >
-                {tab === 'overview' ? 'Tổng quan' : tab === 'income' ? 'Thu nhập' : 'Chi tiêu'}
-              </button>
-            ))}
-          </div>
-
-          {/* Content */}
-          <div className="space-y-4">
-            {activeTab === 'overview' && (
-              <>
-                <section className="rounded-3xl bg-white shadow-lg border border-slate-100 overflow-hidden">
-                  <div className="flex items-center justify-between px-5 pt-5 mb-4">
-                    <h3 className="font-bold text-slate-900 flex items-center gap-2">
-                      <FaChartLine className="text-blue-500" />
-                      Phân tích tài chính
-                    </h3>
-                  </div>
-                  <div className="pb-5">
-                    <AdvancedAnalyticsChart data={chartData} height={300} />
-                  </div>
-                </section>
-              </>
-            )}
-
-            {activeTab === 'income' && (
-              <>
-                <section className="rounded-3xl bg-white p-5 shadow-lg border border-slate-100">
-                  <h3 className="font-bold text-slate-900 mb-4">Cơ cấu thu nhập</h3>
-                  <DonutChartWithLegend
-                    transactions={filteredTransactions.filter(t => t.type === 'Thu')}
-                    categories={categories}
-                    parentCategories={parentCategories}
-                    totalAmount={stats.income}
-                  />
-                </section>
-
-                <section className="space-y-3">
-                  <h3 className="font-bold text-slate-900 px-1">Top nguồn thu</h3>
-                  {getTopCategories('Thu').map((item) => (
-                    <button
-                      key={item.category!.id}
-                      onClick={() => {
-                        setSelectedCategoryForDetail(item.category!)
-                        setIsCategoryDetailModalOpen(true)
-                      }}
-                      className="w-full flex items-center justify-between rounded-3xl bg-white p-3 shadow-lg border border-slate-100 hover:shadow-xl transition-all active:scale-95"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 shrink-0">
-                          {categoryIcons[item.category!.id]}
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-900">{item.category!.name}</p>
-                          <p className="text-xs text-slate-500">{item.percentage.toFixed(1)}%</p>
-                        </div>
-                      </div>
-                      <p className="font-bold text-emerald-600">+{formatCurrency(item.amount)}</p>
-                    </button>
+          {isLoading ? (
+            <>
+              {/* Date Filter Skeleton */}
+              <div className="flex items-start gap-2">
+                <div className="grid flex-1 grid-cols-3 gap-2">
+                  {[...Array(6)].map((_, i) => (
+                    <div key={i} className="h-8 rounded-xl bg-slate-200 animate-pulse" />
                   ))}
-                </section>
-              </>
-            )}
+                </div>
+                <div className="h-9 w-9 shrink-0 rounded-xl bg-slate-200 animate-pulse" />
+              </div>
 
-            {activeTab === 'expense' && (
-              <>
-                <section className="rounded-3xl bg-white p-5 shadow-lg border border-slate-100">
-                  <h3 className="font-bold text-slate-900 mb-4">Cơ cấu chi tiêu</h3>
-                  <DonutChartWithLegend
-                    transactions={filteredTransactions.filter(t => t.type === 'Chi')}
-                    categories={categories}
-                    parentCategories={parentCategories}
-                    totalAmount={stats.expense}
-                  />
-                </section>
+              {/* Summary Cards Skeleton */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2 h-32 rounded-2xl bg-slate-200 animate-pulse" />
+                <div className="h-24 rounded-2xl bg-slate-200 animate-pulse" />
+                <div className="h-24 rounded-2xl bg-slate-200 animate-pulse" />
+              </div>
 
-                <section className="space-y-3">
-                  <h3 className="font-bold text-slate-900 px-1">Top chi tiêu</h3>
-                  {getTopCategories('Chi').map((item) => (
-                    <button
-                      key={item.category!.id}
-                      onClick={() => {
-                        setSelectedCategoryForDetail(item.category!)
-                        setIsCategoryDetailModalOpen(true)
-                      }}
-                      className="w-full flex items-center justify-between rounded-3xl bg-white p-3 shadow-lg border border-slate-100 hover:shadow-xl transition-all active:scale-95"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="h-10 w-10 shrink-0">
-                          {categoryIcons[item.category!.id]}
-                        </div>
-                        <div>
-                          <p className="text-sm font-bold text-slate-900">{item.category!.name}</p>
-                          <p className="text-xs text-slate-500">{item.percentage.toFixed(1)}%</p>
-                        </div>
-                      </div>
-                      <p className="font-bold text-rose-600">-{formatCurrency(item.amount)}</p>
-                    </button>
-                  ))}
-                </section>
-              </>
-            )}
-          </div>
+              {/* Tabs Skeleton */}
+              <div className="h-10 rounded-xl bg-slate-200 animate-pulse" />
 
-          <div className="flex justify-center pt-4">
-            <button
-              onClick={handleExport}
-              className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-2xl bg-blue-500 text-white hover:bg-blue-600 shadow-lg"
-            >
-              <FaDownload /> Xuất báo cáo chi tiết
-            </button>
-          </div>
+              {/* Chart Area Skeleton */}
+              <div className="h-72 rounded-3xl bg-slate-200 animate-pulse" />
+            </>
+          ) : (
+            <>
+              {/* Filters & Date */}
+              <div className="space-y-3">
+                <div className="flex items-start gap-2">
+                  <div className="flex-1 min-w-0">
+                    <DateRangeFilter
+                      rangeType={rangeType}
+                      onRangeTypeChange={setRangeType}
+                      startDate={customStartDate}
+                      endDate={customEndDate}
+                      onStartDateChange={setCustomStartDate}
+                      onEndDateChange={setCustomEndDate}
+                    />
+                  </div>
+                  <button
+                    onClick={() => setIsFilterModalOpen(true)}
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-3xl border transition ${selectedCategoryIds.length > 0 || typeFilter !== 'all'
+                      ? 'bg-blue-50 border-blue-200 text-blue-600'
+                      : 'bg-white border-slate-200 text-slate-500'
+                      }`}
+                  >
+                    <FaFilter className="h-4 w-4" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Summary Cards */}
+              <div className="grid grid-cols-2 gap-3">
+                <div className="col-span-2 rounded-3xl bg-gradient-to-br from-blue-600 to-indigo-700 p-5 text-white shadow-lg shadow-blue-500/30">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-blue-100 uppercase tracking-wider">Dòng tiền ròng</p>
+                    <div className="flex items-center gap-1 rounded-full bg-white/20 px-2 py-0.5 text-[10px]">
+                      <FaWallet className="h-3 w-3" />
+                      <span>{RANGE_LABEL_MAP[rangeType]}</span>
+                    </div>
+                  </div>
+                  <p className="text-2xl font-bold">{formatCurrency(stats.balance)}</p>
+                  <div className="mt-3 flex items-center gap-4 text-xs text-blue-100">
+                    <div className="flex items-center gap-1">
+                      <FaPiggyBank className="h-3 w-3" />
+                      <span>Tiết kiệm: {stats.savingsRate.toFixed(1)}%</span>
+                    </div>
+                    <div className="h-3 w-px bg-blue-400/50" />
+                    <div>TB ngày: {formatCurrency(stats.dailyIncome - stats.dailyExpense)}</div>
+                  </div>
+                </div>
+
+                <div className="rounded-3xl bg-white p-4 shadow-lg border border-slate-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
+                      <FaArrowUp className="h-3 w-3" />
+                    </div>
+                    <p className="text-xs font-semibold text-slate-500">Thu nhập</p>
+                  </div>
+                  <p className="text-lg font-bold text-emerald-600">{formatCurrency(stats.income)}</p>
+                </div>
+
+                <div className="rounded-3xl bg-white p-4 shadow-lg border border-slate-100">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-rose-100 text-rose-600">
+                      <FaArrowDown className="h-3 w-3" />
+                    </div>
+                    <p className="text-xs font-semibold text-slate-500">Chi tiêu</p>
+                  </div>
+                  <p className="text-lg font-bold text-rose-600">{formatCurrency(stats.expense)}</p>
+                </div>
+              </div>
+
+              {/* Tabs */}
+              <div className="flex rounded-2xl bg-slate-100 p-1 shadow-inner">
+                {(['overview', 'income', 'expense'] as const).map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setActiveTab(tab)}
+                    className={`flex-1 rounded-xl py-2 text-xs font-bold transition-all ${activeTab === tab
+                      ? 'bg-white text-slate-900 shadow-sm'
+                      : 'text-slate-500 hover:text-slate-700'
+                      }`}
+                  >
+                    {tab === 'overview' ? 'Tổng quan' : tab === 'income' ? 'Thu nhập' : 'Chi tiêu'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Content Area */}
+              <div className="space-y-4">
+                {activeTab === 'overview' && (
+                  <section className="rounded-3xl bg-white shadow-lg border border-slate-100 overflow-hidden">
+                    <div className="flex items-center justify-between px-5 pt-5 mb-4">
+                      <h3 className="font-bold text-slate-900 flex items-center gap-2">
+                        <FaChartLine className="text-blue-500" />
+                        Phân tích tài chính
+                      </h3>
+                    </div>
+                    <div className="pb-5">
+                      <AdvancedAnalyticsChart data={chartData} height={300} />
+                    </div>
+                  </section>
+                )}
+
+                {activeTab === 'income' && (
+                  <>
+                    <section className="rounded-3xl bg-white p-5 shadow-lg border border-slate-100">
+                      <h3 className="font-bold text-slate-900 mb-4">Cơ cấu thu nhập</h3>
+                      <DonutChartWithLegend
+                        transactions={filteredTransactions.filter(t => t.type === 'Thu')}
+                        categories={categories}
+                        parentCategories={parentCategories}
+                        totalAmount={stats.income}
+                      />
+                    </section>
+
+                    <section className="space-y-3">
+                      <h3 className="font-bold text-slate-900 px-1">Top nguồn thu</h3>
+                      {getTopCategories('Thu').map((item) => (
+                        <button
+                          key={item.category!.id}
+                          onClick={() => {
+                            setSelectedCategoryForDetail(item.category!)
+                            setIsCategoryDetailModalOpen(true)
+                          }}
+                          className="w-full flex items-center justify-between rounded-3xl bg-white p-3 shadow-lg border border-slate-100 hover:shadow-xl transition-all active:scale-95"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 shrink-0">
+                              {categoryIcons[item.category!.id]}
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-slate-900">{item.category!.name}</p>
+                              <p className="text-xs text-slate-500">{item.percentage.toFixed(1)}%</p>
+                            </div>
+                          </div>
+                          <p className="font-bold text-emerald-600">+{formatCurrency(item.amount)}</p>
+                        </button>
+                      ))}
+                    </section>
+                  </>
+                )}
+
+                {activeTab === 'expense' && (
+                  <>
+                    <section className="rounded-3xl bg-white p-5 shadow-lg border border-slate-100">
+                      <h3 className="font-bold text-slate-900 mb-4">Cơ cấu chi tiêu</h3>
+                      <DonutChartWithLegend
+                        transactions={filteredTransactions.filter(t => t.type === 'Chi')}
+                        categories={categories}
+                        parentCategories={parentCategories}
+                        totalAmount={stats.expense}
+                      />
+                    </section>
+
+                    <section className="space-y-3">
+                      <h3 className="font-bold text-slate-900 px-1">Top chi tiêu</h3>
+                      {getTopCategories('Chi').map((item) => (
+                        <button
+                          key={item.category!.id}
+                          onClick={() => {
+                            setSelectedCategoryForDetail(item.category!)
+                            setIsCategoryDetailModalOpen(true)
+                          }}
+                          className="w-full flex items-center justify-between rounded-3xl bg-white p-3 shadow-lg border border-slate-100 hover:shadow-xl transition-all active:scale-95"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 shrink-0">
+                              {categoryIcons[item.category!.id]}
+                            </div>
+                            <div>
+                              <p className="text-sm font-bold text-slate-900">{item.category!.name}</p>
+                              <p className="text-xs text-slate-500">{item.percentage.toFixed(1)}%</p>
+                            </div>
+                          </div>
+                          <p className="font-bold text-rose-600">-{formatCurrency(item.amount)}</p>
+                        </button>
+                      ))}
+                    </section>
+                  </>
+                )}
+              </div>
+
+              <div className="flex justify-center pt-4">
+                <button
+                  onClick={handleExport}
+                  className="flex items-center gap-2 text-sm font-medium px-4 py-2 rounded-2xl bg-blue-500 text-white hover:bg-blue-600 shadow-lg"
+                >
+                  <FaDownload /> Xuất báo cáo chi tiết
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </main>
 
@@ -695,11 +695,40 @@ const ReportPage = () => {
         categories={categories}
         parentCategories={parentCategories}
         selectedCategoryIds={selectedCategoryIds}
-        onCategoryToggle={(id) => setSelectedCategoryIds(prev => prev.includes(id) ? prev.filter(i => i !== id) : [...prev, id])}
+        onCategoryToggle={(id) => {
+          setSelectedCategoryIds(prev => {
+            const isSelected = prev.includes(id)
+            const parent = parentCategories.find(p => p.id === id)
+
+            if (parent) {
+              // It's a parent category
+              const childIds = parent.children?.map(c => c.id) || []
+              if (isSelected) {
+                // Deselect parent and all children
+                return prev.filter(i => i !== id && !childIds.includes(i))
+              } else {
+                // Select parent and all children
+                const newSelection = [...new Set([...prev, id, ...childIds])]
+                return newSelection
+              }
+            } else {
+              // It's a child or standalone category
+              if (isSelected) {
+                const newSelection = prev.filter(i => i !== id)
+                // If this was the last child of a parent, we might want to deselect the parent?
+                // For now, let's just do individual toggle
+                return newSelection
+              } else {
+                return [...prev, id]
+              }
+            }
+          })
+        }}
         onClearCategories={() => setSelectedCategoryIds([])}
         typeFilter={typeFilter}
         onTypeFilterChange={setTypeFilter}
         onReset={handleResetFilters}
+
         onCategoryClick={(category) => {
           setSelectedCategoryForDetail(category)
           setIsCategoryDetailModalOpen(true)

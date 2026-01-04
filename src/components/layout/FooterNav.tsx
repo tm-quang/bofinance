@@ -2,12 +2,12 @@ import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import type { IconType } from 'react-icons'
 import {
-  FaPlus,
-  FaChartBar,
-  FaHome,
-  FaCog,
-  FaWallet,
-} from 'react-icons/fa'
+  LuHouse,
+  LuCar,
+  LuChartLine,
+  LuSettings,
+  LuClipboardPen,
+} from 'react-icons/lu'
 
 type FooterNavProps = {
   onAddClick?: () => void
@@ -22,11 +22,11 @@ type TabItem = {
 }
 
 const tabs: TabItem[] = [
-  { id: 'home', label: 'Tổng quan', icon: FaHome, path: '/dashboard' },
-  { id: 'budgets', label: 'Hạn mức', icon: FaWallet, path: '/budgets' },
-  { id: 'add', label: '', icon: FaPlus, prominent: true },
-  { id: 'reports', label: 'Báo cáo', icon: FaChartBar, path: '/reports' },
-  { id: 'settings', label: 'Cài đặt', icon: FaCog, path: '/settings' },
+  { id: 'home', label: 'Tổng quan', icon: LuHouse, path: '/dashboard' },
+  { id: 'vehicles', label: 'Phương tiện', icon: LuCar, path: '/vehicles' },
+  { id: 'add', label: '', icon: LuClipboardPen, prominent: true },
+  { id: 'reports', label: 'Báo cáo', icon: LuChartLine, path: '/reports' },
+  { id: 'settings', label: 'Cài đặt', icon: LuSettings, path: '/settings' },
 ]
 
 export const FooterNav = ({ onAddClick }: FooterNavProps) => {
@@ -88,23 +88,47 @@ export const FooterNav = ({ onAddClick }: FooterNavProps) => {
   }
 
   return (
-    <div className="relative z-50 flex flex-shrink-0 justify-center bg-transparent">
-      <div className="relative w-full max-w-md">
-        {/* Central Add Button - Centered vertically and horizontally */}
-        <div className="absolute left-1/2 top-1/2 z-30 -translate-x-1/2 -translate-y-1/2">
+    <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center pointer-events-none">
+      <div className="relative w-full max-w-md pointer-events-auto">
+        {/* Central Add Button - Positioned on the convex bulge */}
+        <div className="absolute left-1/2 bottom-[12px] z-30 -translate-x-1/2">
           <button
             type="button"
             onClick={() => handleClick(tabs[2])}
-            className="group flex h-14 w-14 items-center justify-center rounded-full bg-white border-2 border-blue-800 shadow-lg transition-all hover:scale-110 hover:shadow-xl active:scale-95"
+            className="group flex h-14 w-14 items-center justify-center rounded-full bg-blue-800 shadow-lg transition-all hover:scale-110 hover:shadow-xl active:scale-95"
           >
-            <FaPlus className="h-7 w-7 text-blue-800" />
+            <LuClipboardPen className="h-8 w-8 text-white" strokeWidth={2.5} />
           </button>
         </div>
 
-        {/* Navigation Bar - Simple white background */}
-        <div className="relative h-16 bg-white border-t border-slate-200">
+        {/* Navigation Bar - Custom SVG Background with Convex Center */}
+        <div className="relative h-[100px]">
+          {/* SVG Background Shape */}
+          <div className="absolute bottom-0 w-full h-[105px] drop-shadow-[0_-10px_30px_rgba(0,0,0,0.06)]">
+            <svg
+              viewBox="0 0 400 100"
+              className="w-full h-full"
+              preserveAspectRatio="none"
+            >
+              {/* Convex White background - Even Taller base */}
+              <path
+                d="M 0,60 
+                   C 0,48.954 8.954,40 20,40 
+                   L 130,40 
+                   C 155,40 175,22 200,22 
+                   C 225,22 245,40 270,40 
+                   L 380,40 
+                   C 391.046,40 400,48.954 400,60 
+                   L 400,100 
+                   L 0,100 
+                   Z"
+                fill="white"
+              />
+            </svg>
+          </div>
+
           {/* Navigation Items */}
-          <div className="relative z-10 flex items-center justify-between px-0 h-full pt-1">
+          <div className="relative z-10 flex items-end justify-between px-0 h-full pb-1">
             {tabs.map((tab) => {
               if (tab.prominent) {
                 return <div key={tab.id} className="flex flex-1" />
@@ -125,9 +149,9 @@ export const FooterNav = ({ onAddClick }: FooterNavProps) => {
                     }`}
                 >
                   <span
-                    className={`flex h-10 w-10 items-center justify-center rounded-full text-lg transition-all ${active
+                    className={`flex h-9 w-9 items-center justify-center rounded-full text-lg transition-all ${active
                       ? 'bg-blue-800 text-white shadow-md'
-                      : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                      : 'bg-transparent text-slate-600 hover:bg-slate-100/50'
                       } ${shouldAnimate ? 'animate-zoom-once' : ''}`}
                   >
                     <Icon className={`h-6 w-6 ${shouldAnimate ? 'animate-zoom-once' : ''}`} />

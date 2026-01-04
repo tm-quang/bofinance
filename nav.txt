@@ -1,0 +1,347 @@
+# Hướng dẫn Thiết kế Menu Navigation - Deep Concave với Bo Góc
+
+## 📐 Tổng quan Thiết kế
+
+Menu navigation có thiết kế đặc biệt với:
+- **Phần lõm ở giữa** (Deep Concave): Tạo không gian cho Floating Action Button (FAB)
+- **Bo góc trên ở 2 cạnh**: Tạo hiệu ứng mềm mại, hiện đại
+- **Shadow effect**: Tạo độ sâu và nổi bật
+
+## 🎨 Cấu trúc Thiết kế
+
+```
+┌─────────────────────────────────────────┐
+│  ╭─────╮                    ╭─────╮     │ ← Bo góc trên (rounded top corners)
+│  │     │                    │     │     │
+│  │     │                    │     │     │
+│  │     │    ╲         ╱     │     │     │ ← Phần lõm ở giữa (concave)
+│  │     │     ╲       ╱       │     │     │
+│  │     │      ╲     ╱        │     │     │
+│  │     │       ╲   ╱         │     │     │
+│  │     │        ╲ ╱          │     │     │
+│  │     │         ╱╲          │     │     │
+│  │     │        ╱  ╲         │     │     │
+│  │     │       ╱    ╲        │     │     │
+│  │     │      ╱      ╲       │     │     │
+│  │     │     ╱        ╲       │     │     │
+│  └─────┘    ╱          ╲      └─────┘     │
+└─────────────────────────────────────────┘
+```
+
+## 💻 Code Implementation
+
+### 1. SVG Path - Tạo hình dạng lõm và bo góc
+
+File: `NavBackground.tsx`
+
+```tsx
+import React from 'react';
+import { NAV_DESIGN, SVG_BACKGROUND_PATH } from './constants';
+
+const NavBackground: React.FC = () => {
+  return (
+    <div className="absolute bottom-0 w-full h-[65px] drop-shadow-[0_-10px_30px_rgba(0,0,0,0.06)]">
+      <svg 
+        viewBox="0 0 400 65" 
+        className="w-full h-full fill-white" 
+        preserveAspectRatio="none"
+      >
+        <path d={SVG_BACKGROUND_PATH} />
+      </svg>
+    </div>
+  );
+};
+
+export default NavBackground;
+```
+
+### 2. SVG Path String - Giải thích chi tiết
+
+```typescript
+const SVG_BACKGROUND_PATH = 
+  "M0 24C0 10.745 10.745 0 24 0H125C140 0 150 15 160 32C175 52 185 55 200 55C215 55 225 52 240 32C250 15 260 0 275 0H376C389.255 0 400 10.745 400 24V65H0V24Z";
+```
+
+#### Phân tích từng phần:
+
+**1. Bo góc trên bên trái:**
+```
+M0 24C0 10.745 10.745 0 24 0
+```
+- `M0 24`: Di chuyển đến điểm (0, 24) - bắt đầu từ cạnh trái, cách top 24px
+- `C0 10.745 10.745 0 24 0`: Vẽ đường cong Bezier cubic
+  - Control point 1: (0, 10.745)
+  - Control point 2: (10.745, 0)
+  - End point: (24, 0) - góc trên trái với radius ~24px
+
+**2. Đường thẳng trên bên trái:**
+```
+H125
+```
+- Vẽ đường thẳng ngang từ x=24 đến x=125
+
+**3. Đường cong xuống (bắt đầu phần lõm):**
+```
+C140 0 150 15 160 32
+```
+- Control point 1: (140, 0) - bắt đầu cong
+- Control point 2: (150, 15) - cong xuống
+- End point: (160, 32) - điểm thấp nhất bên trái của phần lõm
+
+**4. Đường cong lõm ở giữa (phần sâu nhất):**
+```
+C175 52 185 55 200 55
+```
+- Control point 1: (175, 52) - tiếp tục xuống
+- Control point 2: (185, 55) - đáy lõm
+- End point: (200, 55) - điểm giữa, độ sâu tối đa (55px từ top)
+
+**5. Đường cong lên (kết thúc phần lõm):**
+```
+C215 55 225 52 240 32
+```
+- Control point 1: (215, 55) - bắt đầu lên
+- Control point 2: (225, 52) - cong lên
+- End point: (240, 32) - điểm cao nhất bên phải của phần lõm
+
+**6. Đường thẳng trên bên phải:**
+```
+C250 15 260 0 275 0H376
+```
+- `C250 15 260 0 275 0`: Đường cong lên để nối với cạnh trên
+- `H376`: Đường thẳng ngang đến x=376
+
+**7. Bo góc trên bên phải:**
+```
+C389.255 0 400 10.745 400 24
+```
+- Control point 1: (389.255, 0)
+- Control point 2: (400, 10.745)
+- End point: (400, 24) - góc trên phải với radius ~24px
+
+**8. Đường thẳng dưới:**
+```
+V65H0V24Z
+```
+- `V65`: Đường thẳng dọc xuống đến y=65 (bottom)
+- `H0`: Đường thẳng ngang về x=0 (left)
+- `V24`: Đường thẳng dọc lên về y=24
+- `Z`: Đóng path (về điểm bắt đầu)
+
+## 🎯 Các Tham số Thiết kế
+
+### Kích thước
+```typescript
+VIEWBOX_WIDTH = 400    // Chiều rộng viewBox
+VIEWBOX_HEIGHT = 65    // Chiều cao viewBox
+CORNER_RADIUS = 24     // Bán kính bo góc
+CONCAVE_DEPTH = 55     // Độ sâu phần lõm (từ top)
+CONCAVE_WIDTH = 80     // Chiều rộng phần lõm (160-240)
+```
+
+### Điểm điều khiển (Control Points)
+```typescript
+// Bo góc trái
+LEFT_CORNER_START = { x: 0, y: 24 }
+LEFT_CORNER_END = { x: 24, y: 0 }
+
+// Phần lõm bên trái
+CONCAVE_LEFT_START = { x: 125, y: 0 }
+CONCAVE_LEFT_DEEP = { x: 160, y: 32 }
+
+// Đáy lõm (sâu nhất)
+CONCAVE_BOTTOM = { x: 200, y: 55 }
+
+// Phần lõm bên phải
+CONCAVE_RIGHT_DEEP = { x: 240, y: 32 }
+CONCAVE_RIGHT_END = { x: 275, y: 0 }
+
+// Bo góc phải
+RIGHT_CORNER_START = { x: 376, y: 0 }
+RIGHT_CORNER_END = { x: 400, y: 24 }
+```
+
+## 🔧 Customization Guide
+
+### 1. Thay đổi độ sâu phần lõm
+
+Để làm phần lõm sâu hơn hoặc nông hơn, thay đổi giá trị y trong các điểm điều khiển:
+
+```typescript
+// Lõm sâu hơn (tăng từ 55 lên 60)
+C175 57 185 60 200 60  // Đáy lõm
+
+// Lõm nông hơn (giảm từ 55 xuống 50)
+C175 47 185 50 200 50  // Đáy lõm
+```
+
+### 2. Thay đổi độ rộng phần lõm
+
+Để làm phần lõm rộng hơn hoặc hẹp hơn:
+
+```typescript
+// Rộng hơn (tăng từ 160-240 lên 150-250)
+C140 0 150 15 150 32  // Bắt đầu sớm hơn
+C225 52 235 55 250 55 // Kết thúc muộn hơn
+C235 55 245 52 250 32 // Điểm cao bên phải
+
+// Hẹp hơn (giảm từ 160-240 xuống 170-230)
+C145 0 155 15 170 32
+C220 52 230 55 230 55
+C220 55 230 52 230 32
+```
+
+### 3. Thay đổi bán kính bo góc
+
+```typescript
+// Bo góc lớn hơn (tăng từ 24 lên 30)
+M0 30C0 13.5 13.5 0 30 0  // Góc trái
+C390 0 400 13.5 400 30   // Góc phải
+
+// Bo góc nhỏ hơn (giảm từ 24 xuống 18)
+M0 18C0 9.9 9.9 0 18 0   // Góc trái
+C382 0 400 9.9 400 18    // Góc phải
+```
+
+### 4. Thay đổi chiều cao tổng thể
+
+```typescript
+// Tăng chiều cao từ 65 lên 80
+viewBox="0 0 400 80"
+V80H0V24Z  // Thay đổi trong path
+
+// Giảm chiều cao từ 65 xuống 50
+viewBox="0 0 400 50"
+V50H0V24Z
+```
+
+## 📝 Code Template - Tạo SVG Path mới
+
+### Template cơ bản:
+
+```typescript
+const createNavPath = (config: {
+  width: number;           // Chiều rộng (mặc định: 400)
+  height: number;          // Chiều cao (mặc định: 65)
+  cornerRadius: number;    // Bán kính bo góc (mặc định: 24)
+  concaveDepth: number;    // Độ sâu lõm (mặc định: 55)
+  concaveStart: number;    // Vị trí bắt đầu lõm (mặc định: 125)
+  concaveEnd: number;       // Vị trí kết thúc lõm (mặc định: 275)
+  concaveCenter: number;   // Vị trí giữa lõm (mặc định: 200)
+}) => {
+  const {
+    width = 400,
+    height = 65,
+    cornerRadius = 24,
+    concaveDepth = 55,
+    concaveStart = 125,
+    concaveEnd = 275,
+    concaveCenter = 200
+  } = config;
+
+  // Tính toán các điểm
+  const leftCornerEnd = cornerRadius;
+  const rightCornerStart = width - cornerRadius;
+  const concaveLeft = concaveStart + 35;
+  const concaveRight = concaveEnd - 35;
+  const concaveTop = 32;
+
+  return `
+    M0 ${cornerRadius}
+    C0 ${cornerRadius * 0.448} ${cornerRadius * 0.448} 0 ${cornerRadius} 0
+    H${concaveStart}
+    C${concaveStart + 15} 0 ${concaveLeft - 10} 15 ${concaveLeft} ${concaveTop}
+    C${concaveCenter - 25} ${concaveDepth - 3} ${concaveCenter - 15} ${concaveDepth} ${concaveCenter} ${concaveDepth}
+    C${concaveCenter + 15} ${concaveDepth} ${concaveCenter + 25} ${concaveDepth - 3} ${concaveRight} ${concaveTop}
+    C${concaveRight + 10} 0 ${concaveEnd - 15} 0 ${concaveEnd} 0
+    H${rightCornerStart}
+    C${width - cornerRadius * 0.448} 0 ${width} ${cornerRadius * 0.448} ${width} ${cornerRadius}
+    V${height}
+    H0
+    V${cornerRadius}
+    Z
+  `.replace(/\s+/g, ' ').trim();
+};
+```
+
+## 🎨 Visual Guide - Các điểm quan trọng
+
+```
+Y=0  ────────────────────────────────────────
+     │                                         │
+     │  (24,0)                    (376,0)      │
+     │    ╱                         ╲          │
+     │   ╱                           ╲         │
+     │  ╱                             ╲        │
+Y=24 │╱                               ╲│       │ ← Bo góc
+     │                                 │       │
+     │                                 │       │
+     │                                 │       │
+     │  (125,0)                        │       │
+     │    │                            │       │
+     │    │                            │       │
+     │    │                            │       │
+Y=32 │    │ (160,32)        (240,32)  │       │ ← Điểm cao của lõm
+     │    │    ╲            ╱          │       │
+     │    │     ╲          ╱           │       │
+     │    │      ╲        ╱            │       │
+     │    │       ╲      ╱             │       │
+     │    │        ╲    ╱              │       │
+     │    │         ╲  ╱               │       │
+Y=55 │    │          ╲╱                │       │ ← Đáy lõm (200,55)
+     │    │          ╱╲                │       │
+     │    │         ╱  ╲               │       │
+     │    │        ╱    ╲              │       │
+     │    │       ╱      ╲             │       │
+     │    │      ╱        ╲            │       │
+     │    │     ╱          ╲           │       │
+     │    │    ╱            ╲           │       │
+     │    │   ╱              ╲          │       │
+     │    │  ╱                ╲         │       │
+     │    │ ╱                  ╲        │       │
+     │    │╱                    ╲       │       │
+     │    │                      │       │       │
+Y=65 ────────────────────────────────────────
+```
+
+## 🔍 Debugging Tips
+
+### 1. Kiểm tra SVG path
+- Sử dụng [SVG Path Editor](https://yqnn.github.io/svg-path-editor/) để visualize path
+- Kiểm tra các điểm có nằm trong viewBox không
+
+### 2. Kiểm tra responsive
+```css
+/* Đảm bảo SVG scale đúng */
+svg {
+  width: 100%;
+  height: 100%;
+  preserveAspectRatio: none; /* Cho phép stretch */
+}
+```
+
+### 3. Kiểm tra shadow
+```css
+/* Shadow phải match với thiết kế */
+drop-shadow-[0_-10px_30px_rgba(0,0,0,0.06)]
+/* Hoặc dùng box-shadow */
+box-shadow: 0 -10px 30px rgba(0, 0, 0, 0.06);
+```
+
+## 📚 Tài liệu tham khảo
+
+- [SVG Path Documentation](https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths)
+- [Cubic Bezier Curves](https://developer.mozilla.org/en-US/docs/Web/SVG/Tutorial/Paths#curve_commands)
+- [SVG ViewBox Guide](https://developer.mozilla.org/en-US/docs/Web/SVG/Attribute/viewBox)
+
+## ✅ Checklist khi tạo/customize
+
+- [ ] Xác định kích thước viewBox phù hợp
+- [ ] Tính toán các điểm điều khiển Bezier
+- [ ] Kiểm tra bo góc ở 2 bên
+- [ ] Kiểm tra độ sâu phần lõm
+- [ ] Test responsive trên các kích thước màn hình
+- [ ] Kiểm tra shadow effect
+- [ ] Verify path đóng kín (có Z ở cuối)
+- [ ] Test với các màu nền khác nhau
+

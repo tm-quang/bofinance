@@ -205,14 +205,14 @@ export const DashboardPage = () => {
   // Long press handler refs
   const longPressTimerRef = useRef<number | null>(null)
   const longPressTargetRef = useRef<TransactionRecord | null>(null)
-  
+
   // Task action states
   const [selectedTask, setSelectedTask] = useState<TaskRecord | null>(null)
   const [isTaskActionModalOpen, setIsTaskActionModalOpen] = useState(false)
   const [isTaskDetailModalOpen, setIsTaskDetailModalOpen] = useState(false)
   const [isTaskDeleteConfirmOpen, setIsTaskDeleteConfirmOpen] = useState(false)
   const [isTaskDeleting, setIsTaskDeleting] = useState(false)
-  
+
   // Task long press handler refs
   const taskLongPressTimerRef = useRef<number | null>(null)
   const taskLongPressTargetRef = useRef<TaskRecord | null>(null)
@@ -223,12 +223,12 @@ export const DashboardPage = () => {
       const stored = localStorage.getItem(STORAGE_KEY)
       if (stored) {
         const parsed = JSON.parse(stored)
-        
+
         // Migration: Nếu có 'tasks' hoặc 'reminder' được bật, chuyển sang 'notes-plans'
-        const notesPlansEnabled = parsed['notes-plans'] ?? 
-          (parsed['tasks'] || parsed['reminder']) ?? 
+        const notesPlansEnabled = parsed['notes-plans'] ??
+          (parsed['tasks'] || parsed['reminder']) ??
           false
-        
+
         // Nếu đã migrate, xóa các key cũ
         if (parsed['tasks'] !== undefined || parsed['reminder'] !== undefined) {
           delete parsed['tasks']
@@ -241,7 +241,7 @@ export const DashboardPage = () => {
             console.error('Error saving migrated settings:', err)
           }
         }
-        
+
         return ALL_QUICK_ACTIONS.map((action, index) => ({
           id: action.id,
           label: action.label,
@@ -439,7 +439,7 @@ export const DashboardPage = () => {
   // Chỉ load lại khi location.key thay đổi (navigate từ trang khác về)
   useEffect(() => {
     loadNotificationCount()
-    
+
     // Check budget alerts when Dashboard loads (chạy trong background)
     checkAndSendBudgetAlerts().catch((error) => {
       console.warn('Error checking budget alerts on Dashboard load:', error)
@@ -977,7 +977,7 @@ export const DashboardPage = () => {
       />
 
       <main className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 pt-2 pb-4 sm:pt-2 sm:pb-4">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-3 px-4 pt-2 pb-24 sm:pt-2 sm:pb-24">
           {/* Tài sản ròng - Tổng quan tài chính */}
           <NetAssetsCard refreshTrigger={refreshTrigger} />
 
