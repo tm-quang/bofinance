@@ -12,9 +12,10 @@ interface ImageUploadProps {
 export function ImageUpload({
     value,
     onChange,
+    onFileSelect,
     label = 'Ảnh hóa đơn',
     maxSize = 5,
-}: ImageUploadProps) {
+}: ImageUploadProps & { onFileSelect?: (file: File) => void }) {
     const [isUploading, setIsUploading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [preview, setPreview] = useState<string | null>(value)
@@ -37,28 +38,40 @@ export function ImageUpload({
         }
 
         try {
-            setIsUploading(true)
-
-            // Create preview
+            // Create preview locally first
             const reader = new FileReader()
             reader.onloadend = () => {
                 setPreview(reader.result as string)
             }
             reader.readAsDataURL(file)
 
-            // Compress and upload
-            const compressed = await compressImage(file)
-            const result = await uploadToCloudinary(compressed, {
-                folder: 'fuel_receipts',
-            })
+            if (onFileSelect) {
+                // Deferred upload mode
+                setIsUploading(true) // Show loading while compressing
 
-            onChange(result.secure_url)
-            setPreview(result.secure_url)
+                // Compress image
+                const compressed = await compressImage(file)
+
+                setIsUploading(false)
+                onFileSelect(compressed)
+            } else {
+                // Immediate upload mode (Legacy)
+                setIsUploading(true)
+
+                // Compress and upload
+                const compressed = await compressImage(file)
+                const result = await uploadToCloudinary(compressed, {
+                    folder: 'fuel_receipts',
+                })
+
+                onChange(result.secure_url)
+                setPreview(result.secure_url)
+                setIsUploading(false)
+            }
         } catch (err) {
             console.error('Upload error:', err)
-            setError('Không thể upload ảnh. Vui lòng thử lại.')
+            setError('Không thể xử lý ảnh. Vui lòng thử lại.')
             setPreview(null)
-        } finally {
             setIsUploading(false)
         }
     }

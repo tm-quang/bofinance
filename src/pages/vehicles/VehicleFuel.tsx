@@ -9,6 +9,7 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { ImageUpload } from '../../components/vehicles/ImageUpload'
 import { FuelPriceSettings } from '../../components/vehicles/FuelPriceSettings'
 import { getFuelPrice, type FuelType } from '../../lib/vehicles/fuelPriceService'
+import { uploadToCloudinary } from '../../lib/cloudinaryService'
 
 const FUEL_TYPES = {
     petrol_a95: { label: 'Xăng A95', color: 'gray', category: 'fuel' as const },
@@ -347,6 +348,8 @@ function AddFuelModal({
     // Default fuel type based on category
     const defaultFuelType = category === 'electric' ? 'electric' : (vehicle.fuel_type || 'petrol_a95')
 
+    const [selectedImageFile, setSelectedImageFile] = useState<File | null>(null)
+
     const [formData, setFormData] = useState({
         vehicle_id: vehicle.id,
         refuel_date: new Date().toISOString().split('T')[0],
@@ -404,8 +407,19 @@ function AddFuelModal({
 
         setLoading(true)
         try {
+            let finalImageUrl = formData.receipt_image_url
+
+            // Upload image if selected
+            if (selectedImageFile) {
+                const result = await uploadToCloudinary(selectedImageFile, {
+                    folder: 'fuel_receipts',
+                })
+                finalImageUrl = result.secure_url
+            }
+
             await createFuelLog({
                 ...formData,
+                receipt_image_url: finalImageUrl,
                 liters: parseFloat(formData.quantity),
                 unit_price: parseFloat(formData.unit_price),
                 total_cost: parseFloat(formData.total_cost),
@@ -599,7 +613,15 @@ function AddFuelModal({
                     {/* Receipt Image Upload */}
                     <ImageUpload
                         value={formData.receipt_image_url}
-                        onChange={(url) => setFormData({ ...formData, receipt_image_url: url })}
+                        onChange={(url) => {
+                            if (!url) {
+                                setSelectedImageFile(null)
+                                setFormData({ ...formData, receipt_image_url: null })
+                            } else {
+                                setFormData({ ...formData, receipt_image_url: url })
+                            }
+                        }}
+                        onFileSelect={(file) => setSelectedImageFile(file)}
                         label="📷 Ảnh hóa đơn"
                     />
 
