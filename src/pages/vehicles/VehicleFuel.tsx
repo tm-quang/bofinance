@@ -362,20 +362,21 @@ function AddFuelModal({
         notes: '',
     })
 
-    // Load price when fuel type changes
-    const prevFuelTypeRef = useRef(defaultFuelType)
+    // Load price when fuel type changes OR on initial mount
+    const hasLoadedInitialPrice = useRef(false)
     useEffect(() => {
-        // Only load price if fuel type actually changed
-        if (prevFuelTypeRef.current !== formData.fuel_type) {
-            prevFuelTypeRef.current = formData.fuel_type
-            const loadPrice = async () => {
-                try {
-                    const price = await getFuelPrice(formData.fuel_type as FuelType)
-                    setFormData(prev => ({ ...prev, unit_price: price.toString() }))
-                } catch (error) {
-                    console.error('Error loading price:', error)
-                }
+        const loadPrice = async () => {
+            try {
+                const price = await getFuelPrice(formData.fuel_type as FuelType)
+                setFormData(prev => ({ ...prev, unit_price: price.toString() }))
+                hasLoadedInitialPrice.current = true
+            } catch (error) {
+                console.error('Error loading price:', error)
             }
+        }
+
+        // Load price on mount or when fuel type changes
+        if (!hasLoadedInitialPrice.current || formData.fuel_type) {
             loadPrice()
         }
     }, [formData.fuel_type])
@@ -385,8 +386,13 @@ function AddFuelModal({
         const quantity = parseFloat(formData.quantity) || 0
         const unitPrice = parseFloat(formData.unit_price) || 0
         const total = quantity * unitPrice
-        setFormData(prev => ({ ...prev, total_cost: total > 0 ? total.toString() : '' }))
-    }, [formData.quantity, formData.unit_price])
+        const newTotalCost = total > 0 ? total.toString() : ''
+
+        // Only update if value actually changed
+        if (formData.total_cost !== newTotalCost) {
+            setFormData(prev => ({ ...prev, total_cost: newTotalCost }))
+        }
+    }, [formData.quantity, formData.unit_price, formData.total_cost])
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -429,7 +435,7 @@ function AddFuelModal({
             <div className="w-full max-w-md rounded-t-3xl bg-white p-5 pb-10 shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] overflow-y-auto">
                 <div className="mb-6 flex items-center justify-between">
                     <h3 className="text-lg font-bold text-slate-800">
-                        {category === 'fuel' ? 'Thêm nhật ký - Xăng/Dầu' : 'Thêm nhật ký - Điện'}
+                        {category === 'fuel' ? 'Thêm nhật ký - Xăng/Dầu' : 'Thêm nhật ký - Sạc điện'}
                     </h3>
                     <button
                         onClick={onClose}
@@ -493,50 +499,76 @@ function AddFuelModal({
                         </div>
                     </div>
 
-                    {/* Quantity */}
-                    <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">
-                            {category === 'fuel' ? 'Số lít' : 'Số kWh'}
-                        </label>
-                        <input
-                            type="number"
-                            step="0.01"
-                            required
-                            value={formData.quantity}
-                            onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                            placeholder="0.00"
-                        />
-                    </div>
+                    {/* Quantity & Unit Price - Same Row */}
+                    <div className="grid grid-cols-2 gap-3">
+                        {/* Quantity */}
+                        <div>
+                            <label className="mb-1 block text-sm font-medium text-slate-700">
+                                {category === 'fuel' ? 'Số lít' : 'Số kWh'}
+                            </label>
+                            <input
+                                type="text"
+                                required
+                                value={(() => {
+                                    if (formData.quantity === '') return ''
+                                    if (formData.quantity.endsWith('.')) {
+                                        const parts = formData.quantity.split('.')
+                                        const integerPart = parts[0] ? parseInt(parts[0]).toLocaleString('vi-VN') : ''
+                                        return integerPart + ','
+                                    }
+                                    const val = parseFloat(formData.quantity)
+                                    if (isNaN(val)) return formData.quantity
+                                    const parts = formData.quantity.split('.')
+                                    const intPart = parseInt(parts[0])
+                                    parts[0] = isNaN(intPart) ? '0' : intPart.toLocaleString('vi-VN')
+                                    return parts.join(',')
+                                })()}
+                                onChange={(e) => {
+                                    let val = e.target.value
+                                    val = val.replace(/,/g, '.')
+                                    if (!/^[\d.]*$/.test(val)) return
+                                    if ((val.match(/\./g) || []).length > 1) return
+                                    setFormData({ ...formData, quantity: val })
+                                }}
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-right"
+                                placeholder="0,00"
+                            />
+                        </div>
 
-                    {/* Unit Price */}
-                    <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">
-                            Đơn giá ({category === 'fuel' ? 'đ/lít' : 'đ/kWh'})
-                        </label>
-                        <input
-                            type="number"
-                            required
-                            value={formData.unit_price}
-                            onChange={(e) => setFormData({ ...formData, unit_price: e.target.value })}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                            placeholder="0"
-                        />
+                        {/* Unit Price */}
+                        <div>
+                            <label className="mb-1 block text-sm font-medium text-slate-700">
+                                Đơn giá ({category === 'fuel' ? 'đ/lít' : 'đ/kWh'})
+                            </label>
+                            <input
+                                type="text"
+                                required
+                                value={formData.unit_price ? parseFloat(formData.unit_price).toLocaleString('vi-VN') : ''}
+                                onChange={(e) => {
+                                    const rawValue = e.target.value.replace(/[^\d]/g, '')
+                                    setFormData({ ...formData, unit_price: rawValue })
+                                }}
+                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-right"
+                                placeholder="0"
+                            />
+                        </div>
                     </div>
 
                     {/* Total Cost (Auto-calculated) */}
-                    {formData.total_cost && (
-                        <div className={`rounded-lg bg-${category === 'electric' ? 'green' : 'gray'}-50 border border-${category === 'electric' ? 'green' : 'gray'}-200 p-3`}>
-                            <div className="flex items-center justify-between">
-                                <span className={`text-sm font-medium ${tabColors.text}`}>
-                                    💰 Tổng tiền:
-                                </span>
-                                <span className={`text-lg font-bold ${tabColors.text}`}>
-                                    {parseFloat(formData.total_cost).toLocaleString()}đ
-                                </span>
+                    {
+                        formData.total_cost && (
+                            <div className={`rounded-lg bg-${category === 'electric' ? 'green' : 'gray'}-50 border border-${category === 'electric' ? 'green' : 'gray'}-200 p-3`}>
+                                <div className="flex items-center justify-between">
+                                    <span className={`text-sm font-medium ${tabColors.text}`}>
+                                        💰 Tổng tiền:
+                                    </span>
+                                    <span className={`text-lg font-bold ${tabColors.text}`}>
+                                        {parseFloat(formData.total_cost).toLocaleString()}đ
+                                    </span>
+                                </div>
                             </div>
-                        </div>
-                    )}
+                        )
+                    }
 
                     {/* Odometer */}
                     <div>
@@ -591,8 +623,8 @@ function AddFuelModal({
                     >
                         {loading ? 'Đang lưu...' : 'Thêm nhật ký'}
                     </button>
-                </form>
-            </div>
-        </div>
+                </form >
+            </div >
+        </div >
     )
 }

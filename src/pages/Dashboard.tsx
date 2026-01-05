@@ -238,7 +238,7 @@ export const DashboardPage = () => {
   }
 
   const [quickActionsSettings, setQuickActionsSettings] = useState(getStoredActions)
-  const [isLoadingSettings, setIsLoadingSettings] = useState(true)
+
 
   // Load settings from Supabase on mount
   useEffect(() => {
@@ -306,8 +306,6 @@ export const DashboardPage = () => {
         }
       } catch (error) {
         console.error('Error loading quick actions settings:', error)
-      } finally {
-        setIsLoadingSettings(false)
       }
     }
 
