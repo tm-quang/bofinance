@@ -19,6 +19,8 @@ export interface VehicleRecord {
     inspection_expiry_date?: string
     next_maintenance_km?: number
     next_maintenance_date?: string
+    maintenance_interval_km?: number      // Bổ sung chu kỳ km
+    maintenance_interval_months?: number  // Bổ sung chu kỳ tháng
     is_active: boolean
     is_default?: boolean
     created_at: string
@@ -665,4 +667,62 @@ export async function getVehicleAlerts(vehicleId: string): Promise<VehicleAlert[
     }
 
     return alerts
+}
+
+// ============================================
+// MONTHLY STATS FOR CHARTS
+// ============================================
+
+export interface MonthlyStatPoint {
+    month: string       // "Th1", "Th2", ...
+    yearMonth: string   // "2025-01" for sorting
+    fuel: number
+    maintenance: number
+    expenses: number
+    total: number
+    distance: number
+    trips: number
+}
+
+export async function getMonthlyStats(vehicleId: string, months = 6): Promise<MonthlyStatPoint[]> {
+    const [trips, fuelLogs, maintenance, expenses] = await Promise.all([
+        fetchTrips(vehicleId),
+        fetchFuelLogs(vehicleId),
+        fetchMaintenance(vehicleId),
+        fetchExpenses(vehicleId),
+    ])
+
+    const points: MonthlyStatPoint[] = []
+    const now = new Date()
+
+    for (let i = months - 1; i >= 0; i--) {
+        const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+        const year = d.getFullYear()
+        const month = d.getMonth() // 0-indexed
+        const yearMonth = `${year}-${String(month + 1).padStart(2, '0')}`
+
+        const inMonth = (dateStr: string) => {
+            const dd = new Date(dateStr)
+            return dd.getFullYear() === year && dd.getMonth() === month
+        }
+
+        const fuel = fuelLogs.filter(l => inMonth(l.refuel_date)).reduce((s, l) => s + (l.total_amount || 0), 0)
+        const maint = maintenance.filter(m => inMonth(m.maintenance_date)).reduce((s, m) => s + (m.total_cost || 0), 0)
+        const exp = expenses.filter(e => inMonth(e.expense_date)).reduce((s, e) => s + e.amount, 0)
+        const dist = trips.filter(t => inMonth(t.trip_date)).reduce((s, t) => s + (t.distance_km || 0), 0)
+        const tripsCount = trips.filter(t => inMonth(t.trip_date)).length
+
+        points.push({
+            month: `Th${month + 1}`,
+            yearMonth,
+            fuel,
+            maintenance: maint,
+            expenses: exp,
+            total: fuel + maint + exp,
+            distance: dist,
+            trips: tripsCount,
+        })
+    }
+
+    return points
 }

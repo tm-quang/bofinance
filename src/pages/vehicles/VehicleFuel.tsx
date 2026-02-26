@@ -1,12 +1,13 @@
 ﻿import { useState, useEffect, useRef, useCallback, useMemo } from 'react'
+import { useNavigate } from 'react-router-dom'
 import {
     Plus, Calendar, Trash2, MapPin, Settings, Zap, Droplet,
     BatteryCharging, Activity, TrendingUp, Clock, ChevronDown, ChevronUp,
     Bolt, Gauge, Check, Gift, DollarSign, Image, Loader2,
-    Fuel, CreditCard, ScanLine,
-    ChevronLeft, ChevronRight
+    Fuel, CreditCard, ScanLine, X, CheckSquare, Square, Save,
+    ChevronLeft, ChevronRight, Edit2
 } from 'lucide-react'
-import { createFuelLog, deleteFuelLog, type VehicleRecord, type FuelLogRecord } from '../../lib/vehicles/vehicleService'
+import { createFuelLog, deleteFuelLog, updateFuelLog, type VehicleRecord, type FuelLogRecord } from '../../lib/vehicles/vehicleService'
 import { useVehicles, useVehicleFuel, vehicleKeys } from '../../lib/vehicles/useVehicleQueries'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNotification } from '../../contexts/notificationContext.helpers'
@@ -14,7 +15,7 @@ import HeaderBar from '../../components/layout/HeaderBar'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { ImageUpload } from '../../components/vehicles/ImageUpload'
 import { FuelPriceSettings } from '../../components/vehicles/FuelPriceSettings'
-import { getFuelPrice, type FuelType } from '../../lib/vehicles/fuelPriceService'
+import { getFuelPrice, getElectricDiscountSettings, type FuelType } from '../../lib/vehicles/fuelPriceService'
 import { uploadToCloudinary } from '../../lib/cloudinaryService'
 import { SimpleLocationInput, type SimpleLocationData } from '../../components/vehicles/SimpleLocationInput'
 import { GPSInfoDisplay, getCleanNotes } from '../../components/vehicles/GPSInfoDisplay'
@@ -60,6 +61,7 @@ function getVehicleFuelConfig(vehicleFuelType?: string) {
 // ELECTRIC STATS CARD
 // =============================================
 function ElectricStatsCard({ logs }: { logs: FuelLogRecord[] }) {
+    const navigate = useNavigate()
     const totalKwh = logs.reduce((sum, log) => sum + (log.kwh || log.liters || 0), 0)
     const totalCost = logs.reduce((sum, log) => sum + (log.total_cost || log.total_amount || 0), 0)
     const avgPricePerKwh = totalKwh > 0 ? totalCost / totalKwh : 0
@@ -83,7 +85,10 @@ function ElectricStatsCard({ logs }: { logs: FuelLogRecord[] }) {
     return (
         <div className="mb-4 space-y-3">
             {/* Main summary - solid green hero */}
-            <div className="rounded-2xl bg-green-500 p-4 text-white shadow-lg shadow-green-200">
+            <div
+                onClick={() => navigate('/vehicles/charging-history')}
+                className="rounded-2xl bg-green-500 p-4 text-white shadow-lg shadow-green-200 cursor-pointer active:scale-[0.98] transition-all hover:bg-green-600"
+            >
                 <div className="mb-3 flex items-center gap-2">
                     <div className="rounded-xl bg-white/20 p-1.5">
                         <BatteryCharging className="h-4 w-4" />
@@ -110,7 +115,7 @@ function ElectricStatsCard({ logs }: { logs: FuelLogRecord[] }) {
                         <Bolt className="h-4 w-4 text-amber-600" />
                     </div>
                     <p className="text-sm font-bold text-slate-800">
-                        {avgPricePerKwh > 0 ? `${Math.round(avgPricePerKwh).toLocaleString()}đ` : '--'}
+                        {avgPricePerKwh > 0 ? `${Math.round(avgPricePerKwh).toLocaleString('vi-VN')}đ` : '--'}
                     </p>
                     <p className="text-center text-[10px] leading-tight text-slate-500">TB/kWh</p>
                 </div>
@@ -119,7 +124,7 @@ function ElectricStatsCard({ logs }: { logs: FuelLogRecord[] }) {
                         <Activity className="h-4 w-4 text-blue-600" />
                     </div>
                     <p className="text-sm font-bold text-slate-800">
-                        {avgCostPerSession > 0 ? `${Math.round(avgCostPerSession / 1000)}k` : '--'}
+                        {avgCostPerSession > 0 ? `${Math.round(avgCostPerSession).toLocaleString('vi-VN')}đ` : '--'}
                     </p>
                     <p className="text-center text-[10px] leading-tight text-slate-500">TB/lần sạc</p>
                 </div>
@@ -183,9 +188,11 @@ function FuelStatsCard({ logs }: { logs: FuelLogRecord[] }) {
 function ChargeLogCard({
     log,
     onDelete,
+    onEdit
 }: {
     log: FuelLogRecord
     onDelete: (id: string) => void
+    onEdit: (log: FuelLogRecord) => void
 }) {
     const [expanded, setExpanded] = useState(false)
 
@@ -212,7 +219,7 @@ function ChargeLogCard({
                                 <span className="text-xs font-bold text-green-700">Sạc điện</span>
                             </div>
                             <span className="text-xs text-slate-400">
-                                {log.odometer_at_refuel.toLocaleString()} km
+                                {log.odometer_at_refuel?.toLocaleString() || 0} km
                             </span>
                         </div>
                         <div className="flex items-center gap-1.5 text-xs text-slate-500">
@@ -228,12 +235,20 @@ function ChargeLogCard({
                             )}
                         </div>
                     </div>
-                    <button
-                        onClick={() => onDelete(log.id)}
-                        className="ml-2 rounded-xl p-2 text-red-400 transition-colors hover:bg-red-50 hover:text-red-600"
-                    >
-                        <Trash2 className="h-4 w-4" />
-                    </button>
+                    <div className="flex">
+                        <button
+                            onClick={() => onEdit(log)}
+                            className="ml-2 rounded-3xl p-2 text-blue-400 transition-colors bg-blue-50 hover:bg-blue-50 hover:text-blue-600"
+                        >
+                            <Edit2 className="h-4 w-4" />
+                        </button>
+                        <button
+                            onClick={() => onDelete(log.id)}
+                            className="ml-2 rounded-3xl p-2 text-red-400 transition-colors bg-red-50 hover:bg-red-50 hover:text-red-600"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </button>
+                    </div>
                 </div>
 
                 {/* Main metrics */}
@@ -244,15 +259,15 @@ function ChargeLogCard({
                     </div>
                     <div className="rounded-xl bg-amber-50 p-2.5 text-center">
                         <p className="text-base font-black text-amber-700">
-                            {pricePerKwh > 0 ? `${Math.round(pricePerKwh / 100) * 100 >= 1000 ? (Math.round(pricePerKwh / 100) * 100 / 1000).toFixed(1) + 'k' : Math.round(pricePerKwh).toLocaleString()}đ` : '--'}
+                            {pricePerKwh > 0 ? `${Math.round(pricePerKwh).toLocaleString('vi-VN')}đ` : '--'}
                         </p>
                         <p className="text-[10px] text-amber-600 font-medium">đ/kWh</p>
                     </div>
-                    <div className="rounded-xl bg-slate-50 p-2.5 text-center">
-                        <p className="text-base font-black text-slate-700">
+                    <div className="rounded-xl bg-red-100 p-2.5 text-center">
+                        <p className="text-base font-black text-red-700">
                             {formatCurrency(cost).replace('₫', '').trim()}
                         </p>
-                        <p className="text-[10px] text-slate-500 font-medium">tổng tiền</p>
+                        <p className="text-[10px] text-red-600 font-medium">tổng tiền</p>
                     </div>
                 </div>
 
@@ -306,9 +321,11 @@ function ChargeLogCard({
 function FuelLogCard({
     log,
     onDelete,
+    onEdit
 }: {
     log: FuelLogRecord
     onDelete: (id: string) => void
+    onEdit: (log: FuelLogRecord) => void
 }) {
     const fuelType = FUEL_TYPES[log.fuel_type] || FUEL_TYPES.petrol_a95
     const cost = log.total_cost || log.total_amount || 0
@@ -324,7 +341,7 @@ function FuelLogCard({
                             <span className="inline-flex items-center gap-1 rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-700">
                                 {fuelType.label}
                             </span>
-                            <span className="text-xs text-slate-400">{log.odometer_at_refuel.toLocaleString()} km</span>
+                            <span className="text-xs text-slate-400">{log.odometer_at_refuel?.toLocaleString() || 0} km</span>
                         </div>
                         <div className="mt-1 flex items-center gap-1.5 text-xs text-slate-500">
                             <Calendar className="h-3 w-3" />
@@ -332,12 +349,20 @@ function FuelLogCard({
                             {log.refuel_time && ` · ${log.refuel_time.slice(0, 5)}`}
                         </div>
                     </div>
-                    <button
-                        onClick={() => onDelete(log.id)}
-                        className="rounded-xl p-2 text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
-                    >
-                        <Trash2 className="h-4 w-4" />
-                    </button>
+                    <div className="flex shrink-0">
+                        <button
+                            onClick={() => onEdit(log)}
+                            className="mr-1 rounded-3xl p-2 text-blue-400 hover:bg-blue-50 hover:text-blue-600 transition-colors"
+                        >
+                            <Edit2 className="h-4 w-4" />
+                        </button>
+                        <button
+                            onClick={() => onDelete(log.id)}
+                            className="rounded-3xl p-2 text-red-400 hover:bg-red-50 hover:text-red-600 transition-colors"
+                        >
+                            <Trash2 className="h-4 w-4" />
+                        </button>
+                    </div>
                 </div>
 
                 <div className="flex items-center justify-between rounded-xl bg-slate-50 px-4 py-3">
@@ -374,6 +399,8 @@ export default function VehicleFuel() {
     const [selectedVehicleId, setSelectedVehicleId] = useState<string>('')
     const [activeTab, setActiveTab] = useState<TabType>('fuel')
     const [showAddModal, setShowAddModal] = useState(false)
+    const [editingLog, setEditingLog] = useState<FuelLogRecord | null>(null)
+    const [showBulkDiscount, setShowBulkDiscount] = useState(false)
     const [showSettings, setShowSettings] = useState(false)
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
     const [deleting, setDeleting] = useState(false)
@@ -588,17 +615,29 @@ export default function VehicleFuel() {
                         : <FuelStatsCard logs={logs} />
                 )}
 
-                {/* Add Button */}
-                <button
-                    onClick={() => setShowAddModal(true)}
-                    className={`w-full mb-4 flex items-center justify-center gap-2.5 rounded-2xl px-4 py-3.5 font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95 ${activeTab === 'electric'
-                        ? 'bg-green-500 shadow-green-200'
-                        : 'bg-slate-600 shadow-slate-200'
-                        }`}
-                >
-                    <Plus className="h-5 w-5" />
-                    {activeTab === 'electric' ? 'Thêm lần sạc mới' : 'Thêm nhật ký đổ xăng'}
-                </button>
+                {/* Add Button & Bulk Discount */}
+                <div className="flex gap-2 w-full mb-4">
+                    <button
+                        onClick={() => setShowAddModal(true)}
+                        className={`flex-1 flex items-center justify-center gap-2.5 rounded-2xl px-4 py-3.5 font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95 ${activeTab === 'electric'
+                            ? 'bg-green-500 shadow-green-200'
+                            : 'bg-slate-600 shadow-slate-200'
+                            }`}
+                    >
+                        <Plus className="h-5 w-5" />
+                        {activeTab === 'electric' ? 'Thêm lần sạc mới' : 'Thêm nhật ký đổ xăng'}
+                    </button>
+
+                    {activeTab === 'electric' && logs.length > 0 && (
+                        <button
+                            onClick={() => setShowBulkDiscount(true)}
+                            className="flex items-center justify-center rounded-2xl px-4 py-3.5 font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95 bg-red-500 shadow-red-200"
+                            title="Áp khuyến mãi hàng loạt"
+                        >
+                            <Gift className="h-5 w-5" />
+                        </button>
+                    )}
+                </div>
 
                 {/* ── FILTER BAR ── */}
                 <div className="mb-3 space-y-2">
@@ -716,9 +755,9 @@ export default function VehicleFuel() {
                                     }">
                                             {dayLogs.map(log =>
                                                 activeTab === 'electric' ? (
-                                                    <ChargeLogCard key={log.id} log={log} onDelete={(id) => setDeleteConfirmId(id)} />
+                                                    <ChargeLogCard key={log.id} log={log} onDelete={(id) => setDeleteConfirmId(id)} onEdit={setEditingLog} />
                                                 ) : (
-                                                    <FuelLogCard key={log.id} log={log} onDelete={(id) => setDeleteConfirmId(id)} />
+                                                    <FuelLogCard key={log.id} log={log} onDelete={(id) => setDeleteConfirmId(id)} onEdit={setEditingLog} />
                                                 )
                                             )}
                                         </div>
@@ -739,15 +778,31 @@ export default function VehicleFuel() {
                 addLabel={activeTab === 'electric' ? 'Sạc điện' : 'Đổ xăng'}
             />
 
-            {/* Add Modal */}
+            {/* Add/Edit Modal */}
             {
-                showAddModal && selectedVehicle && (
+                (showAddModal || editingLog) && selectedVehicle && (
                     <AddChargeModal
                         vehicle={selectedVehicle}
                         category={activeTab}
-                        onClose={() => setShowAddModal(false)}
+                        editingLog={editingLog}
+                        onClose={() => { setShowAddModal(false); setEditingLog(null) }}
                         onSuccess={() => {
                             setShowAddModal(false)
+                            setEditingLog(null)
+                            queryClient.invalidateQueries({ queryKey: vehicleKeys.fuel(selectedVehicleId) })
+                        }}
+                    />
+                )
+            }
+
+            {/* Bulk Discount Modal */}
+            {
+                showBulkDiscount && activeTab === 'electric' && (
+                    <BulkDiscountModal
+                        logs={filteredLogs}
+                        onClose={() => setShowBulkDiscount(false)}
+                        onSuccess={() => {
+                            setShowBulkDiscount(false)
                             queryClient.invalidateQueries({ queryKey: vehicleKeys.fuel(selectedVehicleId) })
                         }}
                     />
@@ -784,11 +839,13 @@ function AddChargeModal({
     category,
     onClose,
     onSuccess,
+    editingLog
 }: {
     vehicle: VehicleRecord
     category: TabType
     onClose: () => void
     onSuccess: () => void
+    editingLog?: FuelLogRecord | null
 }) {
     const { success, error: showError } = useNotification()
     const isElectric = category === 'electric'
@@ -810,34 +867,80 @@ function AddChargeModal({
         : vehicleFuelConfig.defaultFuelLogType
     const now = new Date()
 
+    let defaultStartTime = now.toTimeString().slice(0, 5)
+    let defaultEndTime = ''
+    let defaultDiscount = ''
+    let defaultNotes = ''
+
+    if (editingLog) {
+        let parsedEndTime = ''
+        let parsedDiscountStr = ''
+        let cleanNotes = editingLog.notes || ''
+
+        if (cleanNotes) {
+            const lines = cleanNotes.split('\n')
+            for (const line of lines) {
+                if (line.includes('Kết thúc:')) {
+                    const match = line.match(/Kết thúc:\s*([0-9:]+)/)
+                    if (match) parsedEndTime = match[1].trim()
+                }
+                if (line.includes('Khuyến mãi:')) {
+                    const match = line.match(/Khuyến mãi:\s*-([\d.]+)đ/)
+                    if (match) parsedDiscountStr = match[1].replace(/\./g, '')
+                }
+            }
+            const cleanLines = lines.filter(l => !l.includes('Kết thúc:') && !l.includes('Thời gian sạc:') && !l.includes('Khuyến mãi:') && !l.includes('GPS:') && !l.includes('https://www.google.com/maps'))
+            cleanNotes = cleanLines.join('\n').trim()
+        }
+
+        defaultStartTime = editingLog.refuel_time?.slice(0, 5) || ''
+        defaultEndTime = parsedEndTime
+        defaultDiscount = parsedDiscountStr
+        defaultNotes = cleanNotes
+    }
+
     const [formData, setFormData] = useState({
         vehicle_id: vehicle.id,
-        refuel_date: now.toISOString().split('T')[0],
-        start_time: now.toTimeString().slice(0, 5),
-        end_time: '',
-        odometer_at_refuel: vehicle.current_odometer || 0,
-        fuel_type: defaultFuelType,
-        fuel_category: category,
-        quantity: '',           // kWh or liters
-        unit_price: '',
-        discount: '',           // khuyến mãi (optional)
-        station_name: '',
-        receipt_image_url: null as string | null,
-        notes: '',
+        refuel_date: editingLog ? new Date(editingLog.refuel_date).toISOString().split('T')[0] : now.toISOString().split('T')[0],
+        start_time: defaultStartTime,
+        end_time: defaultEndTime,
+        odometer_at_refuel: editingLog ? editingLog.odometer_at_refuel : (vehicle.current_odometer || 0),
+        fuel_type: editingLog ? editingLog.fuel_type : defaultFuelType,
+        fuel_category: editingLog ? editingLog.fuel_category : category,
+        quantity: editingLog ? (editingLog.kwh || editingLog.liters || '').toString() : '',
+        unit_price: editingLog ? (editingLog.unit_price || '').toString() : '',
+        discount: defaultDiscount,
+        station_name: editingLog ? (editingLog.station_name || '') : '',
+        receipt_image_url: editingLog ? (editingLog.receipt_image_url || null) : null,
+        notes: defaultNotes,
     })
 
-    // Load default price on mount
+    // Load default price & discount on mount
     const hasLoadedPrice = useRef(false)
     useEffect(() => {
-        const loadPrice = async () => {
+        const loadInitialData = async () => {
+            // Only load defaults if creating new log
+            if (editingLog) {
+                hasLoadedPrice.current = true
+                return
+            }
             try {
                 const price = await getFuelPrice(formData.fuel_type as FuelType)
-                setFormData(prev => ({ ...prev, unit_price: price != null ? price.toString() : '' }))
+                const d = getElectricDiscountSettings()
+
+                setFormData(prev => ({
+                    ...prev,
+                    unit_price: price != null ? price.toString() : '',
+                    discount: isElectric && d.value ? d.value : ''
+                }))
+                if (isElectric && d.value) {
+                    setDiscountMode(d.mode)
+                }
                 hasLoadedPrice.current = true
             } catch (e) { console.error('Price load error', e) }
         }
-        if (!hasLoadedPrice.current) loadPrice()
-    }, [formData.fuel_type])
+        if (!hasLoadedPrice.current) loadInitialData()
+    }, [formData.fuel_type, isElectric])
 
     const quantity = parseFloat(formData.quantity) || 0
     const unitPrice = parseFloat(formData.unit_price) || 0
@@ -935,8 +1038,8 @@ function AddChargeModal({
             // Build notes: include end_time, duration, discount if present
             const extras: string[] = []
             if (isElectric && formData.end_time) {
-                extras.push(`⏱ Kết thúc: ${formData.end_time}`)
-                if (duration) extras.push(`⏳ Thời gian sạc: ${duration}`)
+                extras.push(`Kết thúc: ${formData.end_time}`)
+                if (duration) extras.push(`Thời gian sạc: ${duration}`)
             }
             if (isElectric && discount > 0)
                 extras.push(`Khuyến mãi: -${discount.toLocaleString('vi-VN')}đ`)
@@ -955,10 +1058,11 @@ function AddChargeModal({
                 refuel_time: formData.start_time || null,
                 odometer_at_refuel: formData.odometer_at_refuel,
                 fuel_type: formData.fuel_type,
+                fuel_category: formData.fuel_category,
                 station_name: formData.station_name || null,
                 notes: finalNotes || null,
                 receipt_image_url: finalImageUrl || null,
-                ...(isElectric ? { kwh: quantity } : { liters: quantity }),
+                ...(isElectric ? { kwh: quantity, liters: null } : { liters: quantity, kwh: null }),
                 price_per_liter: unitPrice || null,
                 unit_price: unitPrice || null,
                 // total_amount = phí gốc (để backward compat, không bao giờ = 0 nếu có sạc)
@@ -969,12 +1073,17 @@ function AddChargeModal({
 
             console.log('[FuelLog] payload:', payload)
             try {
-                await createFuelLog(payload as any)
+                if (editingLog) {
+                    await updateFuelLog(editingLog.id, payload as any)
+                    success('Cập nhật thành công!')
+                } else {
+                    await createFuelLog(payload as any)
+                    success(isElectric ? 'Thêm lịch sử sạc thành công!' : 'Thêm nhật ký thành công!')
+                }
             } catch (insertErr: any) {
                 console.error('[FuelLog] Supabase error:', insertErr?.message, insertErr?.details, insertErr?.hint, insertErr)
                 throw insertErr
             }
-            success(isElectric ? 'Thêm lịch sử sạc thành công!' : 'Thêm nhật ký thành công!')
             onSuccess()
         } catch (err) {
             showError(err instanceof Error ? err.message : 'Không thể lưu nhật ký')
@@ -1003,7 +1112,9 @@ function AddChargeModal({
                             {isElectric ? <BatteryCharging className="h-5 w-5" /> : <Droplet className="h-5 w-5" />}
                             <div>
                                 <h3 className="font-bold">
-                                    {isElectric ? 'Thêm lịch sử sạc' : 'Thêm nhật ký đổ xăng'}
+                                    {editingLog
+                                        ? (isElectric ? 'Sửa lịch sử sạc' : 'Sửa nhật ký đổ xăng')
+                                        : (isElectric ? 'Thêm lịch sử sạc' : 'Thêm nhật ký đổ xăng')}
                                 </h3>
                                 <p className="text-xs opacity-75">{vehicle.license_plate} · {vehicle.brand} {vehicle.model}</p>
                             </div>
@@ -1352,9 +1463,11 @@ function AddChargeModal({
                             }`}>
                         {loading
                             ? <span className="flex items-center justify-center gap-2"><Loader2 className="h-4 w-4 animate-spin" /> Đang lưu...</span>
-                            : isElectric
-                                ? <span className="flex items-center justify-center gap-2"><Zap className="h-4 w-4" /> Lưu lịch sử sạc</span>
-                                : <span className="flex items-center justify-center gap-2"><Droplet className="h-4 w-4" /> Lưu nhật ký</span>
+                            : editingLog
+                                ? <span className="flex items-center justify-center gap-2"><Save className="h-4 w-4" /> Lưu cập nhật</span>
+                                : isElectric
+                                    ? <span className="flex items-center justify-center gap-2"><Zap className="h-4 w-4" /> Lưu lịch sử sạc</span>
+                                    : <span className="flex items-center justify-center gap-2"><Droplet className="h-4 w-4" /> Lưu nhật ký</span>
                         }
                     </button>
                 </form>
@@ -1363,3 +1476,169 @@ function AddChargeModal({
     )
 }
 
+// =============================================
+// BULK DISCOUNT MODAL
+// =============================================
+function BulkDiscountModal({
+    logs,
+    onClose,
+    onSuccess
+}: {
+    logs: FuelLogRecord[]
+    onClose: () => void
+    onSuccess: () => void
+}) {
+    const { success, error: showError } = useNotification()
+    const [loading, setLoading] = useState(false)
+    const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(logs.map(l => l.id)))
+    const [discountMode, setDiscountMode] = useState<'pct' | 'vnd'>('pct')
+    const [discountValue, setDiscountValue] = useState('')
+
+    const toggleAll = () => {
+        if (selectedIds.size === logs.length) setSelectedIds(new Set())
+        else setSelectedIds(new Set(logs.map(l => l.id)))
+    }
+
+    const toggleLog = (id: string) => {
+        const next = new Set(selectedIds)
+        if (next.has(id)) next.delete(id)
+        else next.add(id)
+        setSelectedIds(next)
+    }
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (selectedIds.size === 0) {
+            showError('Vui lòng chọn ít nhất 1 nhật ký')
+            return
+        }
+        const val = parseFloat(discountValue) || 0
+        if (val <= 0) {
+            showError('Vui lòng nhập giá trị khuyến mãi')
+            return
+        }
+
+        setLoading(true)
+        try {
+            await Promise.all(
+                Array.from(selectedIds).map(async (id) => {
+                    const log = logs.find(l => l.id === id)
+                    if (!log) return
+
+                    const chargeAmount = log.total_amount || 0
+                    const disc = discountMode === 'pct' ? Math.round(chargeAmount * val / 100) : val
+                    const newCost = Math.max(0, chargeAmount - disc)
+
+                    let newNotes = log.notes || ''
+                    // clean old bulk discount notes if any (simple approach)
+                    newNotes = newNotes.replace(/\n?Khuyến mãi: -[\d.]+đ \(áp dụng hàng loạt\)/g, '')
+                    if (disc > 0) {
+                        newNotes += `\nKhuyến mãi: -${disc.toLocaleString('vi-VN')}đ (áp dụng hàng loạt)`
+                    }
+
+                    await updateFuelLog(id, {
+                        total_cost: newCost,
+                        notes: newNotes.trim() || undefined
+                    })
+                })
+            )
+            success('Áp dụng khuyến mãi thành công!')
+            onSuccess()
+        } catch (err) {
+            console.error(err)
+            showError('Lỗi xảy ra khi áp dụng khuyến mãi')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-[3px]">
+            <div className="w-full max-w-md rounded-t-3xl bg-white shadow-2xl flex flex-col max-h-[90vh] animate-in slide-in-from-bottom">
+                <div className="bg-red-500 rounded-t-3xl px-5 pt-5 pb-4 text-white">
+                    <div className="flex items-center justify-between mb-1">
+                        <h3 className="text-base font-bold flex items-center gap-2">
+                            <Gift className="h-5 w-5 fill-white/20" />
+                            Áp khuyến mãi hàng loạt
+                        </h3>
+                        <button onClick={onClose} className="rounded-full bg-white/20 p-1.5 hover:bg-white/30 transition-colors">
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+                    <p className="text-xs opacity-80 mt-1 ml-7">Chọn lịch sử sạc và nhập khuyến mãi</p>
+                </div>
+
+                <div className="flex-1 overflow-auto bg-slate-50 flex flex-col">
+                    <form onSubmit={handleSubmit} className="flex-1 flex flex-col">
+                        <div className="p-4 space-y-4">
+                            {/* Inputs */}
+                            <div className="rounded-2xl border border-red-100 bg-white p-3 space-y-3">
+                                <div className="flex items-center justify-between">
+                                    <p className="text-xs font-semibold text-slate-500 uppercase">Mức giảm giá</p>
+                                    <div className="flex rounded-lg overflow-hidden border border-red-200">
+                                        <button type="button" onClick={() => { setDiscountMode('pct'); setDiscountValue('') }}
+                                            className={`px-2.5 py-1 text-xs font-bold transition-colors ${discountMode === 'pct' ? 'bg-red-500 text-white' : 'bg-white text-slate-500 hover:bg-red-50'}`}>%</button>
+                                        <button type="button" onClick={() => { setDiscountMode('vnd'); setDiscountValue('') }}
+                                            className={`px-2.5 py-1 text-xs font-bold transition-colors ${discountMode === 'vnd' ? 'bg-red-500 text-white' : 'bg-white text-slate-500 hover:bg-red-50'}`}>đ</button>
+                                    </div>
+                                </div>
+                                <div className="relative">
+                                    <input type="text"
+                                        value={discountMode === 'vnd' && discountValue ? parseInt(discountValue).toLocaleString('vi-VN') : discountValue}
+                                        onChange={(e) => {
+                                            const raw = e.target.value.replace(/[^\d]/g, '')
+                                            if (discountMode === 'pct') setDiscountValue(parseInt(raw) > 100 ? '100' : raw)
+                                            else setDiscountValue(raw)
+                                        }}
+                                        placeholder={discountMode === 'pct' ? 'Nhập %' : 'Nhập số tiền'}
+                                        required
+                                        className="w-full rounded-xl border border-red-200 bg-red-50 px-3 py-2.5 pr-10 text-sm font-semibold focus:border-red-400 focus:outline-none focus:ring-2 focus:ring-red-100"
+                                    />
+                                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-red-500">
+                                        {discountMode === 'pct' ? '%' : 'đ'}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* List to select */}
+                            <div>
+                                <div className="flex items-center justify-between mb-2">
+                                    <h4 className="text-xs font-bold text-slate-600 uppercase">Lịch sử sạc ({selectedIds.size}/{logs.length})</h4>
+                                    <button type="button" onClick={toggleAll} className="text-xs text-blue-600 font-bold hover:underline">
+                                        {selectedIds.size === logs.length ? 'Bỏ chọn tất cả' : 'Chọn tất cả'}
+                                    </button>
+                                </div>
+                                <div className="space-y-2 max-h-[40vh] overflow-y-auto pr-1">
+                                    {logs.map(log => {
+                                        const sel = selectedIds.has(log.id)
+                                        const dateStr = new Date(log.refuel_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: '2-digit' })
+                                        return (
+                                            <div key={log.id} onClick={() => toggleLog(log.id)}
+                                                className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${sel ? 'border-red-400 bg-red-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                                                {sel ? <CheckSquare className="h-5 w-5 text-red-500 shrink-0" /> : <Square className="h-5 w-5 text-slate-300 shrink-0" />}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="text-sm font-bold text-slate-700 truncate">{log.station_name || 'Không rõ địa điểm'}</p>
+                                                    <p className="text-[11px] font-medium text-slate-500">{dateStr} · {log.kwh?.toFixed(1)} kWh</p>
+                                                </div>
+                                                <div className="text-right shrink-0">
+                                                    <p className="text-sm font-black text-slate-800">{(log.total_cost || log.total_amount || 0).toLocaleString('vi-VN')}đ</p>
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="p-4 bg-white border-t border-slate-100 sticky bottom-0">
+                            <button type="submit" disabled={loading}
+                                className="w-full flex items-center justify-center gap-2 rounded-2xl bg-red-500 hover:bg-red-600 active:scale-95 text-white py-3.5 font-bold transition-all disabled:opacity-50 disabled:scale-100">
+                                {loading ? <Loader2 className="h-5 w-5 animate-spin" /> : <Gift className="h-5 w-5" />}
+                                Áp dụng khuyến mãi
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    )
+}

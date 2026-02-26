@@ -1,6 +1,11 @@
-import { useState, useEffect } from 'react'
-import { Wrench, Plus, Calendar, Trash2, AlertTriangle, CheckCircle2 } from 'lucide-react'
-import { createMaintenance, deleteMaintenance, type VehicleRecord } from '../../lib/vehicles/vehicleService'
+import { useState, useMemo } from 'react'
+import {
+    Wrench, Plus, Calendar, Trash2, AlertTriangle,
+    CheckCircle2, Gauge, ChevronDown, ChevronUp,
+    DollarSign, Store, ArrowRight, Clock, X, Save,
+    Bike, Car, ChevronLeft, ChevronRight, Activity, TrendingUp, Settings
+} from 'lucide-react'
+import { createMaintenance, deleteMaintenance, updateVehicle, type VehicleRecord } from '../../lib/vehicles/vehicleService'
 import { useVehicles, useVehicleMaintenance, vehicleKeys } from '../../lib/vehicles/useVehicleQueries'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNotification } from '../../contexts/notificationContext.helpers'
@@ -8,219 +13,518 @@ import HeaderBar from '../../components/layout/HeaderBar'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { VehicleFooterNav } from '../../components/vehicles/VehicleFooterNav'
 
-const MAINTENANCE_TYPES = {
-    scheduled: { label: 'Định kỳ', color: 'blue', icon: Calendar },
-    repair: { label: 'Sửa chữa', color: 'red', icon: Wrench },
+const fmt = (v: number) =>
+    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(v)
+
+const MAINT_TYPES = {
+    scheduled: { label: 'Định kỳ', icon: Clock, accent: 'blue' },
+    repair: { label: 'Sửa chữa', icon: Wrench, accent: 'red' },
+}
+
+const BADGE: Record<string, string> = {
+    blue: 'bg-blue-100 text-blue-700',
+    red: 'bg-red-100 text-red-700',
+}
+
+// Quick-pick service items
+const SERVICE_PRESETS = [
+    'Thay nhớt', 'Thay lọc gió', 'Thay lọc dầu', 'Rửa xe',
+    'Thay má phanh', 'Thay bugi', 'Kiểm tra tổng quát',
+    'Bơm lốp', 'Thay lốp', 'Vệ sinh kim phun',
+]
+
+type FilterPeriod = 'day' | 'week' | 'month' | 'quarter' | 'all'
+const PERIOD_TABS: { id: FilterPeriod; label: string }[] = [
+    { id: 'day', label: 'Ngày' },
+    { id: 'week', label: 'Tuần' },
+    { id: 'month', label: 'Tháng' },
+    { id: 'quarter', label: 'Quý' },
+    { id: 'all', label: 'Tất cả' },
+]
+
+function getPeriodRange(period: FilterPeriod, offset: number): { start: Date; end: Date; label: string } {
+    const now = new Date()
+    const d = new Date(now)
+    if (period === 'day') {
+        d.setDate(d.getDate() + offset)
+        const s = new Date(d); s.setHours(0, 0, 0, 0)
+        const e = new Date(d); e.setHours(23, 59, 59, 999)
+        const label = offset === 0 ? 'Hôm nay'
+            : offset === -1 ? 'Hôm qua'
+                : d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        return { start: s, end: e, label }
+    }
+    if (period === 'week') {
+        const dayOfWeek = d.getDay() === 0 ? 6 : d.getDay() - 1
+        d.setDate(d.getDate() - dayOfWeek + offset * 7)
+        const s = new Date(d); s.setHours(0, 0, 0, 0)
+        const e = new Date(s); e.setDate(s.getDate() + 6); e.setHours(23, 59, 59, 999)
+        const label = offset === 0 ? 'Tuần này'
+            : offset === -1 ? 'Tuần trước'
+                : `${s.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })} – ${e.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`
+        return { start: s, end: e, label }
+    }
+    if (period === 'month') {
+        const s = new Date(now.getFullYear(), now.getMonth() + offset, 1)
+        const e = new Date(s.getFullYear(), s.getMonth() + 1, 0, 23, 59, 59, 999)
+        const label = offset === 0 ? 'Tháng này'
+            : s.toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })
+        return { start: s, end: e, label }
+    }
+    if (period === 'quarter') {
+        const q = Math.floor(now.getMonth() / 3) + offset
+        const actualYear = now.getFullYear() + Math.floor(q / 4)
+        const actualQ = ((q % 4) + 4) % 4
+        const s = new Date(actualYear, actualQ * 3, 1)
+        const e = new Date(actualYear, actualQ * 3 + 3, 0, 23, 59, 59, 999)
+        const qLabel = `Q${actualQ + 1}/${actualYear}`
+        return { start: s, end: e, label: offset === 0 ? `Quý này (${qLabel})` : qLabel }
+    }
+    return { start: new Date(0), end: new Date(9999, 0), label: 'Tất cả' }
 }
 
 export default function VehicleMaintenance() {
     const { success, error: showError } = useNotification()
     const queryClient = useQueryClient()
-
-    // Query Hooks
     const { data: vehicles = [] } = useVehicles()
 
-    // State
-    const [selectedVehicleId, setSelectedVehicleId] = useState<string>('')
+    const [selectedVehicleId, setSelectedVehicleId] = useState<string>(() =>
+        vehicles.find(v => v.is_default)?.id || vehicles[0]?.id || ''
+    )
     const [showAddModal, setShowAddModal] = useState(false)
+    const [showSettingsModal, setShowSettingsModal] = useState(false)
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
     const [deleting, setDeleting] = useState(false)
+    const [expandedId, setExpandedId] = useState<string | null>(null)
+    const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>('month')
+    const [periodOffset, setPeriodOffset] = useState(0)
 
-    // Auto-select
-    useEffect(() => {
-        if (vehicles.length > 0 && !selectedVehicleId) {
-            const defaultVehicle = vehicles.find(v => v.is_default) || vehicles[0]
-            setSelectedVehicleId(defaultVehicle.id)
-        }
-    }, [vehicles, selectedVehicleId])
+    const effectiveId = selectedVehicleId || vehicles.find(v => v.is_default)?.id || vehicles[0]?.id || ''
+    const { data: logs = [], isLoading: loading } = useVehicleMaintenance(effectiveId || undefined)
+    const selectedVehicle = vehicles.find(v => v.id === effectiveId)
+    const isMoto = selectedVehicle?.vehicle_type === 'motorcycle'
 
-    // Query logs
-    const { data: logs = [], isLoading: loading } = useVehicleMaintenance(selectedVehicleId || undefined)
+    // Stats tổng
+    const totalCost = useMemo(() => logs.reduce((s, l) => s + (l.total_cost || 0), 0), [logs])
+    const totalCount = logs.length
+    const avgCostPerSession = totalCount > 0 ? totalCost / totalCount : 0
+    const thisMonthLogs = useMemo(() => {
+        const now = new Date()
+        return logs.filter(l => {
+            const d = new Date(l.maintenance_date)
+            return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+        })
+    }, [logs])
+    const thisMonthCost = useMemo(() => thisMonthLogs.reduce((s, l) => s + (l.total_cost || 0), 0), [thisMonthLogs])
+
+    // Period filter
+    const periodRange = getPeriodRange(filterPeriod, periodOffset)
+    const filteredLogs = useMemo(() => {
+        if (filterPeriod === 'all') return logs
+        return logs.filter(l => {
+            const d = new Date(l.maintenance_date)
+            return d >= periodRange.start && d <= periodRange.end
+        })
+    }, [logs, filterPeriod, periodRange])
+
+    const periodTotalCost = filteredLogs.reduce((s, l) => s + (l.total_cost || 0), 0)
+
+    // Group by date
+    const groupedLogs = filteredLogs.reduce<Record<string, typeof filteredLogs>>((acc, log) => {
+        const key = log.maintenance_date
+        if (!acc[key]) acc[key] = []
+        acc[key].push(log)
+        return acc
+    }, {})
+    const sortedDates = Object.keys(groupedLogs).sort((a, b) => b.localeCompare(a))
 
     const handleDelete = async () => {
         if (!deleteConfirmId) return
-
         setDeleting(true)
         try {
             await deleteMaintenance(deleteConfirmId)
-            await queryClient.invalidateQueries({ queryKey: vehicleKeys.maintenance(selectedVehicleId) })
-            success('Đã xóa nhật ký bảo dưỡng thành công!')
+            await queryClient.invalidateQueries({ queryKey: vehicleKeys.maintenance(effectiveId) })
+            success('Đã xóa nhật ký bảo dưỡng!')
             setDeleteConfirmId(null)
         } catch (err) {
-            const message = err instanceof Error ? err.message : 'Không thể xóa nhật ký'
-            showError(message)
+            showError(err instanceof Error ? err.message : 'Không thể xóa')
         } finally {
             setDeleting(false)
         }
     }
 
-    const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId)
-
-    const formatCurrency = (value: number) =>
-        new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value)
-
     return (
         <div className="flex h-screen flex-col overflow-hidden bg-[#F7F9FC]">
-            <HeaderBar variant="page" title="Quản Lý Bảo Dưỡng" />
+            <HeaderBar
+                variant="page"
+                title="Bảo Dưỡng Xe"
+                customContent={
+                    <div className="flex gap-2">
+                        <button
+                            onClick={() => setShowSettingsModal(true)}
+                            className="flex items-center justify-center rounded-full bg-white p-2 border border-slate-200 shadow-sm hover:bg-slate-50 active:scale-95 transition-all"
+                        >
+                            <Settings className="h-5 w-5 text-slate-600" />
+                        </button>
+                        <button
+                            onClick={() => setShowAddModal(true)}
+                            className="flex items-center justify-center rounded-full bg-gray-500 p-2 shadow-md hover:bg-gray-600 active:scale-95 transition-all"
+                        >
+                            <Plus className="h-5 w-5 text-white" />
+                        </button>
+                    </div>
+                }
+            />
 
             <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-28 pt-4">
-                {/* Vehicle Selector */}
-                {vehicles.length > 0 && (
-                    <div className="mb-4">
-                        <label className="mb-2 block text-sm font-medium text-slate-700">Chọn xe</label>
-                        <select
-                            value={selectedVehicleId}
-                            onChange={(e) => setSelectedVehicleId(e.target.value)}
-                            className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                        >
-                            {vehicles.map((vehicle) => (
-                                <option key={vehicle.id} value={vehicle.id}>
-                                    {vehicle.license_plate} - {vehicle.brand} {vehicle.model}
-                                </option>
-                            ))}
-                        </select>
+
+                {/* ── Vehicle Selector ──────────────────────────────────── */}
+                {vehicles.length > 1 && (
+                    <div className="mb-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                        {vehicles.map(v => {
+                            const sel = v.id === effectiveId
+                            const VIcon = v.vehicle_type === 'motorcycle' ? Bike : Car
+                            return (
+                                <button key={v.id} onClick={() => setSelectedVehicleId(v.id)}
+                                    className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-all ${sel ? 'border-gray-500 bg-gray-500 text-white shadow-md shadow-gray-200' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}`}>
+                                    <VIcon className="h-4 w-4" />
+                                    {v.license_plate}
+                                </button>
+                            )
+                        })}
                     </div>
                 )}
 
-                {/* Summary Card */}
+                {/* ── Hero Stats Card ───────────────────────────────────── */}
                 {selectedVehicle && (
-                    <div className="mb-4 rounded-2xl bg-gradient-to-br from-purple-500 to-indigo-500 p-4 text-white shadow-lg">
-                        <div className="mb-2 flex items-center gap-2">
-                            <Wrench className="h-5 w-5" />
-                            <span className="text-sm font-medium opacity-90">Tổng chi phí bảo dưỡng</span>
-                        </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <p className="text-2xl font-bold">
-                                    {formatCurrency(logs.reduce((sum, log) => sum + (log.total_cost || 0), 0))}
-                                </p>
-                                <p className="text-xs opacity-75">Tổng cộng</p>
+                    <div className="mb-4 space-y-3">
+                        {/* Main card - solid gray */}
+                        <div className="rounded-2xl bg-gray-500 p-4 text-white shadow-lg shadow-gray-200">
+                            <div className="mb-3 flex items-center gap-2">
+                                <div className="rounded-xl bg-white/20 p-1.5">
+                                    <Wrench className="h-4 w-4" />
+                                </div>
+                                <span className="text-sm font-semibold opacity-90">Tổng quan bảo dưỡng</span>
+                                <span className="ml-auto rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold">{isMoto ? 'Xe máy' : 'Ô tô'} · {selectedVehicle.license_plate}</span>
                             </div>
-                            <div>
-                                <p className="text-2xl font-bold">
-                                    {logs.length}
-                                </p>
-                                <p className="text-xs opacity-75">Lần bảo dưỡng</p>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p className="text-2xl font-black">{logs.length}</p>
+                                    <p className="text-xs opacity-75">Lần bảo dưỡng</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-2xl font-black">{fmt(totalCost)}</p>
+                                    <p className="text-xs opacity-75">Tổng chi phí</p>
+                                </div>
                             </div>
                         </div>
+
+                        {/* Mini stats row */}
+                        <div className="grid grid-cols-3 gap-2">
+                            <div className="flex flex-col items-center rounded-xl bg-white p-3 shadow-sm">
+                                <div className="mb-1 rounded-lg bg-gray-100 p-1.5">
+                                    <Wrench className="h-4 w-4 text-gray-600" />
+                                </div>
+                                <p className="text-sm font-bold text-slate-800">
+                                    {avgCostPerSession > 0 ? `${Math.round(avgCostPerSession / 1000)}k` : '--'}
+                                </p>
+                                <p className="text-center text-[10px] leading-tight text-slate-500">TB/lần</p>
+                            </div>
+                            <div className="flex flex-col items-center rounded-xl bg-white p-3 shadow-sm">
+                                <div className="mb-1 rounded-lg bg-blue-100 p-1.5">
+                                    <Activity className="h-4 w-4 text-blue-600" />
+                                </div>
+                                <p className="text-sm font-bold text-slate-800">{thisMonthLogs.length}</p>
+                                <p className="text-center text-[10px] leading-tight text-slate-500">Tháng này</p>
+                            </div>
+                            <div className="flex flex-col items-center rounded-xl bg-white p-3 shadow-sm">
+                                <div className="mb-1 rounded-lg bg-green-100 p-1.5">
+                                    <TrendingUp className="h-4 w-4 text-green-600" />
+                                </div>
+                                <p className="text-sm font-bold text-slate-800">
+                                    {thisMonthCost > 0 ? `${Math.round(thisMonthCost / 1000)}k` : '--'}
+                                </p>
+                                <p className="text-center text-[10px] leading-tight text-slate-500">Chi tháng</p>
+                            </div>
+                        </div>
+
+                        {/* Month cost badge */}
+                        {thisMonthCost > 0 && (
+                            <div className="flex items-center justify-between rounded-xl bg-gray-50 border border-gray-200 px-4 py-2.5">
+                                <div className="flex items-center gap-2">
+                                    <Calendar className="h-4 w-4 text-gray-600" />
+                                    <span className="text-sm font-medium text-gray-700">Chi phí bảo dưỡng tháng này</span>
+                                </div>
+                                <span className="text-sm font-bold text-gray-700">{fmt(thisMonthCost)}</span>
+                            </div>
+                        )}
                     </div>
                 )}
 
-                {/* Add Button */}
+                {/* ── Next Maintenance Info ─────────────────────────────── */}
+                {selectedVehicle?.next_maintenance_km && (
+                    <div className="mb-4 flex items-center gap-3 rounded-2xl border border-gray-200 bg-gray-50 px-4 py-3">
+                        <div className="rounded-xl bg-gray-100 p-2">
+                            <Gauge className="h-4 w-4 text-gray-600" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-gray-800">Bảo dưỡng tiếp theo</p>
+                            <p className="text-xs text-gray-600">Tại {selectedVehicle.next_maintenance_km.toLocaleString()} km
+                                {selectedVehicle.current_odometer && (
+                                    <span className="ml-1 font-semibold">
+                                        · còn {Math.max(0, selectedVehicle.next_maintenance_km - selectedVehicle.current_odometer).toLocaleString()} km
+                                    </span>
+                                )}
+                            </p>
+                        </div>
+                        <ArrowRight className="h-4 w-4 text-gray-500 shrink-0" />
+                    </div>
+                )}
+
+                {/* ── Add Button ───────────────────────────────────────── */}
                 <button
                     onClick={() => setShowAddModal(true)}
-                    className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-purple-500 to-indigo-500 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl active:scale-95"
+                    className="w-full mb-4 flex items-center justify-center gap-2.5 rounded-2xl bg-gray-500 px-4 py-3.5 font-bold text-white shadow-lg shadow-gray-200 transition-all hover:scale-[1.02] hover:bg-gray-600 active:scale-95"
                 >
                     <Plus className="h-5 w-5" />
                     Thêm nhật ký bảo dưỡng
                 </button>
 
-                {/* Logs List */}
+                {/* ── Filter Bar ───────────────────────────────────────── */}
+                <div className="mb-3 space-y-2">
+                    <div className="flex rounded-xl bg-slate-100 p-1 gap-0.5">
+                        {PERIOD_TABS.map(tab => (
+                            <button key={tab.id} type="button"
+                                onClick={() => { setFilterPeriod(tab.id); setPeriodOffset(0) }}
+                                className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all ${filterPeriod === tab.id
+                                    ? 'bg-gray-500 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                                    }`}>
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {filterPeriod !== 'all' && (
+                        <div className="flex items-center gap-2">
+                            <button type="button"
+                                onClick={() => setPeriodOffset(o => o - 1)}
+                                className="rounded-xl border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 active:scale-95 transition-all">
+                                <ChevronLeft className="h-4 w-4" />
+                            </button>
+                            <div className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-center">
+                                <p className="text-sm font-bold text-gray-700">{periodRange.label}</p>
+                            </div>
+                            <button type="button"
+                                onClick={() => setPeriodOffset(o => Math.min(0, o + 1))}
+                                disabled={periodOffset >= 0}
+                                className="rounded-xl border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 disabled:opacity-30 active:scale-95 transition-all">
+                                <ChevronRight className="h-4 w-4" />
+                            </button>
+                        </div>
+                    )}
+
+                    {filteredLogs.length > 0 && (
+                        <div className="flex items-center justify-between rounded-xl bg-gray-50 border border-gray-100 px-3 py-2">
+                            <span className="text-xs text-slate-500">
+                                <span className="font-bold text-slate-700">{filteredLogs.length}</span> lần bảo dưỡng
+                            </span>
+                            <span className="text-sm font-black text-gray-700">{fmt(periodTotalCost)}</span>
+                        </div>
+                    )}
+                </div>
+
+                {/* ── Logs List ─────────────────────────────────────────── */}
                 {loading ? (
                     <div className="space-y-3">
-                        {[1, 2, 3].map((i) => (
-                            <div key={i} className="animate-pulse overflow-hidden rounded-xl bg-white p-4 shadow-md">
-                                <div className="h-24 w-full rounded-lg bg-slate-50"></div>
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="animate-pulse overflow-hidden rounded-2xl bg-white p-4 shadow-sm">
+                                <div className="mb-3 h-4 w-2/3 rounded-lg bg-slate-100" />
+                                <div className="h-16 w-full rounded-xl bg-slate-50" />
                             </div>
                         ))}
                     </div>
-                ) : logs.length === 0 ? (
-                    <div className="py-12 text-center">
-                        <Wrench className="mx-auto mb-4 h-16 w-16 text-slate-300" />
-                        <p className="text-sm text-slate-600">Chưa có nhật ký bảo dưỡng</p>
+                ) : filteredLogs.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center rounded-2xl bg-white border border-slate-100 py-14 shadow-sm">
+                        <div className="mb-4 rounded-3xl bg-gray-100 p-6">
+                            <Wrench className="h-12 w-12 text-gray-400" />
+                        </div>
+                        <p className="font-semibold text-slate-600">
+                            {filterPeriod === 'all' ? 'Chưa có nhật ký bảo dưỡng' : `Không có dữ liệu trong ${periodRange.label.toLowerCase()}`}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-400">
+                            {filterPeriod !== 'all' ? 'Thử chọn khung thời gian khác' : 'Thêm bảo dưỡng đầu tiên ngay'}
+                        </p>
                     </div>
                 ) : (
-                    <div className="space-y-3">
-                        {logs.map((log) => {
-                            const type = MAINTENANCE_TYPES[log.maintenance_type] || MAINTENANCE_TYPES.scheduled
-                            const TypeIcon = type.icon
-
+                    <div className="space-y-4">
+                        {sortedDates.map(dateKey => {
+                            const dayLogs = groupedLogs[dateKey]
+                            const d = new Date(dateKey)
+                            const todayKey = new Date().toISOString().split('T')[0]
+                            const yesterdayKey = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+                            const dayLabel = dateKey === todayKey ? 'Hôm nay'
+                                : dateKey === yesterdayKey ? 'Hôm qua'
+                                    : d.toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric', month: 'numeric' })
+                            const dayTotal = dayLogs.reduce((s, l) => s + (l.total_cost || 0), 0)
                             return (
-                                <div
-                                    key={log.id}
-                                    className="overflow-hidden rounded-xl bg-white shadow-md transition-all hover:shadow-lg"
-                                >
-                                    <div className="p-4">
-                                        <div className="mb-3 flex items-start justify-between">
-                                            <div>
-                                                <div className="mb-1 flex items-center gap-2">
-                                                    <span className={`inline-flex items-center gap-1 rounded-full bg-${type.color}-100 px-2 py-1 text-xs font-semibold text-${type.color}-700`}>
-                                                        <TypeIcon className="h-3 w-3" />
-                                                        {type.label}
-                                                    </span>
-                                                    <span className="text-xs font-medium text-slate-500">
-                                                        {log.odometer.toLocaleString()} km
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center gap-2 text-sm text-slate-600">
-                                                    <Calendar className="h-4 w-4" />
-                                                    {new Date(log.maintenance_date).toLocaleDateString('vi-VN')}
-                                                </div>
-                                            </div>
-
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => setDeleteConfirmId(log.id)}
-                                                    className="rounded-lg p-2 text-red-600 transition-colors hover:bg-red-50"
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </button>
-                                            </div>
+                                <div key={dateKey}>
+                                    {/* Date separator */}
+                                    <div className="mb-2 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className="h-2 w-2 rounded-full bg-gray-400" />
+                                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">{dayLabel}</span>
                                         </div>
+                                        <span className="text-xs font-semibold text-slate-400">{fmt(dayTotal)}</span>
+                                    </div>
+                                    <div className="space-y-2 pl-4 border-l-2 border-gray-100">
+                                        {dayLogs.map(log => {
+                                            const type = MAINT_TYPES[log.maintenance_type] || MAINT_TYPES.scheduled
+                                            const TypeIcon = type.icon
+                                            const isExpanded = expandedId === log.id
+                                            const parts = log.parts_cost || 0
+                                            const labor = log.labor_cost || 0
+                                            return (
+                                                <div key={log.id} className="overflow-hidden rounded-2xl bg-white shadow-md transition-all hover:shadow-lg border border-slate-100">
+                                                    {/* Top accent bar */}
+                                                    <div className={`h-1 w-full ${type.accent === 'blue' ? 'bg-blue-400' : 'bg-red-400'}`} />
 
-                                        {/* Service Items */}
-                                        {log.service_items && log.service_items.length > 0 && (
-                                            <div className="mb-3 flex flex-wrap gap-1">
-                                                {log.service_items.map((item, idx) => (
-                                                    <span key={idx} className="inline-flex items-center gap-1 rounded-md bg-slate-100 px-2 py-1 text-xs text-slate-700">
-                                                        <CheckCircle2 className="h-3 w-3 text-green-500" />
-                                                        {item}
-                                                    </span>
-                                                ))}
-                                            </div>
-                                        )}
+                                                    <div className="p-4">
+                                                        {/* Header row */}
+                                                        <button
+                                                            onClick={() => setExpandedId(isExpanded ? null : log.id)}
+                                                            className="flex w-full items-start justify-between text-left"
+                                                        >
+                                                            <div>
+                                                                <div className="flex items-center gap-2 mb-0.5">
+                                                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${BADGE[type.accent]}`}>
+                                                                        {type.label}
+                                                                    </span>
+                                                                    <span className="text-xs text-slate-400">{log.odometer.toLocaleString()} km</span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                                                    <span className="flex items-center gap-1 text-xs text-slate-500">
+                                                                        <TypeIcon className="h-3 w-3" />
+                                                                        {type.label}
+                                                                    </span>
+                                                                    {log.service_provider && (
+                                                                        <span className="flex items-center gap-1 text-xs text-slate-400 truncate max-w-[120px]">
+                                                                            <Store className="h-3 w-3 shrink-0" />{log.service_provider}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                                                                <span className="text-base font-black text-gray-600">{fmt(log.total_cost || 0)}</span>
+                                                                {isExpanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                                                            </div>
+                                                        </button>
 
-                                        <div className="flex items-center justify-between border-t border-slate-100 pt-3">
-                                            <div className="text-xs text-slate-500">
-                                                {log.service_provider && <span>Tại: {log.service_provider}</span>}
-                                            </div>
-                                            <div className="text-lg font-bold text-purple-600">
-                                                {formatCurrency(log.total_cost || 0)}
-                                            </div>
-                                        </div>
+                                                        {/* Service items quick view */}
+                                                        {log.service_items?.length > 0 && !isExpanded && (
+                                                            <div className="mt-2.5 flex flex-wrap gap-1">
+                                                                {log.service_items.slice(0, 3).map((item, i) => (
+                                                                    <span key={i} className="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">{item}</span>
+                                                                ))}
+                                                                {log.service_items.length > 3 && (
+                                                                    <span className="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] text-slate-500">+{log.service_items.length - 3}</span>
+                                                                )}
+                                                            </div>
+                                                        )}
+
+                                                        {/* Expanded content */}
+                                                        {isExpanded && (
+                                                            <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
+                                                                {/* Service items */}
+                                                                {log.service_items?.length > 0 && (
+                                                                    <div>
+                                                                        <p className="mb-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Hạng mục thực hiện</p>
+                                                                        <div className="flex flex-wrap gap-1.5">
+                                                                            {log.service_items.map((item, i) => (
+                                                                                <span key={i} className="flex items-center gap-1 rounded-lg bg-slate-100 px-2.5 py-1 text-xs font-medium text-slate-700">
+                                                                                    <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                                                                                    {item}
+                                                                                </span>
+                                                                            ))}
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+
+                                                                {/* Cost breakdown */}
+                                                                <div className="grid grid-cols-2 gap-2">
+                                                                    <div className="rounded-xl bg-slate-50 px-3 py-2">
+                                                                        <p className="text-[10px] text-slate-400">Phụ tùng</p>
+                                                                        <p className="text-sm font-bold text-slate-700">{fmt(parts)}</p>
+                                                                    </div>
+                                                                    <div className="rounded-xl bg-slate-50 px-3 py-2">
+                                                                        <p className="text-[10px] text-slate-400">Nhân công</p>
+                                                                        <p className="text-sm font-bold text-slate-700">{fmt(labor)}</p>
+                                                                    </div>
+                                                                </div>
+
+                                                                {/* Notes */}
+                                                                {log.notes && (
+                                                                    <p className="text-xs text-slate-400 italic">"{log.notes}"</p>
+                                                                )}
+
+                                                                {/* Total + Delete */}
+                                                                <div className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2">
+                                                                    <span className="text-xs font-medium text-gray-700">Tổng cộng</span>
+                                                                    <span className="text-base font-black text-gray-700">{fmt(log.total_cost || 0)}</span>
+                                                                </div>
+
+                                                                <button
+                                                                    onClick={() => setDeleteConfirmId(log.id)}
+                                                                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 py-2 text-sm font-semibold text-red-600 hover:bg-red-100 transition-all"
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" /> Xóa nhật ký
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            )
+                                        })}
                                     </div>
                                 </div>
                             )
                         })}
                     </div>
                 )}
+
             </main>
 
-            {/* Vehicle Footer Nav */}
-            <VehicleFooterNav
-                onAddClick={() => setShowAddModal(true)}
-                addLabel="Bảo dưỡng"
-            />
+            <VehicleFooterNav onAddClick={() => setShowAddModal(true)} addLabel="Bảo dưỡng" />
 
-            {/* Add Maintenance Modal */}
+            {showSettingsModal && selectedVehicle && (
+                <MaintenanceSettingsModal
+                    vehicle={selectedVehicle}
+                    onClose={() => setShowSettingsModal(false)}
+                    onSuccess={() => {
+                        setShowSettingsModal(false)
+                        queryClient.invalidateQueries({ queryKey: vehicleKeys.all })
+                    }}
+                />
+            )}
+
+            {/* Add Modal */}
             {showAddModal && selectedVehicle && (
                 <AddMaintenanceModal
                     vehicle={selectedVehicle}
                     onClose={() => setShowAddModal(false)}
                     onSuccess={() => {
                         setShowAddModal(false)
-                        queryClient.invalidateQueries({ queryKey: vehicleKeys.maintenance(selectedVehicleId) })
+                        queryClient.invalidateQueries({ queryKey: vehicleKeys.maintenance(effectiveId) })
                     }}
                 />
             )}
 
-            {/* Delete Confirmation */}
             <ConfirmDialog
                 isOpen={deleteConfirmId !== null}
                 onClose={() => setDeleteConfirmId(null)}
                 onConfirm={handleDelete}
-                title="Xác nhận xóa"
-                message="Bạn có chắc chắn muốn xóa nhật ký này?"
+                title="Xóa nhật ký bảo dưỡng"
+                message="Bạn có chắc muốn xóa nhật ký này không? Hành động này không thể hoàn tác."
                 confirmText="Xóa"
                 cancelText="Hủy"
                 isLoading={deleting}
@@ -229,23 +533,20 @@ export default function VehicleMaintenance() {
     )
 }
 
-function AddMaintenanceModal({
-    vehicle,
-    onClose,
-    onSuccess,
-}: {
+// ─── Add Maintenance Modal ──────────────────────────────────────────────────
+function AddMaintenanceModal({ vehicle, onClose, onSuccess }: {
     vehicle: VehicleRecord
     onClose: () => void
     onSuccess: () => void
 }) {
     const { success, error: showError } = useNotification()
     const [loading, setLoading] = useState(false)
-    const [formData, setFormData] = useState({
-        vehicle_id: vehicle.id,
+    const [selectedItems, setSelectedItems] = useState<string[]>([])
+    const [customItem, setCustomItem] = useState('')
+    const [form, setForm] = useState({
         maintenance_date: new Date().toISOString().split('T')[0],
         odometer: vehicle.current_odometer,
-        maintenance_type: 'scheduled' as const,
-        service_items_text: '', // Helper to split into array
+        maintenance_type: 'scheduled' as 'scheduled' | 'repair',
         service_provider: '',
         parts_cost: '',
         labor_cost: '',
@@ -254,160 +555,307 @@ function AddMaintenanceModal({
         notes: '',
     })
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault()
+    const toggleItem = (item: string) =>
+        setSelectedItems(prev => prev.includes(item) ? prev.filter(i => i !== item) : [...prev, item])
 
-        const parts = parseFloat(formData.parts_cost) || 0
-        const labor = parseFloat(formData.labor_cost) || 0
-        const total = parts + labor
+    const addCustomItem = () => {
+        if (customItem.trim() && !selectedItems.includes(customItem.trim())) {
+            setSelectedItems(prev => [...prev, customItem.trim()])
+            setCustomItem('')
+        }
+    }
 
-        if (total === 0) {
-            showError('Vui lòng nhập chi phí')
-            return
+    const calculateReminders = () => {
+        const intervalKm = vehicle.maintenance_interval_km || (vehicle.vehicle_type === 'motorcycle' ? 2000 : 5000)
+        let km = form.odometer ? form.odometer + intervalKm : ''
+
+        let dDate = ''
+        if (vehicle.maintenance_interval_months && form.maintenance_date) {
+            const d = new Date(form.maintenance_date)
+            d.setMonth(d.getMonth() + vehicle.maintenance_interval_months)
+            dDate = d.toISOString().split('T')[0]
+        } else {
+            // Default 3/6 months if not set
+            const d = new Date(form.maintenance_date || new Date())
+            d.setMonth(d.getMonth() + (vehicle.vehicle_type === 'motorcycle' ? 3 : 6))
+            dDate = d.toISOString().split('T')[0]
         }
 
+        setForm(prev => ({ ...prev, next_reminder_km: String(km), next_reminder_date: dDate }))
+    }
+
+    const parts = parseFloat(form.parts_cost) || 0
+    const labor = parseFloat(form.labor_cost) || 0
+    const total = parts + labor
+
+    const handleSubmit = async () => {
+        if (total === 0) { showError('Vui lòng nhập chi phí'); return }
         setLoading(true)
         try {
             await createMaintenance({
-                ...formData,
-                service_items: formData.service_items_text.split(',').map(s => s.trim()).filter(s => s),
+                vehicle_id: vehicle.id,
+                maintenance_date: form.maintenance_date,
+                odometer: form.odometer,
+                maintenance_type: form.maintenance_type,
+                service_items: selectedItems,
+                service_provider: form.service_provider || undefined,
                 parts_cost: parts,
                 labor_cost: labor,
-                next_reminder_km: formData.next_reminder_km ? parseInt(formData.next_reminder_km) : undefined,
-                next_reminder_date: formData.next_reminder_date || undefined,
+                total_cost: total,
+                next_reminder_km: form.next_reminder_km ? parseInt(form.next_reminder_km) : undefined,
+                next_reminder_date: form.next_reminder_date || undefined,
+                notes: form.notes || undefined,
             } as any)
-            success('Thêm nhật ký bảo dưỡng thành công!')
+            success('Đã lưu nhật ký bảo dưỡng!')
             onSuccess()
         } catch (err) {
-            const message = err instanceof Error ? err.message : 'Không thể thêm nhật ký'
-            showError(message)
+            showError(err instanceof Error ? err.message : 'Không thể lưu')
         } finally {
             setLoading(false)
         }
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px]">
-            <div className="w-full rounded-t-3xl bg-white p-5 pb-10 shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] overflow-y-auto">
-                <div className="mb-6 flex items-center justify-between sticky top-0 bg-white z-10 pb-2 border-b border-gray-100">
-                    <h3 className="text-lg font-bold text-slate-800">Thêm nhật ký bảo dưỡng</h3>
-                    <button
-                        onClick={onClose}
-                        className="rounded-full bg-slate-100 p-2 text-slate-500 hover:bg-slate-200 hover:text-slate-700"
-                    >
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-[3px]">
+            <div className="w-full max-h-[92vh] overflow-y-auto rounded-t-3xl bg-white shadow-2xl">
+                {/* Header */}
+                <div className="sticky top-0 z-10 rounded-t-3xl bg-gray-500 px-5 pt-5 pb-4 text-white">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <div className="rounded-xl bg-white/20 p-1.5"><Wrench className="h-4 w-4" /></div>
+                            <h3 className="text-base font-bold">Thêm nhật ký bảo dưỡng</h3>
+                        </div>
+                        <button onClick={onClose} className="rounded-full bg-white/20 p-1.5 hover:bg-white/30">
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+                    <p className="text-xs opacity-70 mt-1 ml-10">{vehicle.license_plate} · {vehicle.current_odometer.toLocaleString()} km hiện tại</p>
+                </div>
+
+                <div className="px-5 py-5 space-y-5">
+                    {/* Date + ODO */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div>
+                            <label className="mb-1.5 block text-xs font-bold text-slate-500 uppercase tracking-wide">Ngày</label>
+                            <input type="date" value={form.maintenance_date}
+                                onChange={e => setForm({ ...form, maintenance_date: e.target.value })}
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium focus:border-gray-400 focus:bg-white focus:outline-none" />
+                        </div>
+                        <div>
+                            <label className="mb-1.5 block text-xs font-bold text-slate-500 uppercase tracking-wide">Số km (ODO)</label>
+                            <input type="number" value={form.odometer}
+                                onChange={e => setForm({ ...form, odometer: parseInt(e.target.value) })}
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium focus:border-gray-400 focus:bg-white focus:outline-none" />
+                        </div>
+                    </div>
+
+                    {/* Type selector */}
+                    <div>
+                        <label className="mb-1.5 block text-xs font-bold text-slate-500 uppercase tracking-wide">Loại bảo dưỡng</label>
+                        <div className="flex gap-2">
+                            {Object.entries(MAINT_TYPES).map(([key, { label, accent }]) => (
+                                <button key={key} onClick={() => setForm({ ...form, maintenance_type: key as any })}
+                                    className={`flex-1 rounded-xl border py-2.5 text-sm font-bold transition-all ${form.maintenance_type === key
+                                        ? accent === 'blue' ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-red-400 bg-red-50 text-red-700'
+                                        : 'border-slate-200 bg-slate-50 text-slate-500'}`}>
+                                    {label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+
+                    {/* Quick-pick service items */}
+                    <div>
+                        <label className="mb-2 block text-xs font-bold text-slate-500 uppercase tracking-wide">
+                            Hạng mục thực hiện {selectedItems.length > 0 && <span className="text-gray-600">({selectedItems.length})</span>}
+                        </label>
+                        <div className="flex flex-wrap gap-2 mb-2">
+                            {SERVICE_PRESETS.map(item => (
+                                <button key={item} onClick={() => toggleItem(item)}
+                                    className={`flex items-center gap-1 rounded-xl border px-3 py-1.5 text-xs font-medium transition-all ${selectedItems.includes(item)
+                                        ? 'border-gray-400 bg-gray-50 text-gray-700'
+                                        : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'}`}>
+                                    {selectedItems.includes(item) && <CheckCircle2 className="h-3 w-3" />}
+                                    {item}
+                                </button>
+                            ))}
+                        </div>
+                        <div className="flex gap-2">
+                            <input value={customItem} onChange={e => setCustomItem(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && addCustomItem()}
+                                placeholder="Thêm hạng mục khác..."
+                                className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm focus:border-gray-400 focus:bg-white focus:outline-none" />
+                            <button onClick={addCustomItem} className="rounded-xl bg-gray-100 px-3 py-2 text-xs font-bold text-gray-700 hover:bg-gray-200">
+                                + Thêm
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Costs */}
+                    <div>
+                        <label className="mb-1.5 block text-xs font-bold text-slate-500 uppercase tracking-wide">Chi phí</label>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div className="relative">
+                                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                <input type="number" value={form.parts_cost}
+                                    onChange={e => setForm({ ...form, parts_cost: e.target.value })}
+                                    placeholder="Phụ tùng"
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2.5 text-sm font-medium focus:border-gray-400 focus:bg-white focus:outline-none" />
+                            </div>
+                            <div className="relative">
+                                <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                                <input type="number" value={form.labor_cost}
+                                    onChange={e => setForm({ ...form, labor_cost: e.target.value })}
+                                    placeholder="Nhân công"
+                                    className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2.5 text-sm font-medium focus:border-gray-400 focus:bg-white focus:outline-none" />
+                            </div>
+                        </div>
+                        {total > 0 && (
+                            <div className="mt-2 flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2">
+                                <span className="text-xs font-medium text-gray-700">Tổng cộng</span>
+                                <span className="text-base font-black text-gray-700">{fmt(total)}</span>
+                            </div>
+                        )}
+                    </div>
+
+                    {/* Provider */}
+                    <div>
+                        <label className="mb-1.5 block text-xs font-bold text-slate-500 uppercase tracking-wide">Nơi thực hiện</label>
+                        <div className="relative">
+                            <Store className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <input type="text" value={form.service_provider}
+                                onChange={e => setForm({ ...form, service_provider: e.target.value })}
+                                placeholder="Tên garage / tiệm..."
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2.5 text-sm focus:border-gray-400 focus:bg-white focus:outline-none" />
+                        </div>
+                    </div>
+
+                    {/* Next reminder */}
+                    <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
+                        <div className="flex items-center justify-between mb-3">
+                            <div className="flex items-center gap-2">
+                                <AlertTriangle className="h-4 w-4 text-gray-600" />
+                                <p className="text-sm font-bold text-gray-700">Nhắc bảo dưỡng tiếp theo</p>
+                            </div>
+                            <button type="button" onClick={calculateReminders} className="text-xs text-gray-700 font-bold underline bg-gray-100 px-2 py-1 rounded-md">
+                                Gợi ý mốc
+                            </button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-3">
+                            <div>
+                                <label className="mb-1 block text-xs font-medium text-gray-700">Tại số km</label>
+                                <input type="number" value={form.next_reminder_km}
+                                    onChange={e => setForm({ ...form, next_reminder_km: e.target.value })}
+                                    placeholder={form.odometer ? String(form.odometer + (vehicle.maintenance_interval_km || 5000)) : ''}
+                                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:outline-none" />
+                            </div>
+                            <div>
+                                <label className="mb-1 block text-xs font-medium text-gray-700">Hoặc ngày</label>
+                                <input type="date" value={form.next_reminder_date}
+                                    onChange={e => setForm({ ...form, next_reminder_date: e.target.value })}
+                                    className="w-full rounded-xl border border-gray-200 bg-white px-3 py-2 text-sm focus:border-gray-400 focus:outline-none" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Notes */}
+                    <div>
+                        <label className="mb-1.5 block text-xs font-bold text-slate-500 uppercase tracking-wide">Ghi chú</label>
+                        <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
+                            rows={2} placeholder="Ghi chú thêm..."
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-gray-400 focus:bg-white focus:outline-none resize-none" />
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-3 pb-2">
+                        <button onClick={onClose}
+                            className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 py-3.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">
+                            Hủy
+                        </button>
+                        <button onClick={handleSubmit} disabled={loading}
+                            className="flex-[2] flex items-center justify-center gap-2 rounded-2xl bg-gray-500 py-3.5 text-sm font-bold text-white shadow-lg shadow-gray-200 hover:bg-gray-600 disabled:opacity-50 active:scale-95 transition-all">
+                            {loading ? 'Đang lưu...' : <><Save className="h-4 w-4" /> Lưu bảo dưỡng</>}
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// ─── Maintenance Settings Modal ─────────────────────────────────────────────
+function MaintenanceSettingsModal({ vehicle, onClose, onSuccess }: {
+    vehicle: VehicleRecord
+    onClose: () => void
+    onSuccess: () => void
+}) {
+    const { success, error: showError } = useNotification()
+    const [loading, setLoading] = useState(false)
+    const [intervalKm, setIntervalKm] = useState(vehicle.maintenance_interval_km ? String(vehicle.maintenance_interval_km) : '')
+    const [intervalMonths, setIntervalMonths] = useState(vehicle.maintenance_interval_months ? String(vehicle.maintenance_interval_months) : '')
+
+    const handleSave = async () => {
+        setLoading(true)
+        try {
+            await updateVehicle(vehicle.id, {
+                maintenance_interval_km: intervalKm ? parseInt(intervalKm) : null as any,
+                maintenance_interval_months: intervalMonths ? parseInt(intervalMonths) : null as any,
+            })
+            success('Đã lưu cấu hình chu kỳ bảo dưỡng!')
+            onSuccess()
+        } catch (err) {
+            showError(err instanceof Error ? err.message : 'Không thể lưu cài đặt')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-[3px]">
+            <div className="w-full max-h-[90vh] overflow-y-auto rounded-t-3xl bg-white shadow-2xl">
+                {/* Header */}
+                <div className="sticky top-0 z-10 flex items-center justify-between border-b border-slate-100 bg-white px-5 py-4">
+                    <div className="flex items-center gap-3">
+                        <div className="rounded-xl bg-gray-100 p-2 text-gray-600">
+                            <Settings className="h-5 w-5" />
+                        </div>
+                        <div>
+                            <h3 className="text-base font-bold text-slate-800">Cài đặt chu kỳ xe</h3>
+                            <p className="text-xs font-medium text-slate-500">
+                                {vehicle.license_plate} · {vehicle.vehicle_type === 'motorcycle' ? 'Xe máy' : 'Ô tô'}
+                            </p>
+                        </div>
+                    </div>
+                    <button onClick={onClose} className="rounded-full bg-slate-100 p-2 text-slate-500 hover:bg-slate-200">
+                        <X className="h-5 w-5" />
                     </button>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="mb-1 block text-sm font-medium text-slate-700">Ngày</label>
-                            <input
-                                type="date"
-                                required
-                                value={formData.maintenance_date}
-                                onChange={(e) => setFormData({ ...formData, maintenance_date: e.target.value })}
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                            />
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-sm font-medium text-slate-700">Số ODO (km)</label>
-                            <input
-                                type="number"
-                                required
-                                value={formData.odometer}
-                                onChange={(e) => setFormData({ ...formData, odometer: parseInt(e.target.value) })}
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                            />
-                        </div>
+                <div className="px-5 py-5 space-y-5">
+                    <div className="rounded-2xl bg-gray-50 p-3 border border-gray-100 flex gap-2">
+                        <AlertTriangle className="h-4 w-4 text-gray-600 shrink-0 mt-0.5" />
+                        <p className="text-xs text-gray-700 leading-snug">
+                            Lưu cấu hình mốc bảo dưỡng định kỳ (Km hoặc Tháng). Hệ thống sẽ dùng số liệu này để giúp bạn định trước kỳ tới mỗi khi bảo dưỡng.
+                        </p>
                     </div>
-
                     <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Loại bảo dưỡng</label>
-                        <select
-                            value={formData.maintenance_type}
-                            onChange={(e) => setFormData({ ...formData, maintenance_type: e.target.value as any })}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                        >
-                            {Object.entries(MAINTENANCE_TYPES).map(([key, { label }]) => (
-                                <option key={key} value={key}>{label}</option>
-                            ))}
-                        </select>
+                        <label className="mb-2 block text-xs font-bold text-slate-500 uppercase tracking-wide">Chu kỳ ODO (Ví dụ: Định kỳ mỗi 3000 km)</label>
+                        <input type="number" value={intervalKm} onChange={e => setIntervalKm(e.target.value)}
+                            placeholder={vehicle.vehicle_type === 'motorcycle' ? "2000" : "5000"}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium focus:border-gray-400 focus:bg-white focus:outline-none" />
                     </div>
-
                     <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Hạng mục (cách nhau bởi dấu phẩy)</label>
-                        <textarea
-                            value={formData.service_items_text}
-                            onChange={(e) => setFormData({ ...formData, service_items_text: e.target.value })}
-                            placeholder="VD: Thay nhớt, Thay lọc gió, Rửa xe..."
-                            rows={2}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                        />
+                        <label className="mb-2 block text-xs font-bold text-slate-500 uppercase tracking-wide">Chu kỳ Thời gian (Tháng)</label>
+                        <input type="number" value={intervalMonths} onChange={e => setIntervalMonths(e.target.value)}
+                            placeholder={vehicle.vehicle_type === 'motorcycle' ? "3" : "6"}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium focus:border-gray-400 focus:bg-white focus:outline-none" />
                     </div>
 
-                    <div className="grid grid-cols-2 gap-3">
-                        <div>
-                            <label className="mb-1 block text-sm font-medium text-slate-700">Tiền phụ tùng</label>
-                            <input
-                                type="number"
-                                value={formData.parts_cost}
-                                onChange={(e) => setFormData({ ...formData, parts_cost: e.target.value })}
-                                placeholder="0"
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                            />
-                        </div>
-                        <div>
-                            <label className="mb-1 block text-sm font-medium text-slate-700">Tiền nhân công</label>
-                            <input
-                                type="number"
-                                value={formData.labor_cost}
-                                onChange={(e) => setFormData({ ...formData, labor_cost: e.target.value })}
-                                placeholder="0"
-                                className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                            />
-                        </div>
-                    </div>
-
-                    <div className="rounded-lg bg-blue-50 p-3">
-                        <h4 className="mb-2 text-sm font-bold text-blue-800 flex items-center gap-2">
-                            <AlertTriangle className="h-4 w-4" />
-                            Nhắc nhở bảo dưỡng tiếp theo
-                        </h4>
-                        <div className="grid grid-cols-2 gap-3">
-                            <div>
-                                <label className="mb-1 block text-xs font-medium text-slate-700">Tại số km</label>
-                                <input
-                                    type="number"
-                                    value={formData.next_reminder_km}
-                                    onChange={(e) => setFormData({ ...formData, next_reminder_km: e.target.value })}
-                                    placeholder={formData.odometer ? (formData.odometer + 1500).toString() : ''}
-                                    className="w-full rounded-lg border border-blue-200 px-3 py-2 text-sm"
-                                />
-                            </div>
-                            <div>
-                                <label className="mb-1 block text-xs font-medium text-slate-700">Hoặc ngày</label>
-                                <input
-                                    type="date"
-                                    value={formData.next_reminder_date}
-                                    onChange={(e) => setFormData({ ...formData, next_reminder_date: e.target.value })}
-                                    className="w-full rounded-lg border border-blue-200 px-3 py-2 text-sm"
-                                />
-                            </div>
-                        </div>
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full rounded-xl bg-gradient-to-r from-purple-500 to-indigo-500 px-4 py-3 font-semibold text-white transition-all hover:scale-105 disabled:opacity-50"
-                    >
-                        {loading ? 'Đang lưu...' : 'Lưu bảo dưỡng'}
+                    <button onClick={handleSave} disabled={loading}
+                        className="w-full mt-2 rounded-2xl bg-gray-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-gray-200 hover:bg-gray-700 disabled:opacity-50 transition-all">
+                        {loading ? 'Đang lưu...' : 'Lưu thiết lập'}
                     </button>
-                </form>
+                </div>
             </div>
         </div>
     )

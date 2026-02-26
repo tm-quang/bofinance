@@ -57,7 +57,7 @@ export function VehicleFooterNav({
         },
         {
             id: 'trips',
-            label: 'Hành trình',
+            label: 'Lộ trình',
             icon: Route,
             path: '/vehicles/trips',
         },

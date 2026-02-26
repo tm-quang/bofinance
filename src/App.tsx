@@ -43,6 +43,7 @@ const VehicleFuelPage = lazy(() => import('./pages/vehicles/VehicleFuel'))
 const VehicleMaintenancePage = lazy(() => import('./pages/vehicles/VehicleMaintenance'))
 const VehicleExpensesPage = lazy(() => import('./pages/vehicles/VehicleExpenses'))
 const VehicleReportsPage = lazy(() => import('./pages/vehicles/VehicleReports'))
+const VehicleChargingHistoryPage = lazy(() => import('./pages/vehicles/VehicleChargingHistory'))
 
 const PageFallback = () => {
   const { value: splashLogo } = useSystemSetting('app_splash_logo', '/logo-nontext.png')
@@ -372,6 +373,14 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <VehicleReportsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/vehicles/charging-history"
+              element={
+                <ProtectedRoute>
+                  <VehicleChargingHistoryPage />
                 </ProtectedRoute>
               }
             />

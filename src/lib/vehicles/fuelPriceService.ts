@@ -209,3 +209,19 @@ export async function initializeDefaultPrices(): Promise<void> {
         throw new Error('Không thể khởi tạo giá mặc định.')
     }
 }
+
+/**
+ * Get and set electric default discount settings in Local Storage
+ */
+export function getElectricDiscountSettings(): { mode: 'pct' | 'vnd'; value: string } {
+    try {
+        const stored = localStorage.getItem('BOFIN_ELECTRIC_DISCOUNT_PREFS')
+        return stored ? JSON.parse(stored) : { mode: 'vnd', value: '' }
+    } catch {
+        return { mode: 'vnd', value: '' }
+    }
+}
+
+export function setElectricDiscountSettings(prefs: { mode: 'pct' | 'vnd'; value: string }): void {
+    localStorage.setItem('BOFIN_ELECTRIC_DISCOUNT_PREFS', JSON.stringify(prefs))
+}

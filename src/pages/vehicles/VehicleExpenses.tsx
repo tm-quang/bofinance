@@ -1,216 +1,514 @@
-import { useState, useEffect } from 'react'
-import { DollarSign, Plus, Calendar, Trash2, MapPin } from 'lucide-react'
+import { useState, useMemo } from 'react'
+import {
+    Receipt, Plus, Calendar, Trash2, MapPin,
+    ChevronDown, ChevronUp, DollarSign, FileText,
+    Bike, Car, X, Save,
+    BarChart3, TrendingUp, Activity,
+    ChevronLeft, ChevronRight,
+} from 'lucide-react'
 import { createExpense, deleteExpense, type VehicleRecord } from '../../lib/vehicles/vehicleService'
 import { useVehicles, useVehicleExpenses, vehicleKeys } from '../../lib/vehicles/useVehicleQueries'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNotification } from '../../contexts/notificationContext.helpers'
 import HeaderBar from '../../components/layout/HeaderBar'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { VehicleFooterNav } from '../../components/vehicles/VehicleFooterNav'
 
-const EXPENSE_TYPES = {
-    toll: { label: 'Cầu đường', color: 'orange' },
-    parking: { label: 'Gửi xe', color: 'blue' },
-    insurance: { label: 'Bảo hiểm', color: 'green' },
-    inspection: { label: 'Đăng kiểm', color: 'purple' },
-    wash: { label: 'Rửa xe', color: 'cyan' },
-    fine: { label: 'Phạt', color: 'red' },
-    other: { label: 'Khác', color: 'gray' },
+const fmt = (v: number) =>
+    new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(v)
+
+const EXPENSE_TYPES: Record<string, { label: string; accentBar: string; bg: string; text: string; iconBg: string }> = {
+    toll: { label: 'Cầu đường', accentBar: 'bg-orange-400', bg: 'bg-orange-100', text: 'text-orange-700', iconBg: 'bg-orange-100' },
+    parking: { label: 'Gửi xe', accentBar: 'bg-blue-400', bg: 'bg-blue-100', text: 'text-blue-700', iconBg: 'bg-blue-100' },
+    insurance: { label: 'Bảo hiểm', accentBar: 'bg-green-400', bg: 'bg-green-100', text: 'text-green-700', iconBg: 'bg-green-100' },
+    inspection: { label: 'Đăng kiểm', accentBar: 'bg-purple-400', bg: 'bg-purple-100', text: 'text-purple-700', iconBg: 'bg-purple-100' },
+    wash: { label: 'Rửa xe', accentBar: 'bg-cyan-400', bg: 'bg-cyan-100', text: 'text-cyan-700', iconBg: 'bg-cyan-100' },
+    fine: { label: 'Phạt', accentBar: 'bg-red-400', bg: 'bg-red-100', text: 'text-red-700', iconBg: 'bg-red-100' },
+    other: { label: 'Khác', accentBar: 'bg-slate-400', bg: 'bg-slate-100', text: 'text-slate-600', iconBg: 'bg-slate-100' },
+}
+
+// Quick amount presets
+const AMOUNT_PRESETS = [10_000, 20_000, 50_000, 100_000, 200_000, 500_000]
+
+type FilterPeriod = 'day' | 'week' | 'month' | 'quarter' | 'all'
+const PERIOD_TABS: { id: FilterPeriod; label: string }[] = [
+    { id: 'day', label: 'Ngày' },
+    { id: 'week', label: 'Tuần' },
+    { id: 'month', label: 'Tháng' },
+    { id: 'quarter', label: 'Quý' },
+    { id: 'all', label: 'Tất cả' },
+]
+
+function getPeriodRange(period: FilterPeriod, offset: number): { start: Date; end: Date; label: string } {
+    const now = new Date()
+    const d = new Date(now)
+    if (period === 'day') {
+        d.setDate(d.getDate() + offset)
+        const s = new Date(d); s.setHours(0, 0, 0, 0)
+        const e = new Date(d); e.setHours(23, 59, 59, 999)
+        const label = offset === 0 ? 'Hôm nay'
+            : offset === -1 ? 'Hôm qua'
+                : d.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
+        return { start: s, end: e, label }
+    }
+    if (period === 'week') {
+        const dayOfWeek = d.getDay() === 0 ? 6 : d.getDay() - 1
+        d.setDate(d.getDate() - dayOfWeek + offset * 7)
+        const s = new Date(d); s.setHours(0, 0, 0, 0)
+        const e = new Date(s); e.setDate(s.getDate() + 6); e.setHours(23, 59, 59, 999)
+        const label = offset === 0 ? 'Tuần này'
+            : offset === -1 ? 'Tuần trước'
+                : `${s.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })} – ${e.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })}`
+        return { start: s, end: e, label }
+    }
+    if (period === 'month') {
+        const s = new Date(now.getFullYear(), now.getMonth() + offset, 1)
+        const e = new Date(s.getFullYear(), s.getMonth() + 1, 0, 23, 59, 59, 999)
+        const label = offset === 0 ? 'Tháng này'
+            : s.toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })
+        return { start: s, end: e, label }
+    }
+    if (period === 'quarter') {
+        const q = Math.floor(now.getMonth() / 3) + offset
+        const actualYear = now.getFullYear() + Math.floor(q / 4)
+        const actualQ = ((q % 4) + 4) % 4
+        const s = new Date(actualYear, actualQ * 3, 1)
+        const e = new Date(actualYear, actualQ * 3 + 3, 0, 23, 59, 59, 999)
+        const qLabel = `Q${actualQ + 1}/${actualYear}`
+        return { start: s, end: e, label: offset === 0 ? `Quý này (${qLabel})` : qLabel }
+    }
+    return { start: new Date(0), end: new Date(9999, 0), label: 'Tất cả' }
 }
 
 export default function VehicleExpenses() {
     const { success, error: showError } = useNotification()
     const queryClient = useQueryClient()
-
-    // Query Hooks
     const { data: vehicles = [] } = useVehicles()
 
-    // State
-    const [selectedVehicleId, setSelectedVehicleId] = useState<string>('')
+    const [selectedVehicleId, setSelectedVehicleId] = useState<string>(() =>
+        vehicles.find(v => v.is_default)?.id || vehicles[0]?.id || ''
+    )
     const [showAddModal, setShowAddModal] = useState(false)
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
     const [deleting, setDeleting] = useState(false)
+    const [expandedId, setExpandedId] = useState<string | null>(null)
+    const [filterType, setFilterType] = useState<string>('all')
+    const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>('month')
+    const [periodOffset, setPeriodOffset] = useState(0)
 
-    // Auto-select
-    useEffect(() => {
-        if (vehicles.length > 0 && !selectedVehicleId) {
-            const defaultVehicle = vehicles.find(v => v.is_default) || vehicles[0]
-            setSelectedVehicleId(defaultVehicle.id)
-        }
-    }, [vehicles, selectedVehicleId])
+    const effectiveId = selectedVehicleId || vehicles.find(v => v.is_default)?.id || vehicles[0]?.id || ''
+    const { data: logs = [], isLoading: loading } = useVehicleExpenses(effectiveId || undefined)
+    const selectedVehicle = vehicles.find(v => v.id === effectiveId)
+    const isMoto = selectedVehicle?.vehicle_type === 'motorcycle'
 
-    // Query logs
-    const { data: logs = [], isLoading: loading } = useVehicleExpenses(selectedVehicleId || undefined)
+    // Stats tổng
+    const totalCost = useMemo(() => logs.reduce((s, l) => s + l.amount, 0), [logs])
+    const totalCount = logs.length
+    const thisMonthLogs = useMemo(() => {
+        const now = new Date()
+        return logs.filter(l => {
+            const d = new Date(l.expense_date)
+            return d.getFullYear() === now.getFullYear() && d.getMonth() === now.getMonth()
+        })
+    }, [logs])
+    const thisMonthCost = useMemo(() => thisMonthLogs.reduce((s, l) => s + l.amount, 0), [thisMonthLogs])
+    const avgCost = totalCount > 0 ? totalCost / totalCount : 0
+
+    // Type breakdown
+    const byType = useMemo(() => {
+        const map: Record<string, number> = {}
+        logs.forEach(l => { map[l.expense_type] = (map[l.expense_type] || 0) + l.amount })
+        return Object.entries(map).sort((a, b) => b[1] - a[1])
+    }, [logs])
+
+    // Period filter
+    const periodRange = getPeriodRange(filterPeriod, periodOffset)
+    const periodFilteredLogs = useMemo(() => {
+        if (filterPeriod === 'all') return filterType === 'all' ? logs : logs.filter(l => l.expense_type === filterType)
+        return logs.filter(l => {
+            const d = new Date(l.expense_date)
+            const inPeriod = d >= periodRange.start && d <= periodRange.end
+            return inPeriod && (filterType === 'all' || l.expense_type === filterType)
+        })
+    }, [logs, filterPeriod, periodRange, filterType])
+
+    const periodTotalCost = periodFilteredLogs.reduce((s, l) => s + l.amount, 0)
+
+    // Group by date
+    const groupedLogs = periodFilteredLogs.reduce<Record<string, typeof periodFilteredLogs>>((acc, log) => {
+        const key = log.expense_date
+        if (!acc[key]) acc[key] = []
+        acc[key].push(log)
+        return acc
+    }, {})
+    const sortedDates = Object.keys(groupedLogs).sort((a, b) => b.localeCompare(a))
 
     const handleDelete = async () => {
         if (!deleteConfirmId) return
-
         setDeleting(true)
         try {
             await deleteExpense(deleteConfirmId)
-            await queryClient.invalidateQueries({ queryKey: vehicleKeys.expenses(selectedVehicleId) })
-            success('Đã xóa chi phí thành công!')
+            await queryClient.invalidateQueries({ queryKey: vehicleKeys.expenses(effectiveId) })
+            success('Đã xóa chi phí!')
             setDeleteConfirmId(null)
         } catch (err) {
-            const message = err instanceof Error ? err.message : 'Không thể xóa chi phí'
-            showError(message)
+            showError(err instanceof Error ? err.message : 'Không thể xóa')
         } finally {
             setDeleting(false)
         }
     }
 
-    const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId)
-
-    const formatCurrency = (value: number) =>
-        new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(value)
-
     return (
         <div className="flex h-screen flex-col overflow-hidden bg-[#F7F9FC]">
-            <HeaderBar variant="page" title="Quản Lý Chi Phí" />
+            <HeaderBar
+                variant="page"
+                title="Chi Phí Khác"
+                customContent={
+                    <button
+                        onClick={() => setShowAddModal(true)}
+                        className="flex items-center justify-center rounded-full bg-rose-500 p-2 shadow-md hover:bg-rose-600 active:scale-95 transition-all"
+                    >
+                        <Plus className="h-5 w-5 text-white" />
+                    </button>
+                }
+            />
 
-            <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-8 pt-4">
-                {/* Vehicle Selector */}
-                {vehicles.length > 0 && (
-                    <div className="mb-4">
-                        <label className="mb-2 block text-sm font-medium text-slate-700">Chọn xe</label>
-                        <select
-                            value={selectedVehicleId}
-                            onChange={(e) => setSelectedVehicleId(e.target.value)}
-                            className="w-full rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
-                        >
-                            {vehicles.map((vehicle) => (
-                                <option key={vehicle.id} value={vehicle.id}>
-                                    {vehicle.license_plate} - {vehicle.brand} {vehicle.model}
-                                </option>
-                            ))}
-                        </select>
+            <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-28 pt-4">
+
+                {/* ── Vehicle Selector ──────────────────────────────────── */}
+                {vehicles.length > 1 && (
+                    <div className="mb-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                        {vehicles.map(v => {
+                            const sel = v.id === effectiveId
+                            const VIcon = v.vehicle_type === 'motorcycle' ? Bike : Car
+                            return (
+                                <button key={v.id} onClick={() => setSelectedVehicleId(v.id)}
+                                    className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-all ${sel ? 'border-rose-500 bg-rose-500 text-white shadow-md shadow-rose-200' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}`}>
+                                    <VIcon className="h-4 w-4" />
+                                    {v.license_plate}
+                                </button>
+                            )
+                        })}
                     </div>
                 )}
 
-                {/* Summary Card */}
+                {/* ── Hero Stats Card ───────────────────────────────────── */}
                 {selectedVehicle && (
-                    <div className="mb-4 rounded-2xl bg-gradient-to-br from-pink-500 to-rose-500 p-4 text-white shadow-lg">
-                        <div className="mb-2 flex items-center gap-2">
-                            <DollarSign className="h-5 w-5" />
-                            <span className="text-sm font-medium opacity-90">Tổng chi phí khác</span>
+                    <div className="mb-4 space-y-3">
+                        {/* Main card - solid rose */}
+                        <div className="rounded-2xl bg-rose-500 p-4 text-white shadow-lg shadow-rose-200">
+                            <div className="mb-3 flex items-center gap-2">
+                                <div className="rounded-xl bg-white/20 p-1.5">
+                                    <Receipt className="h-4 w-4" />
+                                </div>
+                                <span className="text-sm font-semibold opacity-90">Tổng quan chi phí</span>
+                                <span className="ml-auto rounded-full bg-white/20 px-2 py-0.5 text-xs font-bold">{isMoto ? 'Xe máy' : 'Ô tô'} · {selectedVehicle.license_plate}</span>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <p className="text-2xl font-black">{logs.length}</p>
+                                    <p className="text-xs opacity-75">Khoản chi</p>
+                                </div>
+                                <div className="text-right">
+                                    <p className="text-2xl font-black">{fmt(totalCost)}</p>
+                                    <p className="text-xs opacity-75">Tổng chi phí</p>
+                                </div>
+                            </div>
                         </div>
-                        <div className="grid grid-cols-2 gap-4">
-                            <div>
-                                <p className="text-2xl font-bold">
-                                    {formatCurrency(logs.reduce((sum, log) => sum + (log.amount || 0), 0))}
+
+                        {/* Mini stats row */}
+                        <div className="grid grid-cols-3 gap-2">
+                            <div className="flex flex-col items-center rounded-xl bg-white p-3 shadow-sm">
+                                <div className="mb-1 rounded-lg bg-rose-100 p-1.5">
+                                    <Receipt className="h-4 w-4 text-rose-600" />
+                                </div>
+                                <p className="text-sm font-bold text-slate-800">
+                                    {avgCost > 0 ? `${Math.round(avgCost / 1000)}k` : '--'}
                                 </p>
-                                <p className="text-xs opacity-75">Tổng cộng</p>
+                                <p className="text-center text-[10px] leading-tight text-slate-500">TB/khoản</p>
                             </div>
-                            <div>
-                                <p className="text-2xl font-bold">
-                                    {logs.length}
+                            <div className="flex flex-col items-center rounded-xl bg-white p-3 shadow-sm">
+                                <div className="mb-1 rounded-lg bg-blue-100 p-1.5">
+                                    <Activity className="h-4 w-4 text-blue-600" />
+                                </div>
+                                <p className="text-sm font-bold text-slate-800">{thisMonthLogs.length}</p>
+                                <p className="text-center text-[10px] leading-tight text-slate-500">Tháng này</p>
+                            </div>
+                            <div className="flex flex-col items-center rounded-xl bg-white p-3 shadow-sm">
+                                <div className="mb-1 rounded-lg bg-green-100 p-1.5">
+                                    <TrendingUp className="h-4 w-4 text-green-600" />
+                                </div>
+                                <p className="text-sm font-bold text-slate-800">
+                                    {thisMonthCost > 0 ? `${Math.round(thisMonthCost / 1000)}k` : '--'}
                                 </p>
-                                <p className="text-xs opacity-75">Khoản chi</p>
+                                <p className="text-center text-[10px] leading-tight text-slate-500">Chi tháng</p>
                             </div>
+                        </div>
+
+                        {/* Month cost badge */}
+                        {thisMonthCost > 0 && (
+                            <div className="flex items-center justify-between rounded-xl bg-rose-50 border border-rose-200 px-4 py-2.5">
+                                <div className="flex items-center gap-2">
+                                    <Calendar className="h-4 w-4 text-rose-600" />
+                                    <span className="text-sm font-medium text-rose-700">Chi phí tháng này</span>
+                                </div>
+                                <span className="text-sm font-bold text-rose-700">{fmt(thisMonthCost)}</span>
+                            </div>
+                        )}
+                    </div>
+                )}
+
+                {/* ── By-type breakdown ─────────────────────────────────── */}
+                {byType.length > 0 && (
+                    <div className="mb-4 rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden">
+                        <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-50">
+                            <BarChart3 className="h-4 w-4 text-rose-500" />
+                            <span className="text-sm font-bold text-slate-700">Phân loại chi phí</span>
+                        </div>
+                        <div className="px-4 py-3 space-y-2.5">
+                            {byType.slice(0, 5).map(([type, amount]) => {
+                                const t = EXPENSE_TYPES[type] || EXPENSE_TYPES.other
+                                const pct = totalCost > 0 ? (amount / totalCost) * 100 : 0
+                                return (
+                                    <div key={type}>
+                                        <div className="flex items-center justify-between mb-1">
+                                            <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${t.bg} ${t.text}`}>{t.label}</span>
+                                            <div className="flex items-center gap-2">
+                                                <span className="text-xs text-slate-400">{Math.round(pct)}%</span>
+                                                <span className="text-xs font-bold text-slate-700">{fmt(amount)}</span>
+                                            </div>
+                                        </div>
+                                        <div className="h-1.5 rounded-full bg-slate-100">
+                                            <div className="h-full rounded-full bg-rose-400 transition-all" style={{ width: `${pct}%` }} />
+                                        </div>
+                                    </div>
+                                )
+                            })}
                         </div>
                     </div>
                 )}
 
-                {/* Add Button */}
+                {/* ── Type Filter Tabs ──────────────────────────────────── */}
+                {logs.length > 0 && (
+                    <div className="mb-3 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
+                        <button onClick={() => setFilterType('all')}
+                            className={`shrink-0 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all ${filterType === 'all' ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-200 bg-white text-slate-500'}`}>
+                            Tất cả ({logs.length})
+                        </button>
+                        {byType.map(([type]) => {
+                            const t = EXPENSE_TYPES[type] || EXPENSE_TYPES.other
+                            return (
+                                <button key={type} onClick={() => setFilterType(type)}
+                                    className={`shrink-0 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all ${filterType === type ? `${t.bg} ${t.text} border-transparent` : 'border-slate-200 bg-white text-slate-500'}`}>
+                                    {t.label}
+                                </button>
+                            )
+                        })}
+                    </div>
+                )}
+
+                {/* ── Add Button ───────────────────────────────────────── */}
                 <button
                     onClick={() => setShowAddModal(true)}
-                    className="mb-4 flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 px-4 py-3 font-semibold text-white shadow-lg transition-all hover:scale-105 hover:shadow-xl active:scale-95"
+                    className="w-full mb-4 flex items-center justify-center gap-2.5 rounded-2xl bg-rose-500 px-4 py-3.5 font-bold text-white shadow-lg shadow-rose-200 transition-all hover:scale-[1.02] hover:bg-rose-600 active:scale-95"
                 >
                     <Plus className="h-5 w-5" />
-                    Thêm chi phí mới
+                    Thêm khoản chi mới
                 </button>
 
-                {/* Logs List */}
+                {/* ── Filter Bar ───────────────────────────────────────── */}
+                <div className="mb-3 space-y-2">
+                    <div className="flex rounded-xl bg-slate-100 p-1 gap-0.5">
+                        {PERIOD_TABS.map(tab => (
+                            <button key={tab.id} type="button"
+                                onClick={() => { setFilterPeriod(tab.id); setPeriodOffset(0) }}
+                                className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all ${filterPeriod === tab.id
+                                    ? 'bg-rose-500 text-white shadow-sm'
+                                    : 'text-slate-500 hover:text-slate-700'
+                                    }`}>
+                                {tab.label}
+                            </button>
+                        ))}
+                    </div>
+
+                    {filterPeriod !== 'all' && (
+                        <div className="flex items-center gap-2">
+                            <button type="button"
+                                onClick={() => setPeriodOffset(o => o - 1)}
+                                className="rounded-xl border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 active:scale-95 transition-all">
+                                <ChevronLeft className="h-4 w-4" />
+                            </button>
+                            <div className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-center">
+                                <p className="text-sm font-bold text-rose-700">{periodRange.label}</p>
+                            </div>
+                            <button type="button"
+                                onClick={() => setPeriodOffset(o => Math.min(0, o + 1))}
+                                disabled={periodOffset >= 0}
+                                className="rounded-xl border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 disabled:opacity-30 active:scale-95 transition-all">
+                                <ChevronRight className="h-4 w-4" />
+                            </button>
+                        </div>
+                    )}
+
+                    {periodFilteredLogs.length > 0 && (
+                        <div className="flex items-center justify-between rounded-xl bg-rose-50 border border-rose-100 px-3 py-2">
+                            <span className="text-xs text-slate-500">
+                                <span className="font-bold text-slate-700">{periodFilteredLogs.length}</span> khoản chi
+                            </span>
+                            <span className="text-sm font-black text-rose-700">{fmt(periodTotalCost)}</span>
+                        </div>
+                    )}
+                </div>
+
+                {/* ── Logs ──────────────────────────────────────────────── */}
                 {loading ? (
                     <div className="space-y-3">
-                        {[1, 2, 3].map((i) => (
-                            <div key={i} className="animate-pulse overflow-hidden rounded-xl bg-white p-4 shadow-md">
-                                <div className="h-20 w-full rounded-lg bg-slate-50"></div>
+                        {[1, 2, 3].map(i => (
+                            <div key={i} className="animate-pulse overflow-hidden rounded-2xl bg-white p-4 shadow-sm">
+                                <div className="mb-3 h-4 w-2/3 rounded-lg bg-slate-100" />
+                                <div className="h-16 w-full rounded-xl bg-slate-50" />
                             </div>
                         ))}
                     </div>
-                ) : logs.length === 0 ? (
-                    <div className="py-12 text-center">
-                        <DollarSign className="mx-auto mb-4 h-16 w-16 text-slate-300" />
-                        <p className="text-sm text-slate-600">Chưa có chi phí nào</p>
+                ) : periodFilteredLogs.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center rounded-2xl bg-white border border-slate-100 py-14 shadow-sm">
+                        <div className="mb-4 rounded-3xl bg-rose-50 p-6">
+                            <Receipt className="h-12 w-12 text-rose-300" />
+                        </div>
+                        <p className="font-semibold text-slate-600">
+                            {filterPeriod === 'all' ? 'Chưa có chi phí nào'
+                                : `Không có dữ liệu trong ${periodRange.label.toLowerCase()}`}
+                        </p>
+                        <p className="mt-1 text-sm text-slate-400">
+                            {filterPeriod !== 'all' ? 'Thử chọn khung thời gian khác'
+                                : filterType !== 'all' ? 'Thử chọn loại khác'
+                                    : 'Thêm khoản chi đầu tiên ngay'}
+                        </p>
                     </div>
                 ) : (
-                    <div className="space-y-3">
-                        {logs.map((log) => {
-                            const type = EXPENSE_TYPES[log.expense_type] || EXPENSE_TYPES.other
-
+                    <div className="space-y-4">
+                        {sortedDates.map(dateKey => {
+                            const dayLogs = groupedLogs[dateKey]
+                            const d = new Date(dateKey)
+                            const todayKey = new Date().toISOString().split('T')[0]
+                            const yesterdayKey = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+                            const dayLabel = dateKey === todayKey ? 'Hôm nay'
+                                : dateKey === yesterdayKey ? 'Hôm qua'
+                                    : d.toLocaleDateString('vi-VN', { weekday: 'short', day: 'numeric', month: 'numeric' })
+                            const dayTotal = dayLogs.reduce((s, l) => s + l.amount, 0)
                             return (
-                                <div
-                                    key={log.id}
-                                    className="overflow-hidden rounded-xl bg-white shadow-md transition-all hover:shadow-lg"
-                                >
-                                    <div className="p-4">
-                                        <div className="mb-3 flex items-start justify-between">
-                                            <div>
-                                                <div className="mb-1 flex items-center gap-2">
-                                                    <span className={`inline-flex items-center gap-1 rounded-full bg-${type.color}-100 px-2 py-1 text-xs font-semibold text-${type.color}-700`}>
-                                                        {type.label}
-                                                    </span>
-                                                </div>
-                                                <div className="flex items-center gap-2 text-sm text-slate-600">
-                                                    <Calendar className="h-4 w-4" />
-                                                    {new Date(log.expense_date).toLocaleDateString('vi-VN')}
-                                                </div>
-                                            </div>
-
-                                            <div className="flex gap-2">
-                                                <button
-                                                    onClick={() => setDeleteConfirmId(log.id)}
-                                                    className="rounded-lg p-2 text-red-600 transition-colors hover:bg-red-50"
-                                                >
-                                                    <Trash2 className="h-4 w-4" />
-                                                </button>
-                                            </div>
+                                <div key={dateKey}>
+                                    {/* Date separator */}
+                                    <div className="mb-2 flex items-center justify-between">
+                                        <div className="flex items-center gap-2">
+                                            <div className="h-2 w-2 rounded-full bg-rose-400" />
+                                            <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">{dayLabel}</span>
                                         </div>
+                                        <span className="text-xs font-semibold text-slate-400">{fmt(dayTotal)}</span>
+                                    </div>
+                                    <div className="space-y-2 pl-4 border-l-2 border-rose-100">
+                                        {dayLogs.map(log => {
+                                            const t = EXPENSE_TYPES[log.expense_type] || EXPENSE_TYPES.other
+                                            const isExpanded = expandedId === log.id
+                                            return (
+                                                <div key={log.id} className="overflow-hidden rounded-2xl bg-white shadow-md transition-all hover:shadow-lg border border-slate-100">
+                                                    {/* Top accent bar by type */}
+                                                    <div className={`h-1 w-full ${t.accentBar}`} />
 
-                                        <div className="flex items-center justify-between rounded-lg bg-rose-50 p-3">
-                                            <div className="text-sm text-slate-700 font-medium">
-                                                {log.description || 'Chi phí khác'}
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="text-lg font-bold text-rose-600">
-                                                    {formatCurrency(log.amount)}
+                                                    <div className="p-4">
+                                                        <button
+                                                            onClick={() => setExpandedId(isExpanded ? null : log.id)}
+                                                            className="flex w-full items-start justify-between text-left"
+                                                        >
+                                                            <div>
+                                                                <div className="flex items-center gap-2 mb-0.5">
+                                                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${t.bg} ${t.text}`}>
+                                                                        {t.label}
+                                                                    </span>
+                                                                </div>
+                                                                <div className="flex items-center gap-2 mt-1 flex-wrap">
+                                                                    {log.description && (
+                                                                        <span className="text-xs text-slate-600 font-medium truncate max-w-[160px]">
+                                                                            {log.description}
+                                                                        </span>
+                                                                    )}
+                                                                    {log.location && (
+                                                                        <span className="flex items-center gap-1 text-xs text-slate-400 truncate max-w-[100px]">
+                                                                            <MapPin className="h-3 w-3 shrink-0" />{log.location}
+                                                                        </span>
+                                                                    )}
+                                                                </div>
+                                                            </div>
+                                                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                                                                <span className={`text-base font-black ${t.text}`}>{fmt(log.amount)}</span>
+                                                                {isExpanded ? <ChevronUp className="h-4 w-4 text-slate-400" /> : <ChevronDown className="h-4 w-4 text-slate-400" />}
+                                                            </div>
+                                                        </button>
+
+                                                        {isExpanded && (
+                                                            <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
+                                                                {log.description && (
+                                                                    <div className="flex items-start gap-2 rounded-xl bg-slate-50 px-3 py-2.5">
+                                                                        <FileText className="h-4 w-4 text-slate-400 mt-0.5 shrink-0" />
+                                                                        <p className="text-sm text-slate-700">{log.description}</p>
+                                                                    </div>
+                                                                )}
+                                                                {log.location && (
+                                                                    <div className="flex items-center gap-2 text-xs text-slate-500">
+                                                                        <MapPin className="h-3.5 w-3.5 text-rose-400" />
+                                                                        <span>{log.location}</span>
+                                                                    </div>
+                                                                )}
+                                                                {log.notes && (
+                                                                    <p className="text-xs text-slate-400 italic">"{log.notes}"</p>
+                                                                )}
+
+                                                                {/* Amount highlight */}
+                                                                <div className={`flex items-center justify-between rounded-xl px-3 py-2 ${t.bg}`}>
+                                                                    <span className={`text-xs font-medium ${t.text}`}>Số tiền</span>
+                                                                    <span className={`text-base font-black ${t.text}`}>{fmt(log.amount)}</span>
+                                                                </div>
+
+                                                                <button
+                                                                    onClick={() => setDeleteConfirmId(log.id)}
+                                                                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-red-200 bg-red-50 py-2 text-sm font-semibold text-red-600 hover:bg-red-100 transition-all"
+                                                                >
+                                                                    <Trash2 className="h-4 w-4" /> Xóa khoản chi
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        </div>
-
-                                        {log.location && (
-                                            <div className="mt-2 flex items-center gap-2 text-xs text-slate-500">
-                                                <MapPin className="h-3 w-3" />
-                                                {log.location}
-                                            </div>
-                                        )}
+                                            )
+                                        })}
                                     </div>
                                 </div>
                             )
                         })}
                     </div>
                 )}
+
             </main>
 
-            {/* Add Expense Modal */}
+            <VehicleFooterNav onAddClick={() => setShowAddModal(true)} addLabel="Chi phí" />
+
             {showAddModal && selectedVehicle && (
                 <AddExpenseModal
                     vehicle={selectedVehicle}
                     onClose={() => setShowAddModal(false)}
                     onSuccess={() => {
                         setShowAddModal(false)
-                        queryClient.invalidateQueries({ queryKey: vehicleKeys.expenses(selectedVehicleId) })
+                        queryClient.invalidateQueries({ queryKey: vehicleKeys.expenses(effectiveId) })
                     }}
                 />
             )}
 
-            {/* Delete Confirmation */}
             <ConfirmDialog
                 isOpen={deleteConfirmId !== null}
                 onClose={() => setDeleteConfirmId(null)}
                 onConfirm={handleDelete}
-                title="Xác nhận xóa"
-                message="Bạn có chắc chắn muốn xóa chi phí này?"
+                title="Xóa khoản chi phí"
+                message="Bạn có chắc muốn xóa khoản chi này không?"
                 confirmText="Xóa"
                 cancelText="Hủy"
                 isLoading={deleting}
@@ -219,133 +517,172 @@ export default function VehicleExpenses() {
     )
 }
 
-function AddExpenseModal({
-    vehicle,
-    onClose,
-    onSuccess,
-}: {
+// ─── Add Expense Modal ──────────────────────────────────────────────────────
+function AddExpenseModal({ vehicle, onClose, onSuccess }: {
     vehicle: VehicleRecord
     onClose: () => void
     onSuccess: () => void
 }) {
     const { success, error: showError } = useNotification()
     const [loading, setLoading] = useState(false)
-    const [formData, setFormData] = useState({
-        vehicle_id: vehicle.id,
+    const [form, setForm] = useState({
         expense_date: new Date().toISOString().split('T')[0],
-        expense_type: 'other' as const,
+        expense_type: 'other' as keyof typeof EXPENSE_TYPES,
         amount: '',
         description: '',
         location: '',
         notes: '',
     })
 
-    const handleSubmit = async (e: React.FormEvent) => {
-        e.preventDefault()
+    const selectedType = EXPENSE_TYPES[form.expense_type]
 
-        if (!formData.amount) {
+    const handlePreset = (v: number) => setForm(f => ({ ...f, amount: String(v) }))
+
+    const handleSubmit = async () => {
+        if (!form.amount || parseFloat(form.amount) <= 0) {
             showError('Vui lòng nhập số tiền')
             return
         }
-
         setLoading(true)
         try {
             await createExpense({
-                ...formData,
-                amount: parseFloat(formData.amount),
+                vehicle_id: vehicle.id,
+                expense_date: form.expense_date,
+                expense_type: form.expense_type as any,
+                amount: parseFloat(form.amount),
+                description: form.description || undefined,
+                location: form.location || undefined,
+                notes: form.notes || undefined,
             } as any)
-            success('Thêm chi phí thành công!')
+            success('Đã thêm chi phí!')
             onSuccess()
         } catch (err) {
-            const message = err instanceof Error ? err.message : 'Không thể thêm chi phí'
-            showError(message)
+            showError(err instanceof Error ? err.message : 'Không thể lưu')
         } finally {
             setLoading(false)
         }
     }
 
     return (
-        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px]">
-            <div className="w-full rounded-t-3xl bg-white p-5 pb-10 shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] overflow-y-auto">
-                <div className="mb-6 flex items-center justify-between">
-                    <h3 className="text-lg font-bold text-slate-800">Thêm chi phí mới</h3>
-                    <button
-                        onClick={onClose}
-                        className="rounded-full bg-slate-100 p-2 text-slate-500 hover:bg-slate-200 hover:text-slate-700"
-                    >
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                    </button>
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-[3px]">
+            <div className="w-full max-h-[92vh] overflow-y-auto rounded-t-3xl bg-white shadow-2xl">
+                {/* Header */}
+                <div className="sticky top-0 z-10 rounded-t-3xl bg-rose-500 px-5 pt-5 pb-4 text-white">
+                    <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <div className="rounded-xl bg-white/20 p-1.5"><Receipt className="h-4 w-4" /></div>
+                            <h3 className="text-base font-bold">Thêm chi phí mới</h3>
+                        </div>
+                        <button onClick={onClose} className="rounded-full bg-white/20 p-1.5 hover:bg-white/30">
+                            <X className="h-4 w-4" />
+                        </button>
+                    </div>
+                    <p className="text-xs opacity-70 mt-1 ml-10">{vehicle.license_plate}</p>
                 </div>
 
-                <form onSubmit={handleSubmit} className="space-y-4">
+                <div className="px-5 py-5 space-y-5">
+                    {/* Date */}
                     <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Ngày</label>
-                        <input
-                            type="date"
-                            required
-                            value={formData.expense_date}
-                            onChange={(e) => setFormData({ ...formData, expense_date: e.target.value })}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                        />
+                        <label className="mb-1.5 block text-xs font-bold text-slate-500 uppercase tracking-wide">Ngày</label>
+                        <input type="date" value={form.expense_date}
+                            onChange={e => setForm({ ...form, expense_date: e.target.value })}
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium focus:border-rose-400 focus:bg-white focus:outline-none" />
                     </div>
 
+                    {/* Expense type grid */}
                     <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Loại chi phí</label>
-                        <select
-                            value={formData.expense_type}
-                            onChange={(e) => setFormData({ ...formData, expense_type: e.target.value as any })}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                        >
-                            {Object.entries(EXPENSE_TYPES).map(([key, { label }]) => (
-                                <option key={key} value={key}>{label}</option>
+                        <label className="mb-2 block text-xs font-bold text-slate-500 uppercase tracking-wide">Loại chi phí</label>
+                        <div className="grid grid-cols-4 gap-2">
+                            {Object.entries(EXPENSE_TYPES).map(([key, t]) => (
+                                <button key={key} onClick={() => setForm({ ...form, expense_type: key as any })}
+                                    className={`flex flex-col items-center gap-1 rounded-xl border py-2.5 px-1 text-center transition-all ${form.expense_type === key
+                                        ? `${t.bg} ${t.text} border-transparent shadow-sm`
+                                        : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'}`}>
+                                    <span className="text-[10px] font-bold leading-tight">{t.label}</span>
+                                </button>
                             ))}
-                        </select>
+                        </div>
                     </div>
 
+                    {/* Amount */}
                     <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Số tiền (VNĐ)</label>
-                        <input
-                            type="number"
-                            required
-                            value={formData.amount}
-                            onChange={(e) => setFormData({ ...formData, amount: e.target.value })}
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-lg font-bold text-rose-600"
-                            placeholder="0"
-                        />
+                        <label className="mb-1.5 block text-xs font-bold text-slate-500 uppercase tracking-wide">Số tiền</label>
+                        <div className="relative mb-2">
+                            <DollarSign className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+                            <input type="number" value={form.amount}
+                                onChange={e => setForm({ ...form, amount: e.target.value })}
+                                placeholder="0"
+                                className={`w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-3 text-xl font-black focus:bg-white focus:outline-none ${selectedType.text} focus:border-rose-400`} />
+                        </div>
+                        {/* Preset amounts */}
+                        <div className="flex gap-2 flex-wrap">
+                            {AMOUNT_PRESETS.map(v => (
+                                <button key={v} onClick={() => handlePreset(v)}
+                                    className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all ${parseFloat(form.amount) === v
+                                        ? 'border-rose-400 bg-rose-50 text-rose-700'
+                                        : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'}`}>
+                                    {v >= 1_000_000 ? `${v / 1_000_000}M` : `${v / 1_000}K`}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
+                    {/* Description */}
                     <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Mô tả chi tiết</label>
-                        <input
-                            type="text"
-                            value={formData.description}
-                            onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                            placeholder="VD: Vá lốp xe..."
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                        />
+                        <label className="mb-1.5 block text-xs font-bold text-slate-500 uppercase tracking-wide">Mô tả</label>
+                        <div className="relative">
+                            <FileText className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <input type="text" value={form.description}
+                                onChange={e => setForm({ ...form, description: e.target.value })}
+                                placeholder="VD: Vá lốp, nộp phạt nguội..."
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2.5 text-sm focus:border-rose-400 focus:bg-white focus:outline-none" />
+                        </div>
                     </div>
 
+                    {/* Location */}
                     <div>
-                        <label className="mb-1 block text-sm font-medium text-slate-700">Địa điểm</label>
-                        <input
-                            type="text"
-                            value={formData.location}
-                            onChange={(e) => setFormData({ ...formData, location: e.target.value })}
-                            placeholder="Tại đâu..."
-                            className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"
-                        />
+                        <label className="mb-1.5 block text-xs font-bold text-slate-500 uppercase tracking-wide">Địa điểm</label>
+                        <div className="relative">
+                            <MapPin className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <input type="text" value={form.location}
+                                onChange={e => setForm({ ...form, location: e.target.value })}
+                                placeholder="Nơi phát sinh chi phí..."
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2.5 text-sm focus:border-rose-400 focus:bg-white focus:outline-none" />
+                        </div>
                     </div>
 
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full rounded-xl bg-gradient-to-r from-pink-500 to-rose-500 px-4 py-3 font-semibold text-white transition-all hover:scale-105 disabled:opacity-50"
-                    >
-                        {loading ? 'Đang lưu...' : 'Thêm chi phí'}
-                    </button>
-                </form>
+                    {/* Summary preview */}
+                    {form.amount && parseFloat(form.amount) > 0 && (
+                        <div className={`flex items-center gap-3 rounded-2xl border p-3.5 ${selectedType.bg}`}>
+                            <TrendingUp className={`h-5 w-5 shrink-0 ${selectedType.text}`} />
+                            <div className="flex-1 min-w-0">
+                                <p className={`text-sm font-bold ${selectedType.text}`}>{selectedType.label}</p>
+                                {form.description && <p className="text-xs text-slate-500 truncate">{form.description}</p>}
+                            </div>
+                            <p className={`text-base font-black ${selectedType.text}`}>{fmt(parseFloat(form.amount))}</p>
+                        </div>
+                    )}
+
+                    {/* Notes */}
+                    <div>
+                        <label className="mb-1.5 block text-xs font-bold text-slate-500 uppercase tracking-wide">Ghi chú</label>
+                        <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
+                            rows={2} placeholder="Ghi chú thêm..."
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-rose-400 focus:bg-white focus:outline-none resize-none" />
+                    </div>
+
+                    {/* Actions */}
+                    <div className="flex gap-3 pb-2">
+                        <button onClick={onClose}
+                            className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 py-3.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">
+                            Hủy
+                        </button>
+                        <button onClick={handleSubmit} disabled={loading}
+                            className="flex-[2] flex items-center justify-center gap-2 rounded-2xl bg-rose-500 py-3.5 text-sm font-bold text-white shadow-lg shadow-rose-200 hover:bg-rose-600 disabled:opacity-50 active:scale-95 transition-all">
+                            {loading ? 'Đang lưu...' : <><Save className="h-4 w-4" /> Thêm chi phí</>}
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     )

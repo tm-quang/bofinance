@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { X, Save, DollarSign } from 'lucide-react'
-import { getAllFuelPrices, updateAllFuelPrices, type FuelType } from '../../lib/vehicles/fuelPriceService'
+import { getAllFuelPrices, updateAllFuelPrices, type FuelType, getElectricDiscountSettings, setElectricDiscountSettings } from '../../lib/vehicles/fuelPriceService'
 import { useNotification } from '../../contexts/notificationContext.helpers'
 
 interface FuelPriceSettingsProps {
@@ -32,6 +32,8 @@ export function FuelPriceSettings({ isOpen, onClose, onSave }: FuelPriceSettings
         diesel: 21000,
         electric: 3000,
     })
+    const [discountMode, setDiscountMode] = useState<'pct' | 'vnd'>('vnd')
+    const [discountValue, setDiscountValue] = useState('')
 
     useEffect(() => {
         if (isOpen) {
@@ -43,6 +45,9 @@ export function FuelPriceSettings({ isOpen, onClose, onSave }: FuelPriceSettings
         try {
             const currentPrices = await getAllFuelPrices()
             setPrices(currentPrices)
+            const d = getElectricDiscountSettings()
+            setDiscountMode(d.mode)
+            setDiscountValue(d.value)
         } catch (error) {
             console.error('Error loading prices:', error)
             showError('Không thể tải giá hiện tại')
@@ -74,7 +79,8 @@ export function FuelPriceSettings({ isOpen, onClose, onSave }: FuelPriceSettings
         setLoading(true)
         try {
             await updateAllFuelPrices(prices)
-            success('Đã cập nhật giá thành công!')
+            setElectricDiscountSettings({ mode: discountMode, value: discountValue.replace(/[^\d]/g, '') })
+            success('Đã cập nhật cài đặt thành công!')
             onSave()
             onClose()
         } catch (error) {
@@ -161,9 +167,48 @@ export function FuelPriceSettings({ isOpen, onClose, onSave }: FuelPriceSettings
                 {/* Info */}
                 <div className="mb-6 rounded-lg bg-blue-50 border border-blue-200 p-3">
                     <p className="text-xs text-blue-800">
-                        💡 Giá này sẽ được tự động điền khi bạn thêm nhật ký mới.
-                        Bạn vẫn có thể điều chỉnh giá cho mỗi lần đổ/sạc riêng biệt.
+                        💡 Giá và khuyến mãi thiết lập tại đây sẽ được tự động điền khi bạn thêm nhật ký mới.
+                        Bạn vẫn có thể điều chỉnh lại cho mỗi lần đổ/sạc riêng biệt.
                     </p>
+                </div>
+
+                {/* Electric Discount Section */}
+                <div className="mb-6 border-t border-slate-100 pt-5">
+                    <div className="flex items-center justify-between mb-3">
+                        <h4 className="text-sm font-semibold text-red-500">Khuyến mãi & giảm giá (Xe điện)</h4>
+                        <div className="flex rounded-lg overflow-hidden border border-red-200">
+                            <button
+                                onClick={() => { setDiscountMode('pct'); setDiscountValue('') }}
+                                className={`px-2.5 py-1 text-xs font-bold transition-colors ${discountMode === 'pct' ? 'bg-red-500 text-white' : 'bg-white text-slate-500 hover:bg-red-50'
+                                    }`}>%</button>
+                            <button
+                                onClick={() => { setDiscountMode('vnd'); setDiscountValue('') }}
+                                className={`px-2.5 py-1 text-xs font-bold transition-colors ${discountMode === 'vnd' ? 'bg-red-500 text-white' : 'bg-white text-slate-500 hover:bg-red-50'
+                                    }`}>đ</button>
+                        </div>
+                    </div>
+                    <div className="relative">
+                        <input
+                            type="text"
+                            value={discountMode === 'vnd'
+                                ? (discountValue ? parseInt(discountValue || '0').toLocaleString('vi-VN') : '')
+                                : discountValue
+                            }
+                            onChange={(e) => {
+                                const raw = e.target.value.replace(/[^\d]/g, '')
+                                if (discountMode === 'pct') {
+                                    setDiscountValue(parseInt(raw) > 100 ? '100' : raw)
+                                } else {
+                                    setDiscountValue(raw)
+                                }
+                            }}
+                            className="w-full rounded-lg border border-red-200 px-3 py-2.5 pr-10 text-sm font-medium focus:border-red-400 outline-none"
+                            placeholder={discountMode === 'pct' ? 'Nhập % khuyến mãi mặc định (VD: 50)' : 'Số tiền giảm mặc định'}
+                        />
+                        <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-red-500">
+                            {discountMode === 'pct' ? '%' : 'đ'}
+                        </span>
+                    </div>
                 </div>
 
                 {/* Actions */}

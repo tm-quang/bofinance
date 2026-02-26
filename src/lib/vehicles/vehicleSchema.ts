@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS vehicles (
   inspection_expiry_date DATE,
   next_maintenance_km INTEGER,
   next_maintenance_date DATE,
+  maintenance_interval_km INTEGER,
+  maintenance_interval_months INTEGER,
   is_active BOOLEAN DEFAULT TRUE,
   
   created_at TIMESTAMPTZ DEFAULT NOW(),
@@ -106,7 +108,7 @@ CREATE TABLE IF NOT EXISTS vehicle_maintenance (
   service_provider VARCHAR(200),
   parts_cost DECIMAL(15, 2) DEFAULT 0,
   labor_cost DECIMAL(15, 2) DEFAULT 0,
-  total_cost DECIMAL(15, 2) GENERATED ALWAYS AS (parts_cost + labor_cost) STORED,
+  total_cost DECIMAL(15, 2) DEFAULT 0,
   invoice_images TEXT[],
   next_reminder_km INTEGER,
   next_reminder_date DATE,
