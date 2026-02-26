@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react'
-import { Route, Plus, MapPin, Calendar, Trash2 } from 'lucide-react'
-import { createTrip, deleteTrip, type VehicleRecord } from '../../lib/vehicles/vehicleService'
+import { Route, Plus, MapPin, Calendar, Trash2, Edit } from 'lucide-react'
+import { createTrip, deleteTrip, type VehicleRecord, type TripRecord } from '../../lib/vehicles/vehicleService'
 import { useVehicles, useVehicleTrips, vehicleKeys } from '../../lib/vehicles/useVehicleQueries'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNotification } from '../../contexts/notificationContext.helpers'
 import HeaderBar from '../../components/layout/HeaderBar'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { SimpleLocationInput, type SimpleLocationData } from '../../components/vehicles/SimpleLocationInput'
+import { TripGPSDisplay, getTripCleanNotes } from '../../components/vehicles/TripGPSDisplay'
+import { VehicleFooterNav } from '../../components/vehicles/VehicleFooterNav'
 
 const TRIP_TYPES = {
     work: { label: 'Đi làm', color: 'blue' },
@@ -27,6 +29,7 @@ export default function VehicleTrips() {
     // State
     const [selectedVehicleId, setSelectedVehicleId] = useState<string>('')
     const [showAddModal, setShowAddModal] = useState(false)
+    const [editingTrip, setEditingTrip] = useState<TripRecord | null>(null)
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
     const [deleting, setDeleting] = useState(false)
 
@@ -64,7 +67,7 @@ export default function VehicleTrips() {
         <div className="flex h-screen flex-col overflow-hidden bg-[#F7F9FC]">
             <HeaderBar variant="page" title="Quản Lý Hành Trình" />
 
-            <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-8 pt-4">
+            <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-28 pt-4">
                 {/* Vehicle Selector */}
                 {vehicles.length > 0 && (
                     <div className="mb-4">
@@ -167,8 +170,16 @@ export default function VehicleTrips() {
 
                                             <div className="flex gap-2">
                                                 <button
+                                                    onClick={() => setEditingTrip(trip)}
+                                                    className="rounded-lg p-2 text-blue-600 transition-colors hover:bg-blue-50"
+                                                    title="Sửa"
+                                                >
+                                                    <Edit className="h-4 w-4" />
+                                                </button>
+                                                <button
                                                     onClick={() => setDeleteConfirmId(trip.id)}
                                                     className="rounded-lg p-2 text-red-600 transition-colors hover:bg-red-50"
+                                                    title="Xóa"
                                                 >
                                                     <Trash2 className="h-4 w-4" />
                                                 </button>
@@ -205,10 +216,14 @@ export default function VehicleTrips() {
                                             </div>
                                         </div>
 
-                                        {trip.notes && (
+                                        {/* GPS Info Display */}
+                                        {trip.notes && <TripGPSDisplay notes={trip.notes} />}
+
+                                        {/* Clean Notes (without GPS data) */}
+                                        {trip.notes && getTripCleanNotes(trip.notes) && (
                                             <div className="mt-3 text-sm text-slate-600">
                                                 <span className="font-medium">Ghi chú: </span>
-                                                {trip.notes}
+                                                {getTripCleanNotes(trip.notes)}
                                             </div>
                                         )}
                                     </div>
@@ -219,13 +234,24 @@ export default function VehicleTrips() {
                 )}
             </main>
 
-            {/* Add Trip Modal */}
-            {showAddModal && selectedVehicle && (
+            {/* Vehicle Footer Nav */}
+            <VehicleFooterNav
+                onAddClick={() => setShowAddModal(true)}
+                addLabel="Thêm hành trình"
+            />
+
+            {/* Add/Edit Trip Modal */}
+            {(showAddModal || editingTrip) && selectedVehicle && (
                 <AddTripModal
                     vehicle={selectedVehicle}
-                    onClose={() => setShowAddModal(false)}
+                    editingTrip={editingTrip}
+                    onClose={() => {
+                        setShowAddModal(false)
+                        setEditingTrip(null)
+                    }}
                     onSuccess={() => {
                         setShowAddModal(false)
+                        setEditingTrip(null)
                         queryClient.invalidateQueries({ queryKey: vehicleKeys.trips(selectedVehicleId) })
                     }}
                 />
@@ -247,29 +273,33 @@ export default function VehicleTrips() {
     )
 }
 
-// Add Trip Modal Component
+// Add/Edit Trip Modal Component
 function AddTripModal({
     vehicle,
+    editingTrip,
     onClose,
     onSuccess,
 }: {
     vehicle: VehicleRecord
+    editingTrip?: TripRecord | null
     onClose: () => void
     onSuccess: () => void
 }) {
     const { success, error: showError } = useNotification()
     const [loading, setLoading] = useState(false)
 
+
+
     const [formData, setFormData] = useState({
         vehicle_id: vehicle.id,
-        trip_date: new Date().toISOString().split('T')[0],
-        trip_time: new Date().toTimeString().slice(0, 5),
-        trip_type: 'work' as const,
-        start_km: '',
-        end_km: '',
-        start_location: '',
-        end_location: '',
-        notes: '',
+        trip_date: editingTrip?.trip_date || new Date().toISOString().split('T')[0],
+        trip_time: editingTrip?.trip_time || new Date().toTimeString().slice(0, 5),
+        trip_type: (editingTrip?.trip_type as any) || ('work' as const),
+        start_km: editingTrip?.start_km?.toString() || '',
+        end_km: editingTrip?.end_km?.toString() || '',
+        start_location: editingTrip?.start_location || '',
+        end_location: editingTrip?.end_location || '',
+        notes: editingTrip ? getTripCleanNotes(editingTrip.notes || '') : '',
     })
 
     // Location data with GPS coordinates
@@ -319,7 +349,7 @@ function AddTripModal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px]">
-            <div className="w-full rounded-t-3xl bg-white p-5 pb-10 shadow-2xl animate-in slide-in-from-bottom duration-300">
+            <div className="w-full rounded-t-3xl bg-white p-5 pb-10 shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] overflow-y-auto">
                 <div className="mb-6 flex items-center justify-between">
                     <h3 className="text-lg font-bold text-slate-800">Thêm hành trình mới</h3>
                     <button

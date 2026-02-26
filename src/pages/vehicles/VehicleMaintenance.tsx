@@ -6,6 +6,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNotification } from '../../contexts/notificationContext.helpers'
 import HeaderBar from '../../components/layout/HeaderBar'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
+import { VehicleFooterNav } from '../../components/vehicles/VehicleFooterNav'
 
 const MAINTENANCE_TYPES = {
     scheduled: { label: 'Định kỳ', color: 'blue', icon: Calendar },
@@ -62,7 +63,7 @@ export default function VehicleMaintenance() {
         <div className="flex h-screen flex-col overflow-hidden bg-[#F7F9FC]">
             <HeaderBar variant="page" title="Quản Lý Bảo Dưỡng" />
 
-            <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-8 pt-4">
+            <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-28 pt-4">
                 {/* Vehicle Selector */}
                 {vehicles.length > 0 && (
                     <div className="mb-4">
@@ -194,6 +195,12 @@ export default function VehicleMaintenance() {
                     </div>
                 )}
             </main>
+
+            {/* Vehicle Footer Nav */}
+            <VehicleFooterNav
+                onAddClick={() => setShowAddModal(true)}
+                addLabel="Bảo dưỡng"
+            />
 
             {/* Add Maintenance Modal */}
             {showAddModal && selectedVehicle && (

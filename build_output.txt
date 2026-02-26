@@ -1,0 +1,286 @@
+﻿
+> bofin-app@0.0.0 build
+> tsc -b && vite build
+
+[36mvite v7.2.2 [32mbuilding client environment for production...[36m[39m
+node.exe : [baseline-browser-mapping] 
+The data in this module is over two 
+months old.  To ensure accurate 
+Baseline data, please update: `npm i 
+baseline-browser-mapping@latest -D`
+At line:1 char:1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Users\minhq\AppData\Roaming\ ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : NotSpec 
+   ified: ([baseline-brows...ping@la  
+  test -D`:String) [], RemoteExcept   
+ ion
+    + FullyQualifiedErrorId : NativeC 
+   ommandError
+ 
+transforming...
+[32mΓ£ô[39m 3337 modules transformed.
+rendering chunks...
+[33m[plugin vite:reporter] 
+(!) C:/Users/minhq/Desktop/PROJECT-RUN
+/BOfin_app/src/lib/userPreferencesServ
+ice.ts is dynamically imported by C:/U
+sers/minhq/Desktop/PROJECT-RUN/BOfin_a
+pp/src/components/dashboard/DashboardT
+asksSection.tsx but also statically 
+imported by C:/Users/minhq/Desktop/PRO
+JECT-RUN/BOfin_app/src/components/char
+ts/IncomeExpenseOverview.tsx, C:/Users
+/minhq/Desktop/PROJECT-RUN/BOfin_app/s
+rc/components/dashboard/DashboardTasks
+Section.tsx, C:/Users/minhq/Desktop/PR
+OJECT-RUN/BOfin_app/src/components/das
+hboard/TaskSettingsModal.tsx, dynamic 
+import will not move module into 
+another chunk.
+[39m
+[33m[plugin vite:reporter] 
+(!) C:/Users/minhq/Desktop/PROJECT-RUN
+/BOfin_app/src/lib/userCache.ts is 
+dynamically imported by C:/Users/minhq
+/Desktop/PROJECT-RUN/BOfin_app/src/hoo
+ks/useAuthState.ts, C:/Users/minhq/Des
+ktop/PROJECT-RUN/BOfin_app/src/hooks/u
+seAuthState.ts, C:/Users/minhq/Desktop
+/PROJECT-RUN/BOfin_app/src/hooks/useAu
+thState.ts, C:/Users/minhq/Desktop/PRO
+JECT-RUN/BOfin_app/src/hooks/useAuthSt
+ate.ts, C:/Users/minhq/Desktop/PROJECT
+-RUN/BOfin_app/src/hooks/useAuthState.
+ts, C:/Users/minhq/Desktop/PROJECT-RUN
+/BOfin_app/src/lib/profileService.ts, 
+C:/Users/minhq/Desktop/PROJECT-RUN/BOf
+in_app/src/pages/AddTransaction.tsx 
+but also statically imported by C:/Use
+rs/minhq/Desktop/PROJECT-RUN/BOfin_app
+/src/hooks/useDataPreloader.ts, C:/Use
+rs/minhq/Desktop/PROJECT-RUN/BOfin_app
+/src/lib/adminService.ts, C:/Users/min
+hq/Desktop/PROJECT-RUN/BOfin_app/src/l
+ib/budgetAlertService.ts, C:/Users/min
+hq/Desktop/PROJECT-RUN/BOfin_app/src/l
+ib/budgetService.ts, C:/Users/minhq/De
+sktop/PROJECT-RUN/BOfin_app/src/lib/ca
+che.ts, C:/Users/minhq/Desktop/PROJECT
+-RUN/BOfin_app/src/lib/categoryService
+.ts, C:/Users/minhq/Desktop/PROJECT-RU
+N/BOfin_app/src/lib/dataPreloader.ts, 
+C:/Users/minhq/Desktop/PROJECT-RUN/BOf
+in_app/src/lib/defaultCategoryService.
+ts, C:/Users/minhq/Desktop/PROJECT-RUN
+/BOfin_app/src/lib/favoriteCategoriesS
+ervice.ts, C:/Users/minhq/Desktop/PROJ
+ECT-RUN/BOfin_app/src/lib/iconService.
+ts, C:/Users/minhq/Desktop/PROJECT-RUN
+/BOfin_app/src/lib/notificationService
+.ts, C:/Users/minhq/Desktop/PROJECT-RU
+N/BOfin_app/src/lib/profileService.ts,
+ C:/Users/minhq/Desktop/PROJECT-RUN/BO
+fin_app/src/lib/quickActionsSettingsSe
+rvice.ts, C:/Users/minhq/Desktop/PROJE
+CT-RUN/BOfin_app/src/lib/reminderServi
+ce.ts, C:/Users/minhq/Desktop/PROJECT-
+RUN/BOfin_app/src/lib/settingsService.
+ts, C:/Users/minhq/Desktop/PROJECT-RUN
+/BOfin_app/src/lib/shoppingListService
+.ts, C:/Users/minhq/Desktop/PROJECT-RU
+N/BOfin_app/src/lib/taskService.ts, C:
+/Users/minhq/Desktop/PROJECT-RUN/BOfin
+_app/src/lib/transactionService.ts, C:
+/Users/minhq/Desktop/PROJECT-RUN/BOfin
+_app/src/lib/userPreferencesService.ts
+, C:/Users/minhq/Desktop/PROJECT-RUN/B
+Ofin_app/src/lib/vehicles/fuelPriceSer
+vice.ts, C:/Users/minhq/Desktop/PROJEC
+T-RUN/BOfin_app/src/lib/walletBalanceH
+istoryService.ts, C:/Users/minhq/Deskt
+op/PROJECT-RUN/BOfin_app/src/lib/walle
+tBalanceService.ts, C:/Users/minhq/Des
+ktop/PROJECT-RUN/BOfin_app/src/lib/wal
+letService.ts, C:/Users/minhq/Desktop/
+PROJECT-RUN/BOfin_app/src/pages/Settin
+gs.tsx, C:/Users/minhq/Desktop/PROJECT
+-RUN/BOfin_app/src/utils/reloadData.ts
+, dynamic import will not move module 
+into another chunk.
+[39m
+[33m[plugin vite:reporter] 
+(!) C:/Users/minhq/Desktop/PROJECT-RUN
+/BOfin_app/src/lib/react-query.ts is 
+dynamically imported by C:/Users/minhq
+/Desktop/PROJECT-RUN/BOfin_app/src/hoo
+ks/useAuthState.ts, C:/Users/minhq/Des
+ktop/PROJECT-RUN/BOfin_app/src/pages/A
+ddTransaction.tsx, C:/Users/minhq/Desk
+top/PROJECT-RUN/BOfin_app/src/pages/Ad
+dTransaction.tsx, C:/Users/minhq/Deskt
+op/PROJECT-RUN/BOfin_app/src/pages/Add
+Transaction.tsx, C:/Users/minhq/Deskto
+p/PROJECT-RUN/BOfin_app/src/pages/AddT
+ransaction.tsx, C:/Users/minhq/Desktop
+/PROJECT-RUN/BOfin_app/src/pages/Categ
+ories.tsx, C:/Users/minhq/Desktop/PROJ
+ECT-RUN/BOfin_app/src/pages/Settings.t
+sx, C:/Users/minhq/Desktop/PROJECT-RUN
+/BOfin_app/src/pages/Wallets.tsx, C:/U
+sers/minhq/Desktop/PROJECT-RUN/BOfin_a
+pp/src/utils/reloadData.ts but also 
+statically imported by C:/Users/minhq/
+Desktop/PROJECT-RUN/BOfin_app/src/App.
+tsx, C:/Users/minhq/Desktop/PROJECT-RU
+N/BOfin_app/src/lib/budgetService.ts, 
+C:/Users/minhq/Desktop/PROJECT-RUN/BOf
+in_app/src/lib/categoryService.ts, C:/
+Users/minhq/Desktop/PROJECT-RUN/BOfin_
+app/src/lib/dataPreloader.ts, C:/Users
+/minhq/Desktop/PROJECT-RUN/BOfin_app/s
+rc/lib/defaultCategoryService.ts, C:/U
+sers/minhq/Desktop/PROJECT-RUN/BOfin_a
+pp/src/lib/favoriteCategoriesService.t
+s, C:/Users/minhq/Desktop/PROJECT-RUN/
+BOfin_app/src/lib/iconService.ts, C:/U
+sers/minhq/Desktop/PROJECT-RUN/BOfin_a
+pp/src/lib/notificationService.ts, C:/
+Users/minhq/Desktop/PROJECT-RUN/BOfin_
+app/src/lib/profileService.ts, C:/User
+s/minhq/Desktop/PROJECT-RUN/BOfin_app/
+src/lib/reminderService.ts, C:/Users/m
+inhq/Desktop/PROJECT-RUN/BOfin_app/src
+/lib/settingsService.ts, C:/Users/minh
+q/Desktop/PROJECT-RUN/BOfin_app/src/li
+b/shoppingListService.ts, C:/Users/min
+hq/Desktop/PROJECT-RUN/BOfin_app/src/l
+ib/taskService.ts, C:/Users/minhq/Desk
+top/PROJECT-RUN/BOfin_app/src/lib/tran
+sactionService.ts, C:/Users/minhq/Desk
+top/PROJECT-RUN/BOfin_app/src/lib/user
+PreferencesService.ts, C:/Users/minhq/
+Desktop/PROJECT-RUN/BOfin_app/src/lib/
+walletService.ts, dynamic import will 
+not move module into another chunk.
+[39m
+computing gzip size...
+[2mdist/[22m[32mmanifest.webmanifest                          [39m[1m[2m    0.76 kB[22m[1m[22m
+[2mdist/[22m[32mindex.html                                    [39m[1m[2m    4.89 kB[22m[1m[22m[2m Γöé gzip:   1.67 kB[22m
+[2mdist/[22m[35massets/index-34rDUd5r.css                     [39m[1m[2m  143.71 kB[22m[1m[22m[2m Γöé gzip:  19.60 kB[22m
+[2mdist/[22m[36massets/trending-up-BWTDDxMD.js                [39m[1m[2m    0.19 kB[22m[1m[22m[2m Γöé gzip:   0.18 kB[22m
+[2mdist/[22m[36massets/dollar-sign-DbmN3KWs.js                [39m[1m[2m    0.23 kB[22m[1m[22m[2m Γöé gzip:   0.20 kB[22m
+[2mdist/[22m[36massets/_commonjs-dynamic-modules-TDtrdbi3.js  [39m[1m[2m    0.24 kB[22m[1m[22m[2m Γöé gzip:   0.19 kB[22m
+[2mdist/[22m[36massets/chart-column-CXTVVbrg.js               [39m[1m[2m    0.26 kB[22m[1m[22m[2m Γöé gzip:   0.20 kB[22m
+[2mdist/[22m[36massets/map-pin-XmOUaNY3.js                    [39m[1m[2m    0.26 kB[22m[1m[22m[2m Γöé gzip:   0.23 kB[22m
+[2mdist/[22m[36massets/currencyInput-jIQ-HbNl.js              [39m[1m[2m    0.27 kB[22m[1m[22m[2m Γöé gzip:   0.22 kB[22m
+[2mdist/[22m[36massets/triangle-alert-BlNOnGVT.js             [39m[1m[2m    0.28 kB[22m[1m[22m[2m Γöé gzip:   0.22 kB[22m
+[2mdist/[22m[36massets/trash-2-DvIhDTfh.js                    [39m[1m[2m    0.34 kB[22m[1m[22m[2m Γöé gzip:   0.22 kB[22m
+[2mdist/[22m[36massets/gauge-DnQ-EhY1.js                      [39m[1m[2m    0.47 kB[22m[1m[22m[2m Γöé gzip:   0.30 kB[22m
+[2mdist/[22m[36massets/adminService-C1CYzd8W.js               [39m[1m[2m    0.47 kB[22m[1m[22m[2m Γöé gzip:   0.31 kB[22m
+[2mdist/[22m[36massets/Skeleton-DbhRKBnu.js                   [39m[1m[2m    0.49 kB[22m[1m[22m[2m Γöé gzip:   0.34 kB[22m
+[2mdist/[22m[36massets/LoadingRing-DrIx3g5Z.js                [39m[1m[2m    0.52 kB[22m[1m[22m[2m Γöé gzip:   0.35 kB[22m
+[2mdist/[22m[36massets/walletBalanceService-CwJK6Mu3.js       [39m[1m[2m    0.59 kB[22m[1m[22m[2m Γöé gzip:   0.37 kB[22m
+[2mdist/[22m[36massets/car-BtZU_5Hn.js                        [39m[1m[2m    0.65 kB[22m[1m[22m[2m Γöé gzip:   0.37 kB[22m
+[2mdist/[22m[36massets/CategoryListSkeleton-B1r7dA16.js       [39m[1m[2m    0.71 kB[22m[1m[22m[2m Γöé gzip:   0.38 kB[22m
+[2mdist/[22m[36massets/EditVehicle-DpaGjOyY.js                [39m[1m[2m    0.97 kB[22m[1m[22m[2m Γöé gzip:   0.60 kB[22m
+[2mdist/[22m[36massets/useDataPreloader-BFO639_U.js           [39m[1m[2m    0.98 kB[22m[1m[22m[2m Γöé gzip:   0.56 kB[22m
+[2mdist/[22m[36massets/ModalFooterButtons-9T5GG9Z-.js         [39m[1m[2m    1.11 kB[22m[1m[22m[2m Γöé gzip:   0.60 kB[22m
+[2mdist/[22m[36massets/CategoryIcon-TmU-OQd-.js               [39m[1m[2m    1.36 kB[22m[1m[22m[2m Γöé gzip:   0.72 kB[22m
+[2mdist/[22m[36massets/geocoding-DMQf6W5l.js                  [39m[1m[2m    1.41 kB[22m[1m[22m[2m Γöé gzip:   0.76 kB[22m
+[2mdist/[22m[36massets/reloadData-CNfxvoE8.js                 [39m[1m[2m    1.56 kB[22m[1m[22m[2m Γöé gzip:   0.77 kB[22m
+[2mdist/[22m[36massets/useVoiceInput-CKCCRcVE.js              [39m[1m[2m    1.72 kB[22m[1m[22m[2m Γöé gzip:   0.90 kB[22m
+[2mdist/[22m[36massets/dateUtils-CdQVh6P4.js                  [39m[1m[2m    1.87 kB[22m[1m[22m[2m Γöé gzip:   0.64 kB[22m
+[2mdist/[22m[36massets/cloudinaryService-JuUslXUo.js          [39m[1m[2m    2.21 kB[22m[1m[22m[2m Γöé gzip:   1.07 kB[22m
+[2mdist/[22m[36massets/dataPreloader-C6IaZX2M.js              [39m[1m[2m    2.53 kB[22m[1m[22m[2m Γöé gzip:   1.12 kB[22m
+[2mdist/[22m[36massets/profileService-ClL8TKYp.js             [39m[1m[2m    2.65 kB[22m[1m[22m[2m Γöé gzip:   1.17 kB[22m
+[2mdist/[22m[36massets/imageCompression-BB7fxvlJ.js           [39m[1m[2m    2.95 kB[22m[1m[22m[2m Γöé gzip:   0.99 kB[22m
+[2mdist/[22m[36massets/FooterNav-BWLjSiF3.js                  [39m[1m[2m    3.13 kB[22m[1m[22m[2m Γöé gzip:   1.40 kB[22m
+[2mdist/[22m[36massets/DonutChartWithLegend-85d6zQLd.js       [39m[1m[2m    3.36 kB[22m[1m[22m[2m Γöé gzip:   1.50 kB[22m
+[2mdist/[22m[36massets/defaultCategoryService-Bapc1hnj.js     [39m[1m[2m    3.45 kB[22m[1m[22m[2m Γöé gzip:   1.16 kB[22m
+[2mdist/[22m[36massets/budgetAlertService-DwziAL5c.js         [39m[1m[2m    3.46 kB[22m[1m[22m[2m Γöé gzip:   1.56 kB[22m
+[2mdist/[22m[36massets/SimpleLocationInput-CXYdYFit.js        [39m[1m[2m    3.60 kB[22m[1m[22m[2m Γöé gzip:   1.79 kB[22m
+[2mdist/[22m[36massets/IconPicker-BxtmiMm7.js                 [39m[1m[2m    3.71 kB[22m[1m[22m[2m Γöé gzip:   1.68 kB[22m
+[2mdist/[22m[36massets/iconService-C31QMlsF.js                [39m[1m[2m    4.40 kB[22m[1m[22m[2m Γöé gzip:   1.63 kB[22m
+[2mdist/[22m[36massets/notificationService-ByKNxgzY.js        [39m[1m[2m    4.51 kB[22m[1m[22m[2m Γöé gzip:   1.48 kB[22m
+[2mdist/[22m[36massets/VehicleFooterNav-h_wbIJoX.js           [39m[1m[2m    4.66 kB[22m[1m[22m[2m Γöé gzip:   2.11 kB[22m
+[2mdist/[22m[36massets/HeaderBar-iUf9DQ48.js                  [39m[1m[2m    4.97 kB[22m[1m[22m[2m Γöé gzip:   1.62 kB[22m
+[2mdist/[22m[36massets/walletService-Dn8pSQms.js              [39m[1m[2m    5.18 kB[22m[1m[22m[2m Γöé gzip:   1.52 kB[22m
+[2mdist/[22m[36massets/transactionService-CbBZva6B.js         [39m[1m[2m    5.61 kB[22m[1m[22m[2m Γöé gzip:   1.69 kB[22m
+[2mdist/[22m[36massets/useSupabaseHealth-DAfSgKiz.js          [39m[1m[2m    5.72 kB[22m[1m[22m[2m Γöé gzip:   2.15 kB[22m
+[2mdist/[22m[36massets/CustomSelect-BW1kGju6.js               [39m[1m[2m    5.74 kB[22m[1m[22m[2m Γöé gzip:   2.06 kB[22m
+[2mdist/[22m[36massets/Login-BI-oOqJA.js                      [39m[1m[2m    5.76 kB[22m[1m[22m[2m Γöé gzip:   2.24 kB[22m
+[2mdist/[22m[36massets/Register-BpOifrwd.js                   [39m[1m[2m    6.01 kB[22m[1m[22m[2m Γöé gzip:   1.88 kB[22m
+[2mdist/[22m[36massets/VehicleReports-KjJLRXVe.js             [39m[1m[2m    6.06 kB[22m[1m[22m[2m Γöé gzip:   1.92 kB[22m
+[2mdist/[22m[36massets/reminderService-CcMkW1HK.js            [39m[1m[2m    6.07 kB[22m[1m[22m[2m Γöé gzip:   1.89 kB[22m
+[2mdist/[22m[36massets/DateTimePickerModal-DfVRQsWL.js        [39m[1m[2m    6.46 kB[22m[1m[22m[2m Γöé gzip:   2.19 kB[22m
+[2mdist/[22m[36massets/QRResult-5fzNj3Qf.js                   [39m[1m[2m    6.90 kB[22m[1m[22m[2m Γöé gzip:   2.49 kB[22m
+[2mdist/[22m[36massets/CalculatorModal-But5ij-k.js            [39m[1m[2m    7.16 kB[22m[1m[22m[2m Γöé gzip:   1.69 kB[22m
+[2mdist/[22m[36massets/cache-CP3eIa6o.js                      [39m[1m[2m    7.70 kB[22m[1m[22m[2m Γöé gzip:   2.42 kB[22m
+[2mdist/[22m[36massets/vehicleService-BV2rYcU2.js             [39m[1m[2m    7.90 kB[22m[1m[22m[2m Γöé gzip:   2.20 kB[22m
+[2mdist/[22m[36massets/defaultCategories-Boxm5oii.js          [39m[1m[2m    8.36 kB[22m[1m[22m[2m Γöé gzip:   1.61 kB[22m
+[2mdist/[22m[36massets/Notifications-w4d7Vx3u.js              [39m[1m[2m    8.43 kB[22m[1m[22m[2m Γöé gzip:   2.76 kB[22m
+[2mdist/[22m[36massets/VehicleExpenses-CVVm_8LI.js            [39m[1m[2m    8.69 kB[22m[1m[22m[2m Γöé gzip:   3.01 kB[22m
+[2mdist/[22m[36massets/iconLoader-BDJOqg1q.js                 [39m[1m[2m    8.72 kB[22m[1m[22m[2m Γöé gzip:   3.69 kB[22m
+[2mdist/[22m[36massets/NumberPadModal-fwHjexeH.js             [39m[1m[2m    8.87 kB[22m[1m[22m[2m Γöé gzip:   2.16 kB[22m
+[2mdist/[22m[36massets/budgetService-CZARbMGI.js              [39m[1m[2m    9.25 kB[22m[1m[22m[2m Γöé gzip:   3.12 kB[22m
+[2mdist/[22m[36massets/categoryService-B_s0acJ4.js            [39m[1m[2m    9.83 kB[22m[1m[22m[2m Γöé gzip:   3.04 kB[22m
+[2mdist/[22m[36massets/AddVehicle-DzbxpxT6.js                 [39m[1m[2m    9.90 kB[22m[1m[22m[2m Γöé gzip:   2.35 kB[22m
+[2mdist/[22m[36massets/VoiceToText-DSToeccK.js                [39m[1m[2m   10.53 kB[22m[1m[22m[2m Γöé gzip:   3.37 kB[22m
+[2mdist/[22m[36massets/VehicleMaintenance-DWkSxOsb.js         [39m[1m[2m   11.09 kB[22m[1m[22m[2m Γöé gzip:   3.54 kB[22m
+[2mdist/[22m[36massets/useVehicleQueries-CqYdPWaY.js          [39m[1m[2m   12.28 kB[22m[1m[22m[2m Γöé gzip:   4.25 kB[22m
+[2mdist/[22m[36massets/Transactions-EgBlv-G9.js               [39m[1m[2m   12.40 kB[22m[1m[22m[2m Γöé gzip:   4.55 kB[22m
+[2mdist/[22m[36massets/AdminSettings-D4H-cKuw.js              [39m[1m[2m   12.57 kB[22m[1m[22m[2m Γöé gzip:   3.42 kB[22m
+[2mdist/[22m[36massets/AccountInfo-D71_EoaD.js                [39m[1m[2m   13.07 kB[22m[1m[22m[2m Γöé gzip:   3.49 kB[22m
+[2mdist/[22m[36massets/SpeechRecognitionManager-BBNF9MCW.js   [39m[1m[2m   13.36 kB[22m[1m[22m[2m Γöé gzip:   4.87 kB[22m
+[2mdist/[22m[36massets/VehicleTrips-05Kk3NM_.js               [39m[1m[2m   14.20 kB[22m[1m[22m[2m Γöé gzip:   4.50 kB[22m
+[2mdist/[22m[36massets/index-ePCq1sx4.js                      [39m[1m[2m   15.23 kB[22m[1m[22m[2m Γöé gzip:   4.55 kB[22m
+[2mdist/[22m[36massets/index-HVEIayjs.js                      [39m[1m[2m   15.67 kB[22m[1m[22m[2m Γöé gzip:   6.75 kB[22m
+[2mdist/[22m[36massets/Budgets-ZCoi-T1q.js                    [39m[1m[2m   16.99 kB[22m[1m[22m[2m Γöé gzip:   4.85 kB[22m
+[2mdist/[22m[36massets/AddBudget-B7Gaw2jA.js                  [39m[1m[2m   17.34 kB[22m[1m[22m[2m Γöé gzip:   5.16 kB[22m
+[2mdist/[22m[36massets/TransactionListSkeleton-C6xJtbS_.js    [39m[1m[2m   18.86 kB[22m[1m[22m[2m Γöé gzip:   4.99 kB[22m
+[2mdist/[22m[36massets/Categories-mo6d4sLw.js                 [39m[1m[2m   21.36 kB[22m[1m[22m[2m Γöé gzip:   6.38 kB[22m
+[2mdist/[22m[36massets/AdminIconImages-Bh-Y-GNe.js            [39m[1m[2m   23.97 kB[22m[1m[22m[2m Γöé gzip:   5.93 kB[22m
+[2mdist/[22m[36massets/DebtManager-S0rrNHCR.js                [39m[1m[2m   25.05 kB[22m[1m[22m[2m Γöé gzip:   6.40 kB[22m
+[2mdist/[22m[36massets/AdminCategoriesIcon-C5Brra0k.js        [39m[1m[2m   27.30 kB[22m[1m[22m[2m Γöé gzip:   6.82 kB[22m
+[2mdist/[22m[36massets/ShoppingList-Cky73aYu.js               [39m[1m[2m   30.05 kB[22m[1m[22m[2m Γöé gzip:   8.82 kB[22m
+[2mdist/[22m[36massets/Settings-DHJY3Wx7.js                   [39m[1m[2m   39.46 kB[22m[1m[22m[2m Γöé gzip:   9.14 kB[22m
+[2mdist/[22m[36massets/NotesPlans-CzVbmh4A.js                 [39m[1m[2m   39.67 kB[22m[1m[22m[2m Γöé gzip:   8.04 kB[22m
+[2mdist/[22m[36massets/react-vendor-_hKLFpEP.js               [39m[1m[2m   45.69 kB[22m[1m[22m[2m Γöé gzip:  16.40 kB[22m
+[2mdist/[22m[36massets/Wallets-CUJHCoEA.js                    [39m[1m[2m   46.99 kB[22m[1m[22m[2m Γöé gzip:  11.44 kB[22m
+[2mdist/[22m[36massets/VehicleFuel-BrOPbdda.js                [39m[1m[2m   57.36 kB[22m[1m[22m[2m Γöé gzip:  15.36 kB[22m
+[2mdist/[22m[36massets/AddTransaction-CK7z-BXA.js             [39m[1m[2m   63.24 kB[22m[1m[22m[2m Γöé gzip:  16.71 kB[22m
+[2mdist/[22m[36massets/UnifiedItemModal-cklKH9aA.js           [39m[1m[2m   67.23 kB[22m[1m[22m[2m Γöé gzip:  15.77 kB[22m
+[2mdist/[22m[36massets/Dashboard-BC0KLand.js                  [39m[1m[2m   83.42 kB[22m[1m[22m[2m Γöé gzip:  21.56 kB[22m
+[2mdist/[22m[36massets/supabase-vendor-CiKouceI.js            [39m[1m[2m  174.65 kB[22m[1m[22m[2m Γöé gzip:  45.52 kB[22m
+[2mdist/[22m[36massets/webQRScanner-Ch_jPWBs.js               [39m[1m[2m  394.77 kB[22m[1m[22m[2m Γöé gzip: 104.63 kB[22m
+[2mdist/[22m[36massets/mui-vendor-DKB493CA.js                 [39m[1m[2m  398.23 kB[22m[1m[22m[2m Γöé gzip: 125.12 kB[22m
+[2mdist/[22m[36massets/index-X6tpe7l-.js                      [39m[1m[2m  558.11 kB[22m[1m[22m[2m Γöé gzip: 107.03 kB[22m
+[2mdist/[22m[36massets/index-6rzLT9V-.js                      [39m[1m[2m  662.83 kB[22m[1m[22m[2m Γöé gzip:  78.48 kB[22m
+[2mdist/[22m[36massets/Reports-7XxeWbbF.js                    [39m[1m[2m  988.76 kB[22m[1m[22m[2m Γöé gzip: 283.40 kB[22m
+[2mdist/[22m[36massets/index-BmhsodaA.js                      [39m[1m[33m1,542.67 kB[39m[22m[2m Γöé gzip: 286.69 kB[22m
+[2mdist/[22m[36massets/index-Dq3aXaOl.js                      [39m[1m[33m1,543.43 kB[39m[22m[2m Γöé gzip: 507.77 kB[22m
+[2mdist/[22m[36massets/index-DaP52ZWx.js                      [39m[1m[33m1,936.27 kB[39m[22m[2m Γöé gzip: 429.03 kB[22m
+[33m
+(!) Some chunks are larger than 1000 
+kB after minification. Consider:
+- Using dynamic import() to 
+code-split the application
+- Use build.rollupOptions.output.manua
+lChunks to improve chunking: https://r
+ollupjs.org/configuration-options/#out
+put-manualchunks
+- Adjust chunk size limit for this 
+warning via 
+build.chunkSizeWarningLimit.[39m
+[32mΓ£ô built in 27.82s[39m
+
+PWA v1.1.0
+mode      generateSW
+precache  253 entries (20504.91 KiB)
+files generated
+  dist/sw.js
+  dist/workbox-9df83dc0.js

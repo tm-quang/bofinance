@@ -266,7 +266,7 @@ function AddExpenseModal({
 
     return (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/50 backdrop-blur-[2px]">
-            <div className="w-full rounded-t-3xl bg-white p-5 pb-10 shadow-2xl animate-in slide-in-from-bottom duration-300">
+            <div className="w-full rounded-t-3xl bg-white p-5 pb-10 shadow-2xl animate-in slide-in-from-bottom duration-300 max-h-[90vh] overflow-y-auto">
                 <div className="mb-6 flex items-center justify-between">
                     <h3 className="text-lg font-bold text-slate-800">Thêm chi phí mới</h3>
                     <button

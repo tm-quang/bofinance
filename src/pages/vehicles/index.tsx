@@ -14,10 +14,13 @@ import {
     Star,
     Pencil,
     Gauge,
+    Zap,
+    BatteryCharging,
 } from 'lucide-react'
 import { useVehicles, useVehicleStats, useVehicleAlerts, useSetDefaultVehicle } from '../../lib/vehicles/useVehicleQueries'
 import type { VehicleAlert } from '../../lib/vehicles/vehicleService'
 import HeaderBar from '../../components/layout/HeaderBar'
+import { VehicleFooterNav } from '../../components/vehicles/VehicleFooterNav'
 
 const formatCurrency = (value: number) =>
     new Intl.NumberFormat('vi-VN', {
@@ -58,6 +61,8 @@ export default function VehicleManagement() {
         }
     }
 
+    const isElectric = selectedVehicle?.fuel_type === 'electric'
+
     const modules = [
         {
             id: 'dashboard',
@@ -66,6 +71,7 @@ export default function VehicleManagement() {
             color: 'text-blue-600',
             bgColor: 'bg-blue-50',
             shadowColor: 'shadow-blue-100',
+            electric: false,
         },
         {
             id: 'trips',
@@ -74,14 +80,16 @@ export default function VehicleManagement() {
             color: 'text-emerald-600',
             bgColor: 'bg-emerald-50',
             shadowColor: 'shadow-emerald-100',
+            electric: false,
         },
         {
             id: 'fuel',
-            name: 'Nhiên Liệu',
-            icon: Fuel,
-            color: 'text-orange-600',
-            bgColor: 'bg-orange-50',
-            shadowColor: 'shadow-orange-100',
+            name: isElectric ? 'Sạc Điện' : 'Nhiên Liệu',
+            icon: isElectric ? BatteryCharging : Fuel,
+            color: isElectric ? 'text-green-600' : 'text-orange-600',
+            bgColor: isElectric ? 'bg-green-50' : 'bg-orange-50',
+            shadowColor: isElectric ? 'shadow-green-100' : 'shadow-orange-100',
+            electric: isElectric,
         },
         {
             id: 'maintenance',
@@ -90,6 +98,7 @@ export default function VehicleManagement() {
             color: 'text-purple-600',
             bgColor: 'bg-purple-50',
             shadowColor: 'shadow-purple-100',
+            electric: false,
         },
         {
             id: 'expenses',
@@ -98,6 +107,7 @@ export default function VehicleManagement() {
             color: 'text-red-600',
             bgColor: 'bg-red-50',
             shadowColor: 'shadow-red-100',
+            electric: false,
         },
         {
             id: 'reports',
@@ -106,6 +116,7 @@ export default function VehicleManagement() {
             color: 'text-indigo-600',
             bgColor: 'bg-indigo-50',
             shadowColor: 'shadow-indigo-100',
+            electric: false,
         },
     ]
 
@@ -178,7 +189,7 @@ export default function VehicleManagement() {
                     </button>
                 }
             />
-            <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-20 pt-4">
+            <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-28 pt-4">
                 {/* Vehicle Selector - ATM Card Style */}
                 <div className="mb-6">
                     <div className="mb-3 flex items-center justify-between px-1">
@@ -376,12 +387,17 @@ export default function VehicleManagement() {
                         ) : stats ? (
                             /* Actual Content */
                             <div className="space-y-3">
-                                <div className="flex items-center justify-between rounded-lg bg-orange-50 p-3">
+                                <div className={`flex items-center justify-between rounded-lg p-3 ${isElectric ? 'bg-green-50' : 'bg-orange-50'}`}>
                                     <div className="flex items-center gap-2">
-                                        <Fuel className="h-4 w-4 text-orange-600" />
-                                        <span className="text-sm font-medium text-slate-700">Nhiên liệu</span>
+                                        {isElectric
+                                            ? <Zap className="h-4 w-4 text-green-600" />
+                                            : <Fuel className="h-4 w-4 text-orange-600" />
+                                        }
+                                        <span className="text-sm font-medium text-slate-700">
+                                            {isElectric ? 'Sạc điện' : 'Nhiên liệu'}
+                                        </span>
                                     </div>
-                                    <span className="font-semibold text-orange-600">{formatCurrency(stats.totalFuelCost)}</span>
+                                    <span className={`font-semibold ${isElectric ? 'text-green-600' : 'text-orange-600'}`}>{formatCurrency(stats.totalFuelCost)}</span>
                                 </div>
 
                                 <div className="flex items-center justify-between rounded-lg bg-purple-50 p-3">
@@ -445,18 +461,28 @@ export default function VehicleManagement() {
                                     <button
                                         key={module.id}
                                         onClick={() => navigate(`/vehicles/${module.id}`)}
-                                        className="group relative overflow-hidden rounded-2xl bg-white p-4 shadow-md transition-all hover:-translate-y-1 hover:shadow-xl active:scale-95 active:translate-y-0"
+                                        className={`group relative overflow-hidden rounded-2xl p-4 shadow-md transition-all hover:-translate-y-1 hover:shadow-xl active:scale-95 active:translate-y-0 ${module.electric
+                                            ? 'bg-gradient-to-br from-green-500 to-emerald-600 shadow-green-200'
+                                            : 'bg-white'
+                                            }`}
                                     >
                                         <div
-                                            className={`mb-3 inline-flex rounded-xl ${module.bgColor} p-3`}
-                                            style={{
+                                            className={`mb-3 inline-flex rounded-xl p-3 ${module.electric ? 'bg-white/25' : module.bgColor
+                                                }`}
+                                            style={module.electric ? {} : {
                                                 boxShadow: 'inset 0 2px 4px 0 rgba(0, 0, 0, 0.06), inset 0 -2px 4px 0 rgba(255, 255, 255, 1)'
                                             }}
                                         >
-                                            <Icon className={`h-6 w-6 ${module.color}`} />
+                                            <Icon className={`h-6 w-6 ${module.electric ? 'text-white' : module.color}`} />
                                         </div>
 
-                                        <h4 className="text-left text-sm font-bold text-slate-700">{module.name}</h4>
+                                        <h4 className={`text-left text-sm font-bold ${module.electric ? 'text-white' : 'text-slate-700'
+                                            }`}>{module.name}</h4>
+                                        {module.electric && (
+                                            <div className="absolute top-2 right-2 rounded-full bg-yellow-300 px-1.5 py-0.5">
+                                                <span className="text-[9px] font-black text-yellow-800">EV</span>
+                                            </div>
+                                        )}
                                     </button>
                                 )
                             })}
@@ -464,6 +490,14 @@ export default function VehicleManagement() {
                     </div>
                 )}
             </main>
+
+            {/* Vehicle Footer Nav - on main page, first tab = Trang chủ → /dashboard */}
+            <VehicleFooterNav
+                onAddClick={() => navigate('/vehicles/fuel')}
+                isElectricVehicle={isElectric}
+                addLabel="Ghi chép"
+                isMainPage={true}
+            />
         </div>
     )
 }

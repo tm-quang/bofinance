@@ -5,6 +5,7 @@ import { uploadToCloudinary } from '../../lib/cloudinaryService'
 interface ImageUploadProps {
     value: string | null
     onChange: (url: string | null) => void
+    onFileSelect?: (file: File) => void
     label?: string
     maxSize?: number // in MB
 }
@@ -15,7 +16,7 @@ export function ImageUpload({
     onFileSelect,
     label = 'Ảnh hóa đơn',
     maxSize = 5,
-}: ImageUploadProps & { onFileSelect?: (file: File) => void }) {
+}: ImageUploadProps) {
     const [isUploading, setIsUploading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const [preview, setPreview] = useState<string | null>(value)
