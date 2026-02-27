@@ -290,7 +290,7 @@ export class VietnameseTextProcessor {
    * Thêm dấu câu tự động
    */
   private addPunctuation(text: string): string {
-    let punctuated = text.trim()
+    const punctuated = text.trim()
 
     // Không thêm nếu đã có dấu câu ở cuối
     if (/[.!?,:;]$/.test(punctuated)) {

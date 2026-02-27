@@ -54,7 +54,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
             try {
                 // Chỉ fetch icons từ database có icon_type = 'image' hoặc 'svg'
                 const dbIconsData = await fetchIcons({ is_active: true })
-                
+
                 if (isCancelled) {
                     loadingRef.current = false
                     return
@@ -145,6 +145,7 @@ export const IconPicker: React.FC<IconPickerProps> = ({
             isCancelled = true
             loadingRef.current = false
         }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isOpen]) // Chỉ depend on isOpen, không depend on usedIconIds để tránh infinite loop
 
     const handleIconSelect = (iconId: string) => {
@@ -226,11 +227,10 @@ export const IconPicker: React.FC<IconPickerProps> = ({
                                     key={icon.id}
                                     type="button"
                                     onClick={() => handleIconSelect(icon.id)}
-                                    className={`flex h-16 w-16 items-center justify-center rounded-lg transition-all active:scale-95 ${
-                                        isSelected
+                                    className={`flex h-16 w-16 items-center justify-center rounded-lg transition-all active:scale-95 ${isSelected
                                             ? 'ring-2 ring-sky-500 ring-offset-1'
                                             : 'hover:opacity-80'
-                                    }`}
+                                        }`}
                                     title={icon.label}
                                 >
                                     {icon.iconNode || (

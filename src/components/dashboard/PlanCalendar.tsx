@@ -85,7 +85,7 @@ export const PlanCalendar = ({
 
   // Get items (tasks + reminders) with colors for each date
   const itemsByDate = useMemo(() => {
-    const map: Record<string, { 
+    const map: Record<string, {
       tasks: TaskRecord[]
       reminders: ReminderRecord[]
       taskCount: number
@@ -100,11 +100,11 @@ export const PlanCalendar = ({
       if (task.status !== 'completed' && task.deadline) {
         const date = task.deadline.split('T')[0]
         if (!map[date]) {
-          map[date] = { 
-            tasks: [], 
-            reminders: [], 
-            taskCount: 0, 
-            reminderCount: 0, 
+          map[date] = {
+            tasks: [],
+            reminders: [],
+            taskCount: 0,
+            reminderCount: 0,
             totalCount: 0,
             primaryColor: null,
             hasUrgent: false
@@ -131,11 +131,11 @@ export const PlanCalendar = ({
       if (!reminder.completed_at) {
         const date = reminder.reminder_date
         if (!map[date]) {
-          map[date] = { 
-            tasks: [], 
-            reminders: [], 
-            taskCount: 0, 
-            reminderCount: 0, 
+          map[date] = {
+            tasks: [],
+            reminders: [],
+            taskCount: 0,
+            reminderCount: 0,
             totalCount: 0,
             primaryColor: null,
             hasUrgent: false
@@ -149,7 +149,7 @@ export const PlanCalendar = ({
         if (!map[date].primaryColor) {
           const isNote = !reminder.amount && !reminder.category_id && !reminder.wallet_id
           const isIncome = reminder.type === 'Thu'
-          
+
           if (reminder.color) {
             // Use reminder's custom color
             const colorMap: Record<string, string> = {
@@ -220,7 +220,7 @@ export const PlanCalendar = ({
       const lastDayOfMonth = new Date(year, month + 1, 0)
       const daysInMonth = lastDayOfMonth.getDate()
       const startingDayOfWeek = firstDayOfMonth.getDay() // 0 = Sunday, 1 = Monday, ..., 6 = Saturday
-      
+
       // Convert to Monday-first week (0=Sunday becomes 6, 1=Monday becomes 0, etc.)
       const mondayFirstDayOfWeek = startingDayOfWeek === 0 ? 6 : startingDayOfWeek - 1
 
@@ -335,17 +335,27 @@ export const PlanCalendar = ({
           // Determine background color
           let bgColor: string | undefined = undefined
           let textColor = 'text-slate-700'
-          
+
           // If there's data with color, always apply it (even when selected)
           if (data && data.primaryColor) {
             bgColor = data.primaryColor
             textColor = 'text-white'
           }
 
-          const handleDateClick = () => {
+          const handleDateClick = (e: React.MouseEvent | React.TouchEvent) => {
             // Only handle normal click if long press was not activated
             if (!longPressActivatedRef.current) {
               onDateClick(dateStr)
+
+              if (onDateWithItemsClick) {
+                const button = e.currentTarget as HTMLElement
+                const rect = button.getBoundingClientRect()
+                const position = {
+                  top: rect.top + rect.height / 2,
+                  left: rect.left + rect.width / 2
+                }
+                onDateWithItemsClick(dateStr, position)
+              }
             }
             // Reset flag after click
             longPressActivatedRef.current = false
@@ -355,7 +365,7 @@ export const PlanCalendar = ({
             // Enable long press for all dates (not just those with items)
             longPressActivatedRef.current = false
             longPressTargetRef.current = { date: dateStr, hasItems: !!(data && data.totalCount > 0) }
-            
+
             // Get button position for arrow indicator
             const button = e.currentTarget as HTMLElement
             const rect = button.getBoundingClientRect()
@@ -363,7 +373,7 @@ export const PlanCalendar = ({
               top: rect.top + rect.height / 2,
               left: rect.left + rect.width / 2
             }
-            
+
             // Set timer for long press (500ms) to open detail modal
             longPressTimerRef.current = window.setTimeout(() => {
               if (longPressTargetRef.current && onDateWithItemsClick) {
@@ -408,7 +418,7 @@ export const PlanCalendar = ({
           } else {
             baseClassName = 'border-2 border-slate-100 hover:border-black hover:bg-slate-50 hover:shadow-sm'
           }
-          
+
           // If selected, only change border to black, keep everything else
           const finalClassName = isSelected
             ? baseClassName.replace(/border-2 border-[^\s]+/g, 'border-2 border-black').replace(/hover:border-[^\s]+/g, 'hover:border-black')
@@ -429,9 +439,9 @@ export const PlanCalendar = ({
                 ${finalClassName}
                 ${textColor}
               `}
-              style={bgColor ? { 
+              style={bgColor ? {
                 backgroundColor: bgColor,
-                boxShadow: data 
+                boxShadow: data
                   ? '0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)'
                   : undefined
               } : {}}
@@ -452,11 +462,11 @@ export const PlanCalendar = ({
 
               {/* Badge with count - nổi bật trên màu nền */}
               {data && data.totalCount > 0 && (
-                <span 
+                <span
                   className={`
                     absolute top-0 right-0 -mt-1 -mr-1 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold shadow-lg z-20
-                    ${isSelected 
-                      ? 'bg-white text-blue-600 ring-2 ring-blue-300' 
+                    ${isSelected
+                      ? 'bg-white text-blue-600 ring-2 ring-blue-300'
                       : 'bg-white'
                     }
                   `}
@@ -512,23 +522,21 @@ export const PlanCalendar = ({
                   <label className="block text-sm font-semibold text-slate-700 mb-3">
                     Chế độ hiển thị mặc định
                   </label>
-                  
+
                   <button
                     type="button"
                     onClick={() => {
                       setViewMode('month')
                       setIsSettingsOpen(false)
                     }}
-                    className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${
-                      viewMode === 'month'
+                    className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${viewMode === 'month'
                         ? 'border-blue-500 bg-blue-50 shadow-md'
                         : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                        viewMode === 'month' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600'
-                      }`}>
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${viewMode === 'month' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600'
+                        }`}>
                         <FaCalendarAlt className="h-5 w-5" />
                       </div>
                       <div className="text-left">
@@ -549,16 +557,14 @@ export const PlanCalendar = ({
                       setViewMode('week')
                       setIsSettingsOpen(false)
                     }}
-                    className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${
-                      viewMode === 'week'
+                    className={`w-full flex items-center justify-between p-4 rounded-2xl border-2 transition-all ${viewMode === 'week'
                         ? 'border-blue-500 bg-blue-50 shadow-md'
                         : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm'
-                    }`}
+                      }`}
                   >
                     <div className="flex items-center gap-3">
-                      <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${
-                        viewMode === 'week' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600'
-                      }`}>
+                      <div className={`flex h-10 w-10 items-center justify-center rounded-xl ${viewMode === 'week' ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600'
+                        }`}>
                         <FaCalendarWeek className="h-5 w-5" />
                       </div>
                       <div className="text-left">

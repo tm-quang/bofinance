@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react'
 import { FaBell, FaArrowLeft, FaRedoAlt } from 'react-icons/fa'
 import { useNavigate } from 'react-router-dom'
+import { ProfileModal } from './ProfileModal'
 
 type HeaderBarProps =
   | {
@@ -28,6 +29,19 @@ type HeaderBarProps =
 const HeaderBar = (props: HeaderBarProps) => {
   const navigate = useNavigate()
   const [isScrolled, setIsScrolled] = useState(false)
+  const [isOnline, setIsOnline] = useState(navigator.onLine)
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true)
+    const handleOffline = () => setIsOnline(false)
+    window.addEventListener('online', handleOnline)
+    window.addEventListener('offline', handleOffline)
+    return () => {
+      window.removeEventListener('online', handleOnline)
+      window.removeEventListener('offline', handleOffline)
+    }
+  }, [])
 
   useEffect(() => {
     const handleScroll = () => {
@@ -72,8 +86,8 @@ const HeaderBar = (props: HeaderBarProps) => {
         <div className="relative px-1 py-1">
           <div
             className={`pointer-events-auto mx-auto flex w-full max-w-md items-center justify-between px-4 py-1.5 transition-all duration-300 ${isScrolled
-                ? 'bg-transparent'
-                : 'bg-transparent'
+              ? 'bg-transparent'
+              : 'bg-transparent'
               }`}
           >
             <button
@@ -137,6 +151,13 @@ const HeaderBar = (props: HeaderBarProps) => {
     isLoadingProfile = false,
   } = props
 
+  let ringColorClass = 'from-emerald-400 via-green-300 to-emerald-500' // Xanh (Connected)
+  if (!isOnline) {
+    ringColorClass = 'from-rose-500 via-red-400 to-rose-600' // Đỏ (Disconnected)
+  } else if (isReloading || isLoadingProfile) {
+    ringColorClass = 'from-amber-400 via-yellow-300 to-amber-500' // Vàng (Connecting)
+  }
+
   return (
     <header className="pointer-events-none relative z-40 flex-shrink-0 bg-[#F7F9FC]">
       {isScrolled && (
@@ -145,11 +166,15 @@ const HeaderBar = (props: HeaderBarProps) => {
       <div className="relative px-1 py-1">
         <div
           className={`pointer-events-auto mx-auto flex w-full max-w-md items-center justify-between px-4 py-1.5 transition-all duration-300 ${isScrolled
-              ? 'bg-transparent'
-              : 'bg-transparent'
+            ? 'bg-transparent'
+            : 'bg-transparent'
             }`}
         >
-          <div className="flex items-center gap-2.5">
+          <button
+            type="button"
+            onClick={() => setIsProfileModalOpen(true)}
+            className="flex items-center gap-2.5 transition-all active:scale-95 text-left focus:outline-none"
+          >
             {isLoadingProfile ? (
               <>
                 <div className="h-10 w-10 animate-pulse rounded-full bg-slate-200 ring-2 ring-white shadow-[0_18px_35px_rgba(102,166,255,0.35)]" />
@@ -159,14 +184,20 @@ const HeaderBar = (props: HeaderBarProps) => {
                 </div>
               </>
             ) : avatarUrl ? (
-              <img
-                src={avatarUrl}
-                alt={userName}
-                className="h-10 w-10 rounded-full object-cover ring-2 ring-white shadow-[0_18px_35px_rgba(102,166,255,0.35)]"
-              />
+              <div className="relative">
+                <div className={`absolute -inset-1 rounded-full bg-gradient-to-r ${ringColorClass} opacity-80 blur-[6px] animate-[spin_4s_linear_infinite]`} />
+                <img
+                  src={avatarUrl}
+                  alt={userName}
+                  className="relative h-10 w-10 rounded-full object-cover ring-2 ring-white"
+                />
+              </div>
             ) : userName && userName !== 'Người dùng' ? (
-              <div className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#89f7fe] to-[#66a6ff] text-base font-semibold text-slate-800 shadow-[0_18px_35px_rgba(102,166,255,0.35)]">
-                {avatarText}
+              <div className="relative">
+                <div className={`absolute -inset-1 rounded-full bg-gradient-to-r ${ringColorClass} opacity-80 blur-[6px] animate-[spin_4s_linear_infinite]`} />
+                <div className="relative flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-br from-[#89f7fe] to-[#66a6ff] text-base font-semibold text-slate-800 ring-2 ring-white">
+                  {avatarText}
+                </div>
               </div>
             ) : null}
             {!isLoadingProfile && userName && userName !== 'Người dùng' && (
@@ -175,7 +206,7 @@ const HeaderBar = (props: HeaderBarProps) => {
                 <p className="text-lg font-medium text-slate-900" style={{ fontFamily: "'Lobster', cursive" }}>{userName}</p>
               </div>
             )}
-          </div>
+          </button>
           <div className="flex items-center gap-2">
             {/* Reload Button */}
             {onReload && (
@@ -218,6 +249,15 @@ const HeaderBar = (props: HeaderBarProps) => {
           </div>
         </div>
       </div>
+      {(props.variant === 'greeting' || !props.variant) && userName && (
+        <ProfileModal
+          isOpen={isProfileModalOpen}
+          onClose={() => setIsProfileModalOpen(false)}
+          userName={userName}
+          avatarUrl={avatarUrl}
+          avatarText={avatarText}
+        />
+      )}
     </header>
   )
 }

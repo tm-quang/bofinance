@@ -100,7 +100,7 @@ export function parseVoiceInputToItems(text: string): Array<{ name: string; quan
   const items: Array<{ name: string; quantity: string }> = []
   
   // Loại bỏ dấu câu và chuẩn hóa
-  let normalizedText = text
+  const normalizedText = text
     .toLowerCase()
     .replace(/[,，、]/g, ',')
     .replace(/[\.。]/g, '')

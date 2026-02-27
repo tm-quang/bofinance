@@ -679,7 +679,7 @@ export default function AdminCategoriesIcon() {
         const existing = existingByName.get(localCat.name)
         
         // Ensure icon exists in database
-        let iconId = localCat.icon_id
+        const iconId = localCat.icon_id
         if (!iconId.includes(':') && !iconId.startsWith('http')) {
           // Try to find in hardcoded icons or create placeholder
           try {
@@ -737,7 +737,7 @@ export default function AdminCategoriesIcon() {
         }
 
         // Ensure icon exists
-        let iconId = localCat.icon_id
+        const iconId = localCat.icon_id
         if (!iconId.includes(':') && !iconId.startsWith('http')) {
           try {
             await getIconByName(iconId)

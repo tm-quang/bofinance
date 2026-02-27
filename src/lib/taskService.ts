@@ -215,7 +215,7 @@ export const updateTask = async (taskId: string, payload: TaskUpdate): Promise<T
   }
 
   // Recalculate week_start_date if deadline is updated
-  let updatePayload: any = { ...payload }
+  const updatePayload: any = { ...payload }
   if (payload.deadline !== undefined) {
     if (payload.deadline) {
       const deadlineDate = new Date(payload.deadline + 'T00:00:00+07:00')

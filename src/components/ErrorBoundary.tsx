@@ -39,8 +39,10 @@ class ErrorBoundary extends Component<Props, State> {
     })
 
     // Log to error tracking service if available
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if (typeof window !== 'undefined' && (window as any).Sentry) {
-      ;(window as any).Sentry.captureException(error, {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ; (window as any).Sentry.captureException(error, {
         contexts: {
           react: {
             componentStack: errorInfo.componentStack,
@@ -56,7 +58,7 @@ class ErrorBoundary extends Component<Props, State> {
       error: null,
       errorInfo: null,
     })
-    
+
     // Clear problematic cache
     try {
       import('../lib/cache').then(({ clearAllCache }) => {
@@ -67,7 +69,7 @@ class ErrorBoundary extends Component<Props, State> {
     } catch (e) {
       console.warn('Could not clear cache:', e)
     }
-    
+
     // Reload page to reset state
     window.location.reload()
   }
@@ -91,7 +93,7 @@ class ErrorBoundary extends Component<Props, State> {
               <p className="mb-6 text-sm text-slate-600">
                 Ứng dụng gặp sự cố không mong muốn. Vui lòng thử lại.
               </p>
-              
+
               {import.meta.env.DEV && this.state.error && (
                 <details className="mb-4 w-full text-left">
                   <summary className="cursor-pointer text-xs font-semibold text-slate-500">

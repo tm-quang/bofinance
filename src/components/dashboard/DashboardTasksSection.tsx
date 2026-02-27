@@ -14,7 +14,7 @@ type DashboardTasksSectionProps = {
   refreshTrigger?: number
 }
 
-export const DashboardTasksSection = ({ 
+export const DashboardTasksSection = ({
   onTaskClick,
   onLongPressStart,
   onLongPressEnd,
@@ -139,17 +139,20 @@ export const DashboardTasksSection = ({
     }
   }, [viewPeriod, customStartDate, customEndDate])
 
-  // Load tasks based on date range (exclude completed tasks)
+  // Load tasks based on date range (exclude completed tasks, include tasks without deadline)
   useEffect(() => {
     const loadTasks = async () => {
       setIsLoading(true)
       try {
-        const allTasks = await fetchTasks({
-          deadline_from: dateRange.start,
-          deadline_to: dateRange.end,
+        const allTasks = await fetchTasks()
+        // Filter out completed and cancelled tasks, allow tasks in date range OR without deadline
+        const activeTasks = allTasks.filter(task => {
+          if (task.status === 'completed' || task.status === 'cancelled') return false
+          if (!task.deadline) return true
+
+          const taskDateStr = task.deadline.split('T')[0]
+          return taskDateStr >= dateRange.start && taskDateStr <= dateRange.end
         })
-        // Filter out completed tasks from home page
-        const activeTasks = allTasks.filter(task => task.status !== 'completed')
         setTasks(activeTasks)
       } catch (error) {
         console.error('Error loading tasks:', error)
@@ -166,12 +169,15 @@ export const DashboardTasksSection = ({
     try {
       await updateTask(taskId, updates)
       // Reload tasks to reflect changes (exclude completed tasks)
-      const allTasks = await fetchTasks({
-        deadline_from: dateRange.start,
-        deadline_to: dateRange.end,
+      const allTasks = await fetchTasks()
+      // Filter out completed and cancelled tasks, allow tasks in date range OR without deadline
+      const activeTasks = allTasks.filter(task => {
+        if (task.status === 'completed' || task.status === 'cancelled') return false
+        if (!task.deadline) return true
+
+        const taskDateStr = task.deadline.split('T')[0]
+        return taskDateStr >= dateRange.start && taskDateStr <= dateRange.end
       })
-      // Filter out completed tasks from home page
-      const activeTasks = allTasks.filter(task => task.status !== 'completed')
       setTasks(activeTasks)
     } catch (error) {
       console.error('Error updating task:', error)
@@ -232,16 +238,16 @@ export const DashboardTasksSection = ({
         <div className="flex items-center gap-2 mb-3">
           <div
             className={`flex-1 px-3 py-2 rounded-xl text-sm font-semibold ${viewPeriod === 'week'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'bg-slate-100 text-slate-600'
+              ? 'bg-blue-600 text-white shadow-md'
+              : 'bg-slate-100 text-slate-600'
               }`}
           >
             Tuần
           </div>
           <div
             className={`flex-1 px-3 py-2 rounded-xl text-sm font-semibold ${viewPeriod === 'month'
-                ? 'bg-blue-600 text-white shadow-md'
-                : 'bg-slate-100 text-slate-600'
+              ? 'bg-blue-600 text-white shadow-md'
+              : 'bg-slate-100 text-slate-600'
               }`}
           >
             Tháng

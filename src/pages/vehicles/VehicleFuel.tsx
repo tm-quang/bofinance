@@ -1266,7 +1266,7 @@ function AddChargeModal({
                                             return p.join(',')
                                         })()}
                                         onChange={(e) => {
-                                            let v = e.target.value.replace(/,/g, '.')
+                                            const v = e.target.value.replace(/,/g, '.')
                                             if (!/^[\d.]*$/.test(v)) return
                                             if ((v.match(/\./g) || []).length > 1) return
                                             setFormData({ ...formData, quantity: v })

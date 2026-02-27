@@ -37,24 +37,28 @@ const getDateRange = (period: TimePeriod) => {
   let endDate: Date
 
   switch (period) {
-    case 'day':
+    case 'day': {
       startDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0)
       endDate = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59)
       break
-    case 'week':
+    }
+    case 'week': {
       // Get Monday of current week
       const dayOfWeek = now.getDay()
       const diff = now.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1) // Adjust when day is Sunday
       startDate = new Date(now.getFullYear(), now.getMonth(), diff, 0, 0, 0)
       endDate = new Date(now.getFullYear(), now.getMonth(), diff + 6, 23, 59, 59)
       break
-    case 'month':
+    }
+    case 'month': {
       startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0)
       endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
       break
-    default:
+    }
+    default: {
       startDate = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0)
       endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59)
+    }
   }
 
   return {
@@ -220,11 +224,10 @@ export const IncomeExpenseOverview = ({ walletId }: IncomeExpenseOverviewProps) 
                           setTimePeriod(option.value)
                           setIsTimePeriodDropdownOpen(false)
                         }}
-                        className={`flex w-full items-center justify-between px-4 py-3 text-left transition-colors ${
-                          timePeriod === option.value
+                        className={`flex w-full items-center justify-between px-4 py-3 text-left transition-colors ${timePeriod === option.value
                             ? 'bg-sky-50 text-sky-700'
                             : 'text-slate-700 hover:bg-slate-50'
-                        }`}
+                          }`}
                       >
                         <span className="text-sm font-medium">{option.label}</span>
                         {timePeriod === option.value && (
@@ -260,13 +263,13 @@ export const IncomeExpenseOverview = ({ walletId }: IncomeExpenseOverviewProps) 
         </div>
       ) : transactions.length === 0 ? (
         <div className="mb-4 flex flex-col items-center justify-center py-2">
-          <img 
-            src="/money-motivation-10.png" 
-            alt="No data" 
+          <img
+            src="/money-motivation-10.png"
+            alt="No data"
             className="h-auto w-[250px] max-w-md object-contain mb-4 opacity-70"
           />
           <p className="text-sm text-slate-500 text-center px-4">
-          Chưa có dữ liệu Thu - Chi
+            Chưa có dữ liệu Thu - Chi
           </p>
         </div>
       ) : (
@@ -323,7 +326,7 @@ export const IncomeExpenseOverview = ({ walletId }: IncomeExpenseOverviewProps) 
             className="absolute inset-0 bg-black/70 backdrop-blur-md"
             onClick={() => !isSavingPreferences && setIsSettingsModalOpen(false)}
           />
-          
+
           {/* Modal */}
           <div className="relative w-full max-w-md max-h-[90vh] flex flex-col rounded-3xl bg-white shadow-[0_25px_80px_rgba(0,0,0,0.5)] ring-1 ring-slate-200 overflow-hidden animate-in fade-in zoom-in-95 duration-300">
             {/* Header */}
@@ -359,11 +362,10 @@ export const IncomeExpenseOverview = ({ walletId }: IncomeExpenseOverviewProps) 
                         key={option.value}
                         type="button"
                         onClick={() => setSelectedDefaultPeriod(option.value)}
-                        className={`w-full flex items-center justify-between rounded-xl border-2 px-4 py-3 transition-all ${
-                          selectedDefaultPeriod === option.value
+                        className={`w-full flex items-center justify-between rounded-xl border-2 px-4 py-3 transition-all ${selectedDefaultPeriod === option.value
                             ? 'border-sky-500 bg-sky-50 text-sky-700'
                             : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50'
-                        }`}
+                          }`}
                       >
                         <span className="text-sm font-medium">{option.label}</span>
                         {selectedDefaultPeriod === option.value && (
@@ -396,11 +398,10 @@ export const IncomeExpenseOverview = ({ walletId }: IncomeExpenseOverviewProps) 
                       }
                     }}
                     disabled={isSavingPreferences}
-                    className={`w-full rounded-xl px-4 py-3 text-sm font-semibold text-white transition-all ${
-                      isSavingPreferences
+                    className={`w-full rounded-xl px-4 py-3 text-sm font-semibold text-white transition-all ${isSavingPreferences
                         ? 'bg-slate-300 cursor-not-allowed'
                         : 'bg-sky-600 hover:bg-sky-700 active:scale-95'
-                    }`}
+                      }`}
                   >
                     {isSavingPreferences ? 'Đang lưu...' : 'Lưu cài đặt'}
                   </button>

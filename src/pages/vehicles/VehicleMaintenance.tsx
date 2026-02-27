@@ -567,7 +567,7 @@ function AddMaintenanceModal({ vehicle, onClose, onSuccess }: {
 
     const calculateReminders = () => {
         const intervalKm = vehicle.maintenance_interval_km || (vehicle.vehicle_type === 'motorcycle' ? 2000 : 5000)
-        let km = form.odometer ? form.odometer + intervalKm : ''
+        const km = form.odometer ? form.odometer + intervalKm : ''
 
         let dDate = ''
         if (vehicle.maintenance_interval_months && form.maintenance_date) {

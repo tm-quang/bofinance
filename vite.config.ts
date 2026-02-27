@@ -8,6 +8,8 @@ import path from 'path'
 export default defineConfig({
   build: {
     chunkSizeWarningLimit: 1000, // Tăng limit từ 500KB lên 1000KB
+    target: 'esnext',
+    minify: 'esbuild',
     rollupOptions: {
       output: {
         manualChunks: {
@@ -19,6 +21,12 @@ export default defineConfig({
         },
       },
     },
+  },
+  esbuild: {
+    drop: ['console', 'debugger'],
+    pure: ['console.log', 'console.info', 'console.debug', 'console.trace'],
+    legalComments: 'none',
+    treeShaking: true,
   },
   plugins: [
     react(),

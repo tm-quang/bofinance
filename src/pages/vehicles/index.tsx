@@ -99,7 +99,7 @@ export default function VehicleManagement() {
         const d = new Date(selectedVehicle.next_maintenance_date)
         const days = Math.ceil((d.getTime() - Date.now()) / 86400000)
 
-        let intervalMonths = selectedVehicle.maintenance_interval_months || (isMoto ? 3 : 6)
+        const intervalMonths = selectedVehicle.maintenance_interval_months || (isMoto ? 3 : 6)
         let intervalDays = intervalMonths * 30
 
         // Nếu số ngày còn lại vượt quá chu kỳ, nới chu kỳ ra bằng mốc ban đầu (ví dụ 1 năm)

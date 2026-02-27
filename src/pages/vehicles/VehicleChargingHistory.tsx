@@ -78,7 +78,7 @@ export default function VehicleChargingHistory() {
                     if (!cell) return 0
                     if (typeof cell.value === 'number') return cell.value
                     if (cell.value && typeof cell.value.result === 'number') return cell.value.result
-                    let t = (cell.text || '').trim()
+                    const t = (cell.text || '').trim()
                     if (!t) return 0
                     if (isFloat) return parseFloat(t.replace(',', '.')) || 0
                     return parseInt(t.replace(/\D/g, ''), 10) || 0

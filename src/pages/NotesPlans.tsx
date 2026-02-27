@@ -76,7 +76,7 @@ const NotesPlansPage = () => {
     if (reminders.length === 0) return
     startPeriodicReminderCheck()
     checkRemindersAndNotify().catch(console.error)
-    return () => {}
+    return () => { }
   }, [reminders.length])
 
   const loadData = async () => {
@@ -92,7 +92,8 @@ const NotesPlansPage = () => {
       ])
 
       if (tasksData.status === 'fulfilled') {
-        setTasks(tasksData.value)
+        const activeTasks = tasksData.value.filter(t => t.status !== 'completed' && t.status !== 'cancelled')
+        setTasks(activeTasks)
       }
       if (remindersData.status === 'fulfilled') {
         setReminders(remindersData.value)
@@ -259,7 +260,7 @@ const NotesPlansPage = () => {
   // Filter items by selected date
   const selectedDateStr = formatDateUTC7(selectedDate)
   const dateItems = useMemo(() => {
-    const dateTasks = tasks.filter(t => t.deadline?.startsWith(selectedDateStr))
+    const dateTasks = tasks.filter(t => !t.deadline || t.deadline.startsWith(selectedDateStr))
     const dateReminders = reminders.filter(r => r.reminder_date === selectedDateStr && !r.completed_at)
     return { tasks: dateTasks, reminders: dateReminders }
   }, [tasks, reminders, selectedDateStr])
@@ -267,12 +268,12 @@ const NotesPlansPage = () => {
   // Filter by search and tab
   const filteredItems = useMemo(() => {
     const term = searchTerm.toLowerCase().trim()
-    
+
     let filteredTasks = tasks
     let filteredReminders = reminders.filter(r => !r.completed_at)
 
     // Apply date filter
-    filteredTasks = filteredTasks.filter(t => t.deadline?.startsWith(selectedDateStr))
+    filteredTasks = filteredTasks.filter(t => !t.deadline || t.deadline.startsWith(selectedDateStr))
     filteredReminders = filteredReminders.filter(r => r.reminder_date === selectedDateStr)
 
     // Apply search filter
@@ -308,7 +309,7 @@ const NotesPlansPage = () => {
   // Filter history items (all tasks and reminders including completed)
   const historyItems = useMemo(() => {
     const term = searchTerm.toLowerCase().trim()
-    
+
     let historyTasks = [...allTasks]
     let historyReminders = [...allReminders]
 
@@ -461,56 +462,56 @@ const NotesPlansPage = () => {
           {/* Calendar - Hide when viewing history */}
           {activeTab !== 'history' && (
             <>
-          <PlanCalendar
-            tasks={tasks}
-            reminders={reminders}
-            onDateClick={handleDateClick}
-            selectedDate={selectedCalendarDate}
-            onDateWithItemsClick={handleDateWithItemsClick}
-            disableRipple={disableRipple}
-          />
+              <PlanCalendar
+                tasks={tasks}
+                reminders={reminders}
+                onDateClick={handleDateClick}
+                selectedDate={selectedCalendarDate}
+                onDateWithItemsClick={handleDateWithItemsClick}
+                disableRipple={disableRipple}
+              />
 
-          {/* Enhanced Selected Date Header with stats cards */}
-          <div className="mb-3">
-            <h2 className="text-2xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent mb-3">
-              {formatSelectedDate(selectedDate)}
-            </h2>
-            <div className="flex gap-2">
-              <div className="flex-1 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-500 p-3 shadow-lg shadow-indigo-500/30">
-                <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-xl bg-white/20 flex items-center justify-center">
-                    <FaListUl className="h-4 w-4 text-white" />
+              {/* Enhanced Selected Date Header with stats cards */}
+              <div className="mb-3">
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent mb-3">
+                  {formatSelectedDate(selectedDate)}
+                </h2>
+                <div className="flex gap-2">
+                  <div className="flex-1 rounded-2xl bg-gradient-to-br from-indigo-500 to-purple-500 p-3 shadow-lg shadow-indigo-500/30">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-xl bg-white/20 flex items-center justify-center">
+                        <FaListUl className="h-4 w-4 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-white/80 font-medium">Công việc</p>
+                        <p className="text-lg font-bold text-white">{dateItems.tasks.length}</p>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-xs text-white/80 font-medium">Công việc</p>
-                    <p className="text-lg font-bold text-white">{dateItems.tasks.length}</p>
+                  <div className="flex-1 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 p-3 shadow-lg shadow-emerald-500/30">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-xl bg-white/20 flex items-center justify-center">
+                        <FaBell className="h-4 w-4 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-white/80 font-medium">Nhắc nhở</p>
+                        <p className="text-lg font-bold text-white">{dateItems.reminders.length}</p>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex-1 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-500 p-3 shadow-lg shadow-sky-500/30">
+                    <div className="flex items-center gap-2">
+                      <div className="h-8 w-8 rounded-xl bg-white/20 flex items-center justify-center">
+                        <FaCalendar className="h-4 w-4 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-xs text-white/80 font-medium">Tổng cộng</p>
+                        <p className="text-lg font-bold text-white">{dateItems.tasks.length + dateItems.reminders.length}</p>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
-              <div className="flex-1 rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-500 p-3 shadow-lg shadow-emerald-500/30">
-                <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-xl bg-white/20 flex items-center justify-center">
-                    <FaBell className="h-4 w-4 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-white/80 font-medium">Nhắc nhở</p>
-                    <p className="text-lg font-bold text-white">{dateItems.reminders.length}</p>
-                  </div>
-                </div>
-              </div>
-              <div className="flex-1 rounded-2xl bg-gradient-to-br from-sky-500 to-blue-500 p-3 shadow-lg shadow-sky-500/30">
-                <div className="flex items-center gap-2">
-                  <div className="h-8 w-8 rounded-xl bg-white/20 flex items-center justify-center">
-                    <FaCalendar className="h-4 w-4 text-white" />
-                  </div>
-                  <div>
-                    <p className="text-xs text-white/80 font-medium">Tổng cộng</p>
-                    <p className="text-lg font-bold text-white">{dateItems.tasks.length + dateItems.reminders.length}</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
             </>
           )}
 
@@ -581,51 +582,46 @@ const NotesPlansPage = () => {
           <div className="flex p-1 bg-gradient-to-r from-slate-100 via-slate-50 to-slate-100 rounded-2xl shadow-inner border border-slate-200/50 overflow-x-auto">
             <button
               onClick={() => setActiveTab('all')}
-              className={`flex-shrink-0 px-3 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 ${
-                activeTab === 'all' 
-                  ? 'bg-gradient-to-r from-blue-500 to-sky-500 text-white shadow-lg shadow-blue-500/30 scale-105 border border-blue-300' 
-                  : 'text-slate-600 hover:text-slate-800 hover:bg-white/50'
-              }`}
+              className={`flex-shrink-0 px-3 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 ${activeTab === 'all'
+                ? 'bg-gradient-to-r from-blue-500 to-sky-500 text-white shadow-lg shadow-blue-500/30 scale-105 border border-blue-300'
+                : 'text-slate-600 hover:text-slate-800 hover:bg-white/50'
+                }`}
             >
               Tất cả
             </button>
             <button
               onClick={() => setActiveTab('tasks')}
-              className={`flex-shrink-0 px-3 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 ${
-                activeTab === 'tasks' 
-                  ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/30 scale-105 border border-indigo-300' 
-                  : 'text-slate-600 hover:text-slate-800 hover:bg-white/50'
-              }`}
+              className={`flex-shrink-0 px-3 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 ${activeTab === 'tasks'
+                ? 'bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/30 scale-105 border border-indigo-300'
+                : 'text-slate-600 hover:text-slate-800 hover:bg-white/50'
+                }`}
             >
               Công việc
             </button>
             <button
               onClick={() => setActiveTab('reminders')}
-              className={`flex-shrink-0 px-3 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 ${
-                activeTab === 'reminders' 
-                  ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30 scale-105 border border-emerald-300' 
-                  : 'text-slate-600 hover:text-slate-800 hover:bg-white/50'
-              }`}
+              className={`flex-shrink-0 px-3 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 ${activeTab === 'reminders'
+                ? 'bg-gradient-to-r from-emerald-500 to-teal-500 text-white shadow-lg shadow-emerald-500/30 scale-105 border border-emerald-300'
+                : 'text-slate-600 hover:text-slate-800 hover:bg-white/50'
+                }`}
             >
               Kế hoạch
             </button>
             <button
               onClick={() => setActiveTab('notes')}
-              className={`flex-shrink-0 px-3 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 ${
-                activeTab === 'notes' 
-                  ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30 scale-105 border border-amber-300' 
-                  : 'text-slate-600 hover:text-slate-800 hover:bg-white/50'
-              }`}
+              className={`flex-shrink-0 px-3 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 ${activeTab === 'notes'
+                ? 'bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/30 scale-105 border border-amber-300'
+                : 'text-slate-600 hover:text-slate-800 hover:bg-white/50'
+                }`}
             >
               Ghi chú
             </button>
             <button
               onClick={() => setActiveTab('history')}
-              className={`flex-shrink-0 px-3 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 ${
-                activeTab === 'history' 
-                  ? 'bg-gradient-to-r from-slate-500 to-gray-600 text-white shadow-lg shadow-slate-500/30 scale-105 border border-slate-300' 
-                  : 'text-slate-600 hover:text-slate-800 hover:bg-white/50'
-              }`}
+              className={`flex-shrink-0 px-3 py-2.5 text-xs font-bold rounded-xl transition-all duration-300 ${activeTab === 'history'
+                ? 'bg-gradient-to-r from-slate-500 to-gray-600 text-white shadow-lg shadow-slate-500/30 scale-105 border border-slate-300'
+                : 'text-slate-600 hover:text-slate-800 hover:bg-white/50'
+                }`}
             >
               <span className="flex items-center gap-1.5">
                 <FaHistory className="h-3 w-3" />
@@ -647,490 +643,486 @@ const NotesPlansPage = () => {
                   <div className="space-y-3">
                     {/* History Tasks */}
                     {historyItems.tasks.map((task) => {
-                    const getTaskColorClasses = () => {
-                      if (task.status === 'completed') {
-                        return {
-                          bg: 'bg-gradient-to-br from-green-50 via-emerald-50 to-green-50',
-                          border: 'border-green-200/80',
-                          icon: 'bg-gradient-to-br from-green-400 to-emerald-500',
-                          shadow: 'shadow-green-100/50'
-                        }
-                      } else if (task.status === 'in_progress') {
-                        return {
-                          bg: 'bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50',
-                          border: 'border-blue-200/80',
-                          icon: 'bg-gradient-to-br from-blue-400 to-indigo-500',
-                          shadow: 'shadow-blue-100/50'
-                        }
-                      } else if (task.priority === 'urgent') {
-                        return {
-                          bg: 'bg-gradient-to-br from-red-50 via-rose-50 to-red-50',
-                          border: 'border-red-200/80',
-                          icon: 'bg-gradient-to-br from-red-400 to-rose-500',
-                          shadow: 'shadow-red-100/50'
-                        }
-                      } else {
-                        return {
-                          bg: 'bg-gradient-to-br from-indigo-50 via-purple-50 to-indigo-50',
-                          border: 'border-indigo-200/80',
-                          icon: 'bg-gradient-to-br from-indigo-400 to-purple-500',
-                          shadow: 'shadow-indigo-100/50'
+                      const getTaskColorClasses = () => {
+                        if (task.status === 'completed') {
+                          return {
+                            bg: 'bg-gradient-to-br from-green-50 via-emerald-50 to-green-50',
+                            border: 'border-green-200/80',
+                            icon: 'bg-gradient-to-br from-green-400 to-emerald-500',
+                            shadow: 'shadow-green-100/50'
+                          }
+                        } else if (task.status === 'in_progress') {
+                          return {
+                            bg: 'bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50',
+                            border: 'border-blue-200/80',
+                            icon: 'bg-gradient-to-br from-blue-400 to-indigo-500',
+                            shadow: 'shadow-blue-100/50'
+                          }
+                        } else if (task.priority === 'urgent') {
+                          return {
+                            bg: 'bg-gradient-to-br from-red-50 via-rose-50 to-red-50',
+                            border: 'border-red-200/80',
+                            icon: 'bg-gradient-to-br from-red-400 to-rose-500',
+                            shadow: 'shadow-red-100/50'
+                          }
+                        } else {
+                          return {
+                            bg: 'bg-gradient-to-br from-indigo-50 via-purple-50 to-indigo-50',
+                            border: 'border-indigo-200/80',
+                            icon: 'bg-gradient-to-br from-indigo-400 to-purple-500',
+                            shadow: 'shadow-indigo-100/50'
+                          }
                         }
                       }
-                    }
-                    
-                    const taskColors = getTaskColorClasses()
-                    
-                    return (
-                      <div
-                        key={task.id}
-                        className={`rounded-3xl p-4 border-2 ${taskColors.bg} ${taskColors.border} shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group`}
-                        style={{ boxShadow: `0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.05), 0 0 20px -5px ${taskColors.shadow.replace('shadow-', '').replace('/50', '')}50` }}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${taskColors.icon} shadow-md group-hover:scale-110 transition-transform duration-300`}>
-                            <FaListUl className="h-6 w-6 text-white drop-shadow-sm" />
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <h3 className="text-base font-bold text-slate-900 leading-tight flex-1">{task.title}</h3>
-                              {task.status === 'completed' && (
-                                <FaCheck className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
-                              )}
-                            </div>
-                            {task.description && (
-                              <p className="mt-1.5 text-sm text-slate-600 line-clamp-2 leading-relaxed">{task.description}</p>
-                            )}
-                            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                              <span className={`text-xs font-semibold px-3 py-1 rounded-full shadow-sm ${
-                                task.status === 'completed' ? 'bg-green-500 text-white' :
-                                task.status === 'in_progress' ? 'bg-blue-500 text-white' :
-                                'bg-amber-500 text-white'
-                              }`}>
-                                {task.status === 'completed' ? '✓ Hoàn thành' :
-                                 task.status === 'in_progress' ? '⏳ Đang làm' : '⏸ Chờ'}
-                              </span>
-                              {task.priority === 'urgent' && (
-                                <span className="text-xs px-3 py-1 rounded-full bg-gradient-to-r from-red-500 to-rose-500 text-white font-semibold shadow-sm animate-pulse">
-                                  ⚠ Khẩn
-                                </span>
-                              )}
-                              {task.priority === 'high' && (
-                                <span className="text-xs px-3 py-1 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold shadow-sm">
-                                  ⬆ Cao
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="mt-4 flex gap-2">
-                          <button
-                            onClick={() => {
-                              setViewingTask(task)
-                              setIsTaskDetailModalOpen(true)
-                            }}
-                            className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-sky-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-blue-600 hover:to-sky-600 hover:shadow-lg hover:scale-105 active:scale-95"
-                          >
-                            <FaEdit className="h-4 w-4" />
-                            <span>Xem/Sửa</span>
-                          </button>
-                          <button
-                            onClick={() => handleDelete('task', task)}
-                            className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-red-500 to-rose-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-red-600 hover:to-rose-600 hover:shadow-lg hover:scale-105 active:scale-95"
-                          >
-                            <FaTrash className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  })}
 
-                  {/* History Reminders/Notes */}
-                  {historyItems.reminders.map((reminder) => {
-                    const isNote = !reminder.amount && !reminder.category_id && !reminder.wallet_id
-                    const reminderColor = getReminderColor(reminder)
-                    const colorClasses = getColorClasses(reminderColor)
-                    const categoryInfo = getCategoryInfo(reminder.category_id)
-                    const walletName = getWalletName(reminder.wallet_id)
+                      const taskColors = getTaskColorClasses()
 
-                    return (
-                      <div
-                        key={reminder.id}
-                        className={`rounded-3xl p-4 border-2 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] group ${colorClasses.bg} ${colorClasses.border} shadow-lg`}
-                        style={{ boxShadow: `0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.05), 0 0 20px -5px ${colorClasses.shadow.replace('shadow-', '').replace('/50', '')}50` }}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${colorClasses.icon} shadow-md group-hover:scale-110 transition-transform duration-300 ring-2 ring-white/50`}>
-                            {reminderIcons[reminder.id] ? (
-                              <span className="h-10 w-10 flex items-center justify-center text-white">{reminderIcons[reminder.id]}</span>
-                            ) : categoryInfo.icon ? (
-                              <span className="h-10 w-10 flex items-center justify-center text-white">{categoryInfo.icon}</span>
-                            ) : (
-                              <FaCalendar className="h-5 w-5 text-white drop-shadow-sm" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <h3 className="text-base font-bold text-slate-900 leading-tight">{reminder.title}</h3>
-                                  {reminder.enable_notification && (
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      <FaBell className="h-3.5 w-3.5 text-amber-500 animate-pulse" />
-                                    </div>
-                                  )}
-                                </div>
-                                {reminder.amount && (
-                                  <p className="mt-1.5 text-lg font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
-                                    {formatVNDDisplay(reminder.amount)}
-                                  </p>
+                      return (
+                        <div
+                          key={task.id}
+                          className={`rounded-3xl p-4 border-2 ${taskColors.bg} ${taskColors.border} shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group`}
+                          style={{ boxShadow: `0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.05), 0 0 20px -5px ${taskColors.shadow.replace('shadow-', '').replace('/50', '')}50` }}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${taskColors.icon} shadow-md group-hover:scale-110 transition-transform duration-300`}>
+                              <FaListUl className="h-6 w-6 text-white drop-shadow-sm" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <h3 className="text-base font-bold text-slate-900 leading-tight flex-1">{task.title}</h3>
+                                {task.status === 'completed' && (
+                                  <FaCheck className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
                                 )}
                               </div>
-                              {reminder.reminder_time && (
-                                <div className="text-right shrink-0">
-                                  <div className="flex items-center gap-1.5 bg-white/80 px-2 py-1 rounded-lg shadow-sm">
-                                    <FaClock className="h-3 w-3 text-slate-500" />
-                                    <p className="text-xs font-semibold text-slate-700">
-                                      {formatTime(reminder.reminder_time)}
-                                    </p>
-                                  </div>
-                                </div>
+                              {task.description && (
+                                <p className="mt-1.5 text-sm text-slate-600 line-clamp-2 leading-relaxed">{task.description}</p>
                               )}
+                              <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                                <span className={`text-xs font-semibold px-3 py-1 rounded-full shadow-sm ${task.status === 'completed' ? 'bg-green-500 text-white' :
+                                  task.status === 'in_progress' ? 'bg-blue-500 text-white' :
+                                    'bg-amber-500 text-white'
+                                  }`}>
+                                  {task.status === 'completed' ? '✓ Hoàn thành' :
+                                    task.status === 'in_progress' ? '⏳ Đang làm' : '⏸ Chờ'}
+                                </span>
+                                {task.priority === 'urgent' && (
+                                  <span className="text-xs px-3 py-1 rounded-full bg-gradient-to-r from-red-500 to-rose-500 text-white font-semibold shadow-sm animate-pulse">
+                                    ⚠ Khẩn
+                                  </span>
+                                )}
+                                {task.priority === 'high' && (
+                                  <span className="text-xs px-3 py-1 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold shadow-sm">
+                                    ⬆ Cao
+                                  </span>
+                                )}
+                              </div>
                             </div>
-                            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                              {categoryInfo.name && (
-                                <span className="inline-flex items-center rounded-full bg-gradient-to-r from-white to-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm border border-slate-200/80">
-                                  {categoryInfo.name}
-                                </span>
-                              )}
-                              {walletName && (
-                                <span className="inline-flex items-center rounded-full bg-gradient-to-r from-white to-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm border border-slate-200/80">
-                                  {walletName}
-                                </span>
-                              )}
-                              {isNote && (
-                                <span className="inline-flex items-center rounded-full bg-gradient-to-r from-amber-400 to-orange-400 px-3 py-1 text-xs font-semibold text-white shadow-sm">
-                                  📝 Ghi chú
-                                </span>
-                              )}
-                              {!isNote && reminder.type && (
-                                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-white shadow-sm ${
-                                  reminder.type === 'Thu' 
-                                    ? 'bg-gradient-to-r from-emerald-400 to-green-500' 
-                                    : 'bg-gradient-to-r from-rose-400 to-red-500'
-                                }`}>
-                                  {reminder.type === 'Thu' ? '💰 Thu' : '💸 Chi'}
-                                </span>
-                              )}
-                            </div>
-                            {reminder.notes && (
-                              <p className="mt-2.5 text-sm text-slate-600 leading-relaxed bg-white/50 rounded-xl p-2 border border-white/80">{reminder.notes}</p>
-                            )}
                           </div>
-                        </div>
-                        <div className="mt-4 flex gap-2">
-                          {!isNote && (
+                          <div className="mt-4 flex gap-2">
                             <button
-                              onClick={() => handleCreateTransaction(reminder)}
-                              className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-sky-600 hover:to-blue-700 hover:shadow-lg hover:scale-105 active:scale-95"
+                              onClick={() => {
+                                setViewingTask(task)
+                                setIsTaskDetailModalOpen(true)
+                              }}
+                              className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-sky-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-blue-600 hover:to-sky-600 hover:shadow-lg hover:scale-105 active:scale-95"
                             >
-                              <FaPlus className="h-3.5 w-3.5" />
-                              <span>Tạo giao dịch</span>
+                              <FaEdit className="h-4 w-4" />
+                              <span>Xem/Sửa</span>
                             </button>
-                          )}
-                          <button
-                            onClick={() => handleEditReminder(reminder)}
-                            className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-blue-500 to-sky-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-blue-600 hover:to-sky-600 hover:shadow-lg hover:scale-105 active:scale-95"
-                          >
-                            <FaEdit className="h-4 w-4" />
-                          </button>
-                          {isNote ? (
                             <button
-                              onClick={() => handleDelete('note', reminder)}
+                              onClick={() => handleDelete('task', task)}
                               className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-red-500 to-rose-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-red-600 hover:to-rose-600 hover:shadow-lg hover:scale-105 active:scale-95"
                             >
                               <FaTrash className="h-4 w-4" />
                             </button>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => handleCompleteReminder(reminder)}
-                                className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-500 to-green-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-emerald-600 hover:to-green-600 hover:shadow-lg hover:scale-105 active:scale-95"
-                                title="Hoàn thành"
-                              >
-                                <FaCheck className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => handleSkipReminder(reminder)}
-                                className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-slate-400 to-slate-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-slate-500 hover:to-slate-600 hover:shadow-lg hover:scale-105 active:scale-95"
-                                title="Bỏ qua"
-                              >
-                                <FaTimes className="h-4 w-4" />
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-16 rounded-3xl bg-gradient-to-br from-white via-slate-50 to-white shadow-xl border-2 border-slate-200/50">
-                  <div className="h-20 w-20 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-5 shadow-inner">
-                    <FaHistory className="h-10 w-10 text-slate-400" />
-                  </div>
-                  <p className="text-slate-600 font-semibold text-base mb-2">Chưa có lịch sử bản ghi</p>
-                  <p className="text-slate-400 text-sm mb-6 text-center px-4">Các công việc, ghi chú và kế hoạch đã tạo sẽ hiển thị ở đây</p>
-                </div>
-              )
-            ) : (
-              /* Regular filtered items for other tabs */
-              (filteredItems.tasks.length > 0 || filteredItems.reminders.length > 0) ? (
-                <div className="space-y-3">
-                  {/* Tasks with enhanced styling */}
-                  {filteredItems.tasks.map((task) => {
-                    const getTaskColorClasses = () => {
-                      if (task.status === 'completed') {
-                        return {
-                          bg: 'bg-gradient-to-br from-green-50 via-emerald-50 to-green-50',
-                          border: 'border-green-200/80',
-                          icon: 'bg-gradient-to-br from-green-400 to-emerald-500',
-                          shadow: 'shadow-green-100/50'
-                        }
-                      } else if (task.status === 'in_progress') {
-                        return {
-                          bg: 'bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50',
-                          border: 'border-blue-200/80',
-                          icon: 'bg-gradient-to-br from-blue-400 to-indigo-500',
-                          shadow: 'shadow-blue-100/50'
-                        }
-                      } else if (task.priority === 'urgent') {
-                        return {
-                          bg: 'bg-gradient-to-br from-red-50 via-rose-50 to-red-50',
-                          border: 'border-red-200/80',
-                          icon: 'bg-gradient-to-br from-red-400 to-rose-500',
-                          shadow: 'shadow-red-100/50'
-                        }
-                      } else {
-                        return {
-                          bg: 'bg-gradient-to-br from-indigo-50 via-purple-50 to-indigo-50',
-                          border: 'border-indigo-200/80',
-                          icon: 'bg-gradient-to-br from-indigo-400 to-purple-500',
-                          shadow: 'shadow-indigo-100/50'
-                        }
-                      }
-                    }
-                    
-                    const taskColors = getTaskColorClasses()
-                    
-                    return (
-                      <div
-                        key={task.id}
-                        className={`rounded-3xl p-4 border-2 ${taskColors.bg} ${taskColors.border} shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group`}
-                        style={{ boxShadow: `0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.05), 0 0 20px -5px ${taskColors.shadow.replace('shadow-', '').replace('/50', '')}50` }}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${taskColors.icon} shadow-md group-hover:scale-110 transition-transform duration-300`}>
-                            <FaListUl className="h-6 w-6 text-white drop-shadow-sm" />
                           </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <h3 className="text-base font-bold text-slate-900 leading-tight flex-1">{task.title}</h3>
-                              {task.status === 'completed' && (
-                                <FaCheck className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+                        </div>
+                      )
+                    })}
+
+                    {/* History Reminders/Notes */}
+                    {historyItems.reminders.map((reminder) => {
+                      const isNote = !reminder.amount && !reminder.category_id && !reminder.wallet_id
+                      const reminderColor = getReminderColor(reminder)
+                      const colorClasses = getColorClasses(reminderColor)
+                      const categoryInfo = getCategoryInfo(reminder.category_id)
+                      const walletName = getWalletName(reminder.wallet_id)
+
+                      return (
+                        <div
+                          key={reminder.id}
+                          className={`rounded-3xl p-4 border-2 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] group ${colorClasses.bg} ${colorClasses.border} shadow-lg`}
+                          style={{ boxShadow: `0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.05), 0 0 20px -5px ${colorClasses.shadow.replace('shadow-', '').replace('/50', '')}50` }}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${colorClasses.icon} shadow-md group-hover:scale-110 transition-transform duration-300 ring-2 ring-white/50`}>
+                              {reminderIcons[reminder.id] ? (
+                                <span className="h-10 w-10 flex items-center justify-center text-white">{reminderIcons[reminder.id]}</span>
+                              ) : categoryInfo.icon ? (
+                                <span className="h-10 w-10 flex items-center justify-center text-white">{categoryInfo.icon}</span>
+                              ) : (
+                                <FaCalendar className="h-5 w-5 text-white drop-shadow-sm" />
                               )}
                             </div>
-                            {task.description && (
-                              <p className="mt-1.5 text-sm text-slate-600 line-clamp-2 leading-relaxed">{task.description}</p>
-                            )}
-                            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                              <span className={`text-xs font-semibold px-3 py-1 rounded-full shadow-sm ${
-                                task.status === 'completed' ? 'bg-green-500 text-white' :
-                                task.status === 'in_progress' ? 'bg-blue-500 text-white' :
-                                'bg-amber-500 text-white'
-                              }`}>
-                                {task.status === 'completed' ? '✓ Hoàn thành' :
-                                 task.status === 'in_progress' ? '⏳ Đang làm' : '⏸ Chờ'}
-                              </span>
-                              {task.priority === 'urgent' && (
-                                <span className="text-xs px-3 py-1 rounded-full bg-gradient-to-r from-red-500 to-rose-500 text-white font-semibold shadow-sm animate-pulse">
-                                  ⚠ Khẩn
-                                </span>
-                              )}
-                              {task.priority === 'high' && (
-                                <span className="text-xs px-3 py-1 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold shadow-sm">
-                                  ⬆ Cao
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="mt-4 flex gap-2">
-                          <button
-                            onClick={() => {
-                              setViewingTask(task)
-                              setIsTaskDetailModalOpen(true)
-                            }}
-                            className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-sky-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-blue-600 hover:to-sky-600 hover:shadow-lg hover:scale-105 active:scale-95"
-                          >
-                            <FaEdit className="h-4 w-4" />
-                            <span>Xem/Sửa</span>
-                          </button>
-                          <button
-                            onClick={() => handleDelete('task', task)}
-                            className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-red-500 to-rose-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-red-600 hover:to-rose-600 hover:shadow-lg hover:scale-105 active:scale-95"
-                          >
-                            <FaTrash className="h-4 w-4" />
-                          </button>
-                        </div>
-                      </div>
-                    )
-                  })}
-
-                  {/* Reminders/Notes */}
-                  {filteredItems.reminders.map((reminder) => {
-                    const isNote = !reminder.amount && !reminder.category_id && !reminder.wallet_id
-                    const reminderColor = getReminderColor(reminder)
-                    const colorClasses = getColorClasses(reminderColor)
-                    const categoryInfo = getCategoryInfo(reminder.category_id)
-                    const walletName = getWalletName(reminder.wallet_id)
-
-                    return (
-                      <div
-                        key={reminder.id}
-                        className={`rounded-3xl p-4 border-2 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] group ${colorClasses.bg} ${colorClasses.border} shadow-lg`}
-                        style={{ boxShadow: `0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.05), 0 0 20px -5px ${colorClasses.shadow.replace('shadow-', '').replace('/50', '')}50` }}
-                      >
-                        <div className="flex items-start gap-3">
-                          <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${colorClasses.icon} shadow-md group-hover:scale-110 transition-transform duration-300 ring-2 ring-white/50`}>
-                            {reminderIcons[reminder.id] ? (
-                              <span className="h-10 w-10 flex items-center justify-center text-white">{reminderIcons[reminder.id]}</span>
-                            ) : categoryInfo.icon ? (
-                              <span className="h-10 w-10 flex items-center justify-center text-white">{categoryInfo.icon}</span>
-                            ) : (
-                              <FaCalendar className="h-5 w-5 text-white drop-shadow-sm" />
-                            )}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-start justify-between gap-2">
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <h3 className="text-base font-bold text-slate-900 leading-tight">{reminder.title}</h3>
-                                  {reminder.enable_notification && (
-                                    <div className="flex items-center gap-1 shrink-0">
-                                      <FaBell className="h-3.5 w-3.5 text-amber-500 animate-pulse" />
-                                    </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h3 className="text-base font-bold text-slate-900 leading-tight">{reminder.title}</h3>
+                                    {reminder.enable_notification && (
+                                      <div className="flex items-center gap-1 shrink-0">
+                                        <FaBell className="h-3.5 w-3.5 text-amber-500 animate-pulse" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  {reminder.amount && (
+                                    <p className="mt-1.5 text-lg font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
+                                      {formatVNDDisplay(reminder.amount)}
+                                    </p>
                                   )}
                                 </div>
-                                {reminder.amount && (
-                                  <p className="mt-1.5 text-lg font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
-                                    {formatVNDDisplay(reminder.amount)}
-                                  </p>
+                                {reminder.reminder_time && (
+                                  <div className="text-right shrink-0">
+                                    <div className="flex items-center gap-1.5 bg-white/80 px-2 py-1 rounded-lg shadow-sm">
+                                      <FaClock className="h-3 w-3 text-slate-500" />
+                                      <p className="text-xs font-semibold text-slate-700">
+                                        {formatTime(reminder.reminder_time)}
+                                      </p>
+                                    </div>
+                                  </div>
                                 )}
                               </div>
-                              {reminder.reminder_time && (
-                                <div className="text-right shrink-0">
-                                  <div className="flex items-center gap-1.5 bg-white/80 px-2 py-1 rounded-lg shadow-sm">
-                                    <FaClock className="h-3 w-3 text-slate-500" />
-                                    <p className="text-xs font-semibold text-slate-700">
-                                      {formatTime(reminder.reminder_time)}
-                                    </p>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                            <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-                              {categoryInfo.name && (
-                                <span className="inline-flex items-center rounded-full bg-gradient-to-r from-white to-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm border border-slate-200/80">
-                                  {categoryInfo.name}
-                                </span>
-                              )}
-                              {walletName && (
-                                <span className="inline-flex items-center rounded-full bg-gradient-to-r from-white to-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm border border-slate-200/80">
-                                  {walletName}
-                                </span>
-                              )}
-                              {isNote && (
-                                <span className="inline-flex items-center rounded-full bg-gradient-to-r from-amber-400 to-orange-400 px-3 py-1 text-xs font-semibold text-white shadow-sm">
-                                  📝 Ghi chú
-                                </span>
-                              )}
-                              {!isNote && reminder.type && (
-                                <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-white shadow-sm ${
-                                  reminder.type === 'Thu' 
-                                    ? 'bg-gradient-to-r from-emerald-400 to-green-500' 
+                              <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                                {categoryInfo.name && (
+                                  <span className="inline-flex items-center rounded-full bg-gradient-to-r from-white to-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm border border-slate-200/80">
+                                    {categoryInfo.name}
+                                  </span>
+                                )}
+                                {walletName && (
+                                  <span className="inline-flex items-center rounded-full bg-gradient-to-r from-white to-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm border border-slate-200/80">
+                                    {walletName}
+                                  </span>
+                                )}
+                                {isNote && (
+                                  <span className="inline-flex items-center rounded-full bg-gradient-to-r from-amber-400 to-orange-400 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+                                    📝 Ghi chú
+                                  </span>
+                                )}
+                                {!isNote && reminder.type && (
+                                  <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-white shadow-sm ${reminder.type === 'Thu'
+                                    ? 'bg-gradient-to-r from-emerald-400 to-green-500'
                                     : 'bg-gradient-to-r from-rose-400 to-red-500'
-                                }`}>
-                                  {reminder.type === 'Thu' ? '💰 Thu' : '💸 Chi'}
-                                </span>
+                                    }`}>
+                                    {reminder.type === 'Thu' ? '💰 Thu' : '💸 Chi'}
+                                  </span>
+                                )}
+                              </div>
+                              {reminder.notes && (
+                                <p className="mt-2.5 text-sm text-slate-600 leading-relaxed bg-white/50 rounded-xl p-2 border border-white/80">{reminder.notes}</p>
                               )}
                             </div>
-                            {reminder.notes && (
-                              <p className="mt-2.5 text-sm text-slate-600 leading-relaxed bg-white/50 rounded-xl p-2 border border-white/80">{reminder.notes}</p>
+                          </div>
+                          <div className="mt-4 flex gap-2">
+                            {!isNote && (
+                              <button
+                                onClick={() => handleCreateTransaction(reminder)}
+                                className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-sky-600 hover:to-blue-700 hover:shadow-lg hover:scale-105 active:scale-95"
+                              >
+                                <FaPlus className="h-3.5 w-3.5" />
+                                <span>Tạo giao dịch</span>
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleEditReminder(reminder)}
+                              className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-blue-500 to-sky-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-blue-600 hover:to-sky-600 hover:shadow-lg hover:scale-105 active:scale-95"
+                            >
+                              <FaEdit className="h-4 w-4" />
+                            </button>
+                            {isNote ? (
+                              <button
+                                onClick={() => handleDelete('note', reminder)}
+                                className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-red-500 to-rose-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-red-600 hover:to-rose-600 hover:shadow-lg hover:scale-105 active:scale-95"
+                              >
+                                <FaTrash className="h-4 w-4" />
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleCompleteReminder(reminder)}
+                                  className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-500 to-green-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-emerald-600 hover:to-green-600 hover:shadow-lg hover:scale-105 active:scale-95"
+                                  title="Hoàn thành"
+                                >
+                                  <FaCheck className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleSkipReminder(reminder)}
+                                  className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-slate-400 to-slate-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-slate-500 hover:to-slate-600 hover:shadow-lg hover:scale-105 active:scale-95"
+                                  title="Bỏ qua"
+                                >
+                                  <FaTimes className="h-4 w-4" />
+                                </button>
+                              </>
                             )}
                           </div>
                         </div>
-                        <div className="mt-4 flex gap-2">
-                          {!isNote && (
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-16 rounded-3xl bg-gradient-to-br from-white via-slate-50 to-white shadow-xl border-2 border-slate-200/50">
+                    <div className="h-20 w-20 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-5 shadow-inner">
+                      <FaHistory className="h-10 w-10 text-slate-400" />
+                    </div>
+                    <p className="text-slate-600 font-semibold text-base mb-2">Chưa có lịch sử bản ghi</p>
+                    <p className="text-slate-400 text-sm mb-6 text-center px-4">Các công việc, ghi chú và kế hoạch đã tạo sẽ hiển thị ở đây</p>
+                  </div>
+                )
+              ) : (
+                /* Regular filtered items for other tabs */
+                (filteredItems.tasks.length > 0 || filteredItems.reminders.length > 0) ? (
+                  <div className="space-y-3">
+                    {/* Tasks with enhanced styling */}
+                    {filteredItems.tasks.map((task) => {
+                      const getTaskColorClasses = () => {
+                        if (task.status === 'completed') {
+                          return {
+                            bg: 'bg-gradient-to-br from-green-50 via-emerald-50 to-green-50',
+                            border: 'border-green-200/80',
+                            icon: 'bg-gradient-to-br from-green-400 to-emerald-500',
+                            shadow: 'shadow-green-100/50'
+                          }
+                        } else if (task.status === 'in_progress') {
+                          return {
+                            bg: 'bg-gradient-to-br from-blue-50 via-indigo-50 to-blue-50',
+                            border: 'border-blue-200/80',
+                            icon: 'bg-gradient-to-br from-blue-400 to-indigo-500',
+                            shadow: 'shadow-blue-100/50'
+                          }
+                        } else if (task.priority === 'urgent') {
+                          return {
+                            bg: 'bg-gradient-to-br from-red-50 via-rose-50 to-red-50',
+                            border: 'border-red-200/80',
+                            icon: 'bg-gradient-to-br from-red-400 to-rose-500',
+                            shadow: 'shadow-red-100/50'
+                          }
+                        } else {
+                          return {
+                            bg: 'bg-gradient-to-br from-indigo-50 via-purple-50 to-indigo-50',
+                            border: 'border-indigo-200/80',
+                            icon: 'bg-gradient-to-br from-indigo-400 to-purple-500',
+                            shadow: 'shadow-indigo-100/50'
+                          }
+                        }
+                      }
+
+                      const taskColors = getTaskColorClasses()
+
+                      return (
+                        <div
+                          key={task.id}
+                          className={`rounded-3xl p-4 border-2 ${taskColors.bg} ${taskColors.border} shadow-lg hover:shadow-xl hover:scale-[1.02] transition-all duration-300 group`}
+                          style={{ boxShadow: `0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.05), 0 0 20px -5px ${taskColors.shadow.replace('shadow-', '').replace('/50', '')}50` }}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${taskColors.icon} shadow-md group-hover:scale-110 transition-transform duration-300`}>
+                              <FaListUl className="h-6 w-6 text-white drop-shadow-sm" />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <h3 className="text-base font-bold text-slate-900 leading-tight flex-1">{task.title}</h3>
+                                {task.status === 'completed' && (
+                                  <FaCheck className="h-5 w-5 text-green-600 shrink-0 mt-0.5" />
+                                )}
+                              </div>
+                              {task.description && (
+                                <p className="mt-1.5 text-sm text-slate-600 line-clamp-2 leading-relaxed">{task.description}</p>
+                              )}
+                              <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                                <span className={`text-xs font-semibold px-3 py-1 rounded-full shadow-sm ${task.status === 'completed' ? 'bg-green-500 text-white' :
+                                  task.status === 'in_progress' ? 'bg-blue-500 text-white' :
+                                    'bg-amber-500 text-white'
+                                  }`}>
+                                  {task.status === 'completed' ? '✓ Hoàn thành' :
+                                    task.status === 'in_progress' ? '⏳ Đang làm' : '⏸ Chờ'}
+                                </span>
+                                {task.priority === 'urgent' && (
+                                  <span className="text-xs px-3 py-1 rounded-full bg-gradient-to-r from-red-500 to-rose-500 text-white font-semibold shadow-sm animate-pulse">
+                                    ⚠ Khẩn
+                                  </span>
+                                )}
+                                {task.priority === 'high' && (
+                                  <span className="text-xs px-3 py-1 rounded-full bg-gradient-to-r from-orange-500 to-amber-500 text-white font-semibold shadow-sm">
+                                    ⬆ Cao
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="mt-4 flex gap-2">
                             <button
-                              onClick={() => handleCreateTransaction(reminder)}
-                              className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-sky-600 hover:to-blue-700 hover:shadow-lg hover:scale-105 active:scale-95"
+                              onClick={() => {
+                                setViewingTask(task)
+                                setIsTaskDetailModalOpen(true)
+                              }}
+                              className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-blue-500 to-sky-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-blue-600 hover:to-sky-600 hover:shadow-lg hover:scale-105 active:scale-95"
                             >
-                              <FaPlus className="h-3.5 w-3.5" />
-                              <span>Tạo giao dịch</span>
+                              <FaEdit className="h-4 w-4" />
+                              <span>Xem/Sửa</span>
                             </button>
-                          )}
-                          <button
-                            onClick={() => handleEditReminder(reminder)}
-                            className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-blue-500 to-sky-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-blue-600 hover:to-sky-600 hover:shadow-lg hover:scale-105 active:scale-95"
-                          >
-                            <FaEdit className="h-4 w-4" />
-                          </button>
-                          {isNote ? (
                             <button
-                              onClick={() => handleDelete('note', reminder)}
+                              onClick={() => handleDelete('task', task)}
                               className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-red-500 to-rose-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-red-600 hover:to-rose-600 hover:shadow-lg hover:scale-105 active:scale-95"
                             >
                               <FaTrash className="h-4 w-4" />
                             </button>
-                          ) : (
-                            <>
-                              <button
-                                onClick={() => handleCompleteReminder(reminder)}
-                                className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-500 to-green-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-emerald-600 hover:to-green-600 hover:shadow-lg hover:scale-105 active:scale-95"
-                                title="Hoàn thành"
-                              >
-                                <FaCheck className="h-4 w-4" />
-                              </button>
-                              <button
-                                onClick={() => handleSkipReminder(reminder)}
-                                className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-slate-400 to-slate-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-slate-500 hover:to-slate-600 hover:shadow-lg hover:scale-105 active:scale-95"
-                                title="Bỏ qua"
-                              >
-                                <FaTimes className="h-4 w-4" />
-                              </button>
-                            </>
-                          )}
+                          </div>
                         </div>
-                      </div>
-                    )
-                  })}
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center py-16 rounded-3xl bg-gradient-to-br from-white via-slate-50 to-white shadow-xl border-2 border-slate-200/50">
-                  <div className="h-20 w-20 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-5 shadow-inner">
-                    <FaCalendar className="h-10 w-10 text-slate-400" />
+                      )
+                    })}
+
+                    {/* Reminders/Notes */}
+                    {filteredItems.reminders.map((reminder) => {
+                      const isNote = !reminder.amount && !reminder.category_id && !reminder.wallet_id
+                      const reminderColor = getReminderColor(reminder)
+                      const colorClasses = getColorClasses(reminderColor)
+                      const categoryInfo = getCategoryInfo(reminder.category_id)
+                      const walletName = getWalletName(reminder.wallet_id)
+
+                      return (
+                        <div
+                          key={reminder.id}
+                          className={`rounded-3xl p-4 border-2 transition-all duration-300 hover:shadow-xl hover:scale-[1.02] group ${colorClasses.bg} ${colorClasses.border} shadow-lg`}
+                          style={{ boxShadow: `0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06), 0 0 0 1px rgba(0, 0, 0, 0.05), 0 0 20px -5px ${colorClasses.shadow.replace('shadow-', '').replace('/50', '')}50` }}
+                        >
+                          <div className="flex items-start gap-3">
+                            <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl ${colorClasses.icon} shadow-md group-hover:scale-110 transition-transform duration-300 ring-2 ring-white/50`}>
+                              {reminderIcons[reminder.id] ? (
+                                <span className="h-10 w-10 flex items-center justify-center text-white">{reminderIcons[reminder.id]}</span>
+                              ) : categoryInfo.icon ? (
+                                <span className="h-10 w-10 flex items-center justify-center text-white">{categoryInfo.icon}</span>
+                              ) : (
+                                <FaCalendar className="h-5 w-5 text-white drop-shadow-sm" />
+                              )}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-start justify-between gap-2">
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <h3 className="text-base font-bold text-slate-900 leading-tight">{reminder.title}</h3>
+                                    {reminder.enable_notification && (
+                                      <div className="flex items-center gap-1 shrink-0">
+                                        <FaBell className="h-3.5 w-3.5 text-amber-500 animate-pulse" />
+                                      </div>
+                                    )}
+                                  </div>
+                                  {reminder.amount && (
+                                    <p className="mt-1.5 text-lg font-bold bg-gradient-to-r from-slate-900 to-slate-700 bg-clip-text text-transparent">
+                                      {formatVNDDisplay(reminder.amount)}
+                                    </p>
+                                  )}
+                                </div>
+                                {reminder.reminder_time && (
+                                  <div className="text-right shrink-0">
+                                    <div className="flex items-center gap-1.5 bg-white/80 px-2 py-1 rounded-lg shadow-sm">
+                                      <FaClock className="h-3 w-3 text-slate-500" />
+                                      <p className="text-xs font-semibold text-slate-700">
+                                        {formatTime(reminder.reminder_time)}
+                                      </p>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                              <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+                                {categoryInfo.name && (
+                                  <span className="inline-flex items-center rounded-full bg-gradient-to-r from-white to-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm border border-slate-200/80">
+                                    {categoryInfo.name}
+                                  </span>
+                                )}
+                                {walletName && (
+                                  <span className="inline-flex items-center rounded-full bg-gradient-to-r from-white to-slate-50 px-3 py-1 text-xs font-semibold text-slate-700 shadow-sm border border-slate-200/80">
+                                    {walletName}
+                                  </span>
+                                )}
+                                {isNote && (
+                                  <span className="inline-flex items-center rounded-full bg-gradient-to-r from-amber-400 to-orange-400 px-3 py-1 text-xs font-semibold text-white shadow-sm">
+                                    📝 Ghi chú
+                                  </span>
+                                )}
+                                {!isNote && reminder.type && (
+                                  <span className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold text-white shadow-sm ${reminder.type === 'Thu'
+                                    ? 'bg-gradient-to-r from-emerald-400 to-green-500'
+                                    : 'bg-gradient-to-r from-rose-400 to-red-500'
+                                    }`}>
+                                    {reminder.type === 'Thu' ? '💰 Thu' : '💸 Chi'}
+                                  </span>
+                                )}
+                              </div>
+                              {reminder.notes && (
+                                <p className="mt-2.5 text-sm text-slate-600 leading-relaxed bg-white/50 rounded-xl p-2 border border-white/80">{reminder.notes}</p>
+                              )}
+                            </div>
+                          </div>
+                          <div className="mt-4 flex gap-2">
+                            {!isNote && (
+                              <button
+                                onClick={() => handleCreateTransaction(reminder)}
+                                className="flex-1 flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-sky-500 to-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-sky-600 hover:to-blue-700 hover:shadow-lg hover:scale-105 active:scale-95"
+                              >
+                                <FaPlus className="h-3.5 w-3.5" />
+                                <span>Tạo giao dịch</span>
+                              </button>
+                            )}
+                            <button
+                              onClick={() => handleEditReminder(reminder)}
+                              className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-blue-500 to-sky-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-blue-600 hover:to-sky-600 hover:shadow-lg hover:scale-105 active:scale-95"
+                            >
+                              <FaEdit className="h-4 w-4" />
+                            </button>
+                            {isNote ? (
+                              <button
+                                onClick={() => handleDelete('note', reminder)}
+                                className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-red-500 to-rose-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-red-600 hover:to-rose-600 hover:shadow-lg hover:scale-105 active:scale-95"
+                              >
+                                <FaTrash className="h-4 w-4" />
+                              </button>
+                            ) : (
+                              <>
+                                <button
+                                  onClick={() => handleCompleteReminder(reminder)}
+                                  className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-emerald-500 to-green-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-emerald-600 hover:to-green-600 hover:shadow-lg hover:scale-105 active:scale-95"
+                                  title="Hoàn thành"
+                                >
+                                  <FaCheck className="h-4 w-4" />
+                                </button>
+                                <button
+                                  onClick={() => handleSkipReminder(reminder)}
+                                  className="flex items-center justify-center rounded-2xl bg-gradient-to-r from-slate-400 to-slate-500 px-4 py-2.5 text-sm font-semibold text-white shadow-md transition-all hover:from-slate-500 hover:to-slate-600 hover:shadow-lg hover:scale-105 active:scale-95"
+                                  title="Bỏ qua"
+                                >
+                                  <FaTimes className="h-4 w-4" />
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )
+                    })}
                   </div>
-                  <p className="text-slate-600 font-semibold text-base mb-2">Chưa có mục nào cho ngày này</p>
-                  <p className="text-slate-400 text-sm mb-6 text-center px-4">Bắt đầu bằng cách thêm công việc, kế hoạch hoặc ghi chú</p>
-                  <button
-                    onClick={handleAddClick}
-                    className="px-6 py-3 rounded-2xl bg-gradient-to-r from-blue-500 to-sky-500 text-white font-semibold shadow-lg transition-all hover:from-blue-600 hover:to-sky-600 hover:shadow-xl hover:scale-105 active:scale-95"
-                  >
-                    + Thêm mới
-                  </button>
-                </div>
-              )
+                ) : (
+                  <div className="flex flex-col items-center justify-center py-16 rounded-3xl bg-gradient-to-br from-white via-slate-50 to-white shadow-xl border-2 border-slate-200/50">
+                    <div className="h-20 w-20 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mb-5 shadow-inner">
+                      <FaCalendar className="h-10 w-10 text-slate-400" />
+                    </div>
+                    <p className="text-slate-600 font-semibold text-base mb-2">Chưa có mục nào cho ngày này</p>
+                    <p className="text-slate-400 text-sm mb-6 text-center px-4">Bắt đầu bằng cách thêm công việc, kế hoạch hoặc ghi chú</p>
+                    <button
+                      onClick={handleAddClick}
+                      className="px-6 py-3 rounded-2xl bg-gradient-to-r from-blue-500 to-sky-500 text-white font-semibold shadow-lg transition-all hover:from-blue-600 hover:to-sky-600 hover:shadow-xl hover:scale-105 active:scale-95"
+                    >
+                      + Thêm mới
+                    </button>
+                  </div>
+                )
               )}
             </>
           )}

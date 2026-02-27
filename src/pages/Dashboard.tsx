@@ -909,7 +909,7 @@ export const DashboardPage = () => {
     return `${year}-${month}-${day}`
   }
 
-  // Load reminders and tasks for selected date
+  // Load reminders and tasks
   useEffect(() => {
     let isCancelled = false
 
@@ -917,8 +917,12 @@ export const DashboardPage = () => {
       try {
         const dateStr = formatDateToString(selectedDate)
 
-        // Fetch reminders for selected date (for PlanDayModal)
-        const allReminders = await fetchReminders({ is_active: true })
+        // Fetch reminders and tasks
+        const [allReminders, allTasks] = await Promise.all([
+          fetchReminders({ is_active: true }),
+          fetchTasks()
+        ])
+
         if (isCancelled) return
 
         const dateReminders = allReminders.filter(
@@ -926,6 +930,7 @@ export const DashboardPage = () => {
         )
         setSelectedDateReminders(dateReminders)
         setReminders(allReminders)
+        setTasks(allTasks)
       } catch (error) {
         const errorMessage = error instanceof Error ? error.message : String(error)
         console.error('Error loading date data:', errorMessage, error)
@@ -937,7 +942,7 @@ export const DashboardPage = () => {
     return () => {
       isCancelled = true
     }
-  }, [selectedDate])
+  }, [selectedDate, refreshTrigger])
 
   // Auto-update to today when date changes (check every minute)
   // Use ref to track if we're viewing today to avoid infinite loops

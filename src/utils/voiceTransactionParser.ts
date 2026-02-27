@@ -234,7 +234,7 @@ function parseAmount(text: string): number | null {
   const normalizedText = text.toLowerCase().trim()
   
   // Loại bỏ "đồng", "vnđ", "vnd"
-  let cleanText = normalizedText
+  const cleanText = normalizedText
     .replace(/\s*(đồng|vnđ|vnd)\s*/gi, '')
     .replace(/[.,]/g, '') // Loại bỏ dấu phân cách
   
