@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import {
     BarChart, Bar, LineChart, Line, PieChart, Pie, Cell,
     XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -17,6 +17,7 @@ import { getMonthlyStats } from '../../lib/vehicles/vehicleService'
 import type { TripRecord } from '../../lib/vehicles/vehicleService'
 import HeaderBar from '../../components/layout/HeaderBar'
 import { VehicleFooterNav } from '../../components/vehicles/VehicleFooterNav'
+import { useVehicleStore } from '../../store/useVehicleStore'
 
 // ─── Meta helpers ─────────────────────────────────────────────────────────────
 const META_RE = /^\[TRIPMETA:([^\]]+)\]\n?/
@@ -71,7 +72,7 @@ function StatCard({ icon: Icon, label, value, sub, color, trend }: {
     color: string; trend?: 'up' | 'down' | 'flat'
 }) {
     return (
-        <div className="flex flex-col gap-2 rounded-2xl bg-white border border-slate-100 shadow-sm p-4">
+        <div className="flex flex-col gap-2 rounded-2xl bg-white border border-slate-100 shadow-md p-4">
             <div className="flex items-center justify-between">
                 <div className={`rounded-xl p-2.5 ${color}`}>
                     <Icon className="h-5 w-5" />
@@ -107,9 +108,7 @@ function SectionHeader({ title, sub }: { title: string; sub?: string }) {
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function VehicleReports() {
     const { data: vehicles = [] } = useVehicles()
-    const [selectedVehicleId, setSelectedVehicleId] = useState<string>(() =>
-        vehicles.find(v => v.is_default)?.id || vehicles[0]?.id || ''
-    )
+    const { selectedVehicleId } = useVehicleStore()
 
     const effectiveId = selectedVehicleId || vehicles.find(v => v.is_default)?.id || vehicles[0]?.id
 
@@ -173,6 +172,21 @@ export default function VehicleReports() {
         [...completedTrips].sort((a, b) => (b.distance_km || 0) - (a.distance_km || 0)).slice(0, 5)
         , [completedTrips])
 
+    // ── Fuel records ──────────────────────────────────────────────────────────
+    const recordFuelCost = useMemo(() => {
+        if (!fuelLogs.length) return null
+        return [...fuelLogs].sort((a, b) => (b.total_amount || 0) - (a.total_amount || 0))[0]
+    }, [fuelLogs])
+
+    const recordFuelVolume = useMemo(() => {
+        if (!fuelLogs.length) return null
+        return [...fuelLogs].sort((a, b) => {
+            const vA = isElectric ? (a.kwh || 0) : (a.liters || 0)
+            const vB = isElectric ? (b.kwh || 0) : (b.liters || 0)
+            return vB - vA
+        })[0]
+    }, [fuelLogs, isElectric])
+
     if (!selectedVehicle && !effectiveId) {
         return (
             <div className="flex h-screen flex-col overflow-hidden bg-[#F7F9FC]">
@@ -188,22 +202,7 @@ export default function VehicleReports() {
 
             <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-28 pt-4 space-y-5">
 
-                {/* ── Vehicle Selector ─────────────────────────────────── */}
-                {vehicles.length > 1 && (
-                    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                        {vehicles.map(v => {
-                            const sel = v.id === effectiveId
-                            const VIcon = v.vehicle_type === 'motorcycle' ? Bike : Car
-                            return (
-                                <button key={v.id} onClick={() => setSelectedVehicleId(v.id)}
-                                    className={`flex shrink-0 items-center gap-2 rounded-2xl border px-3 py-2 text-xs font-semibold transition-all ${sel ? 'border-blue-400 bg-blue-50 text-blue-700' : 'border-slate-200 bg-white text-slate-600'}`}>
-                                    <VIcon className="h-3.5 w-3.5" />
-                                    {v.license_plate}
-                                </button>
-                            )
-                        })}
-                    </div>
-                )}
+
 
                 {/* ── Hero Card ─────────────────────────────────────────── */}
                 <div className={`relative overflow-hidden rounded-2xl p-5 text-white shadow-lg ${isElectric ? 'bg-gradient-to-br from-emerald-500 to-green-700' : isMoto ? 'bg-gradient-to-br from-orange-500 to-red-700' : 'bg-gradient-to-br from-blue-600 to-indigo-800'}`}>
@@ -254,7 +253,7 @@ export default function VehicleReports() {
                 {/* ── Chi phí 6 tháng — Bar Chart ──────────────────────── */}
                 <div>
                     <SectionHeader title="Chi phí 6 tháng gần nhất" sub="Phân tích theo danh mục" />
-                    <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-4">
+                    <div className="rounded-2xl bg-white border border-slate-100 shadow-md p-4">
                         {loadingMonthly ? (
                             <div className="h-48 animate-pulse rounded-xl bg-slate-100" />
                         ) : (
@@ -277,7 +276,7 @@ export default function VehicleReports() {
                 {/* ── Km di chuyển 6 tháng — Line Chart ────────────────── */}
                 <div>
                     <SectionHeader title="Quãng đường theo tháng" sub={`Tổng: ${totalDist.toLocaleString()} km`} />
-                    <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-4">
+                    <div className="rounded-2xl bg-white border border-slate-100 shadow-md p-4">
                         {loadingMonthly ? (
                             <div className="h-40 animate-pulse rounded-xl bg-slate-100" />
                         ) : (
@@ -301,7 +300,7 @@ export default function VehicleReports() {
                 {tripTypeData.length > 0 && (
                     <div>
                         <SectionHeader title="Phân loại lộ trình" sub={`${completedTrips.length} chuyến đi ghi nhận`} />
-                        <div className="rounded-2xl bg-white border border-slate-100 shadow-sm p-4">
+                        <div className="rounded-2xl bg-white border border-slate-100 shadow-md p-4">
                             <div className="flex items-center gap-4">
                                 <ResponsiveContainer width={120} height={120}>
                                     <PieChart>
@@ -330,7 +329,7 @@ export default function VehicleReports() {
                 {topTrips.length > 0 && (
                     <div>
                         <SectionHeader title="Top 5 chuyến đi dài nhất" />
-                        <div className="rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden">
+                        <div className="rounded-2xl bg-white border border-slate-100 shadow-md overflow-hidden">
                             {topTrips.map((trip, i) => (
                                 <div key={trip.id} className={`flex items-center gap-3 px-4 py-3 ${i < topTrips.length - 1 ? 'border-b border-slate-50' : ''}`}>
                                     <div className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-black ${i === 0 ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-500'}`}>
@@ -353,11 +352,55 @@ export default function VehicleReports() {
                     </div>
                 )}
 
+                {/* ── Kỷ lục Nhiên liệu / Sạc điện ────────────────────────── */}
+                {(recordFuelCost || recordFuelVolume) && (
+                    <div>
+                        <SectionHeader title={isElectric ? "Kỷ lục sạc điện" : "Kỷ lục đổ nhiên liệu"} />
+                        <div className="rounded-2xl bg-white border border-slate-100 shadow-md overflow-hidden flex flex-col">
+                            {recordFuelCost && (
+                                <div className={`flex items-center justify-between p-4 ${recordFuelVolume ? 'border-b border-slate-50' : ''}`}>
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-500">
+                                            <Receipt className="h-5 w-5" />
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-slate-500 font-medium">Chi phí cao nhất</p>
+                                            <p className="text-sm font-bold text-slate-800">{new Date(recordFuelCost.refuel_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-base font-black text-rose-600">{fmt(recordFuelCost.total_amount || 0)}</p>
+                                    </div>
+                                </div>
+                            )}
+
+                            {recordFuelVolume && (
+                                <div className="flex items-center justify-between p-4">
+                                    <div className="flex items-center gap-3">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-50 text-blue-500">
+                                            {isElectric ? <Zap className="h-5 w-5" /> : <Fuel className="h-5 w-5" />}
+                                        </div>
+                                        <div>
+                                            <p className="text-xs text-slate-500 font-medium">{isElectric ? 'Sạc nhiều điện nhất' : 'Đổ nhiều nhiên liệu nhất'}</p>
+                                            <p className="text-sm font-bold text-slate-800">{new Date(recordFuelVolume.refuel_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}</p>
+                                        </div>
+                                    </div>
+                                    <div className="text-right">
+                                        <p className="text-base font-black text-blue-600">
+                                            {isElectric ? `${recordFuelVolume.kwh?.toFixed(1) || 0} kWh` : `${recordFuelVolume.liters?.toFixed(1) || 0} lít`}
+                                        </p>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
+
                 {/* ── Chi phí khác theo danh mục ───────────────────────── */}
                 {expenseTypeData.length > 0 && (
                     <div>
                         <SectionHeader title="Chi tiết phí khác" />
-                        <div className="rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden">
+                        <div className="rounded-2xl bg-white border border-slate-100 shadow-md overflow-hidden">
                             {expenseTypeData.map((item, i) => {
                                 const pct = totalExp > 0 ? (item.value / totalExp) * 100 : 0
                                 return (
@@ -389,7 +432,7 @@ export default function VehicleReports() {
                                 const diff = prev > 0 ? Math.round(((cur - prev) / prev) * 100) : 0
                                 const up = cur > prev
                                 return (
-                                    <div key={label} className="rounded-2xl bg-white border border-slate-100 shadow-sm p-4">
+                                    <div key={label} className="rounded-2xl bg-white border border-slate-100 shadow-md p-4">
                                         <p className="text-xs text-slate-500 mb-1">{label}</p>
                                         <p className="text-base font-black text-slate-800">{f(cur)}</p>
                                         {prev > 0 && (

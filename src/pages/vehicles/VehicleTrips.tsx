@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import {
     Route, Plus, MapPin, Calendar, Trash2, Edit, Car, Bike,
     ChevronDown, Clock, Navigation, TrendingUp, BarChart3,
-    Zap, Fuel, X, ArrowRight, CheckCircle, Filter,
+    X, ArrowRight, Filter,
     ChevronLeft, ChevronRight, Gauge, FileText, Tag, Save,
     Timer, PlayCircle, Flag, CheckCircle2
 } from 'lucide-react'
@@ -15,6 +15,7 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { SimpleLocationInput, type SimpleLocationData } from '../../components/vehicles/SimpleLocationInput'
 import { TripGPSDisplay, getTripCleanNotes } from '../../components/vehicles/TripGPSDisplay'
 import { VehicleFooterNav } from '../../components/vehicles/VehicleFooterNav'
+import { useVehicleStore } from '../../store/useVehicleStore'
 
 // ─── Trip Type Config ─────────────────────────────────────────────────────────
 const TRIP_TYPES = {
@@ -75,95 +76,12 @@ function fmtTime(d: Date): string {
 }
 
 // ─── Vehicle Type Icon ────────────────────────────────────────────────────────
-function VehicleIcon({ fuelType, className }: { fuelType?: string; className?: string }) {
-    if (fuelType === 'electric') return <Zap className={className} />
-    return <Fuel className={className} />
-}
-
 function VehicleBodyIcon({ vehicleType, className }: { vehicleType?: string; className?: string }) {
     if (vehicleType === 'motorcycle') return <Bike className={className} />
     return <Car className={className} />
 }
 
-// ─── Vehicle Selector Card ────────────────────────────────────────────────────
-function VehicleSelector({
-    vehicles,
-    selectedId,
-    onSelect,
-}: {
-    vehicles: VehicleRecord[]
-    selectedId: string
-    onSelect: (id: string) => void
-}) {
-    const [open, setOpen] = useState(false)
-    const selected = vehicles.find(v => v.id === selectedId)
-
-    if (vehicles.length === 0) return null
-
-    // Safe helpers with fallback for undefined vehicle
-    const getElectric = (v?: VehicleRecord) => v?.fuel_type === 'electric'
-    const getMoto = (v?: VehicleRecord) => v?.vehicle_type === 'motorcycle'
-    const selElectric = getElectric(selected)
-    const selMoto = getMoto(selected)
-
-    return (
-        <div className="relative mb-4">
-            <button
-                type="button"
-                onClick={() => setOpen(!open)}
-                className="w-full flex items-center gap-3 rounded-2xl bg-white p-3.5 shadow-sm border border-slate-100 transition-all hover:shadow-md"
-            >
-                {/* Vehicle avatar */}
-                <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${selElectric ? 'bg-green-100' : selMoto ? 'bg-orange-100' : 'bg-blue-100'}`}>
-                    <VehicleBodyIcon vehicleType={selected?.vehicle_type} className={`h-5 w-5 ${selElectric ? 'text-green-600' : selMoto ? 'text-orange-600' : 'text-blue-600'}`} />
-                </div>
-                <div className="flex-1 text-left min-w-0">
-                    <p className="text-sm font-bold text-slate-800 truncate">{selected?.license_plate ?? 'Chọn xe...'}</p>
-                    <p className="text-xs text-slate-500 truncate">
-                        {selected ? `${selected.brand ?? ''} ${selected.model} · ${selected.year ?? ''}`.trim() : 'Không có xe nào'}
-                    </p>
-                </div>
-                <div className="flex items-center gap-2">
-                    <span className={`flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold ${selElectric ? 'bg-green-100 text-green-700' : 'bg-slate-100 text-slate-600'}`}>
-                        <VehicleIcon fuelType={selected?.fuel_type} className="h-3 w-3" />
-                        {selElectric ? 'Điện' : selected?.fuel_type === 'diesel' ? 'Dầu' : 'Xăng'}
-                    </span>
-                    <ChevronDown className={`h-4 w-4 text-slate-400 transition-transform ${open ? 'rotate-180' : ''}`} />
-                </div>
-            </button>
-
-            {/* Dropdown */}
-            {open && (
-                <div className="absolute z-30 left-0 right-0 top-full mt-1 rounded-2xl bg-white shadow-xl border border-slate-100 overflow-hidden">
-                    {vehicles.map(v => {
-                        const vElectric = getElectric(v)
-                        const vMoto = getMoto(v)
-                        return (
-                            <button
-                                key={v.id}
-                                type="button"
-                                onClick={() => { onSelect(v.id); setOpen(false) }}
-                                className={`w-full flex items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-slate-50 ${v.id === selectedId ? 'bg-blue-50' : ''}`}
-                            >
-                                <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-xl ${vElectric ? 'bg-green-100' : vMoto ? 'bg-orange-100' : 'bg-blue-100'}`}>
-                                    <VehicleBodyIcon vehicleType={v.vehicle_type} className={`h-4 w-4 ${vElectric ? 'text-green-600' : vMoto ? 'text-orange-600' : 'text-blue-600'}`} />
-                                </div>
-                                <div className="flex-1 min-w-0">
-                                    <p className="text-sm font-semibold text-slate-800 truncate">{v.license_plate}</p>
-                                    <p className="text-xs text-slate-400 truncate">{v.brand} {v.model}</p>
-                                </div>
-                                {v.id === selectedId && <CheckCircle className="h-4 w-4 text-blue-500 shrink-0" />}
-                                {v.is_default && v.id !== selectedId && (
-                                    <span className="text-[10px] rounded-full bg-amber-100 text-amber-700 px-1.5 py-0.5 font-semibold">Mặc định</span>
-                                )}
-                            </button>
-                        )
-                    })}
-                </div>
-            )}
-        </div>
-    )
-}
+// Vehicle Selector removed per request to follow global store selection
 
 // ─── Stats Card ───────────────────────────────────────────────────────────────
 function StatsCard({ vehicle, trips }: { vehicle: VehicleRecord; trips: TripRecord[] }) {
@@ -174,10 +92,7 @@ function StatsCard({ vehicle, trips }: { vehicle: VehicleRecord; trips: TripReco
         return d.getMonth() === thisMonth.getMonth() && d.getFullYear() === thisMonth.getFullYear()
     })
     const monthDist = monthTrips.reduce((s, t) => s + (t.distance_km || 0), 0)
-    const isElectric = vehicle.fuel_type === 'electric'
-    const isMoto = vehicle.vehicle_type === 'motorcycle'
-
-    const accent = isElectric ? 'bg-green-500 shadow-green-200' : isMoto ? 'bg-orange-500 shadow-orange-200' : 'bg-blue-600 shadow-blue-200'
+    const accent = 'bg-blue-600 shadow-blue-200'
 
     return (
         <div className={`mb-4 rounded-2xl ${accent} p-4 text-white shadow-lg`}>
@@ -224,13 +139,11 @@ function StatsCard({ vehicle, trips }: { vehicle: VehicleRecord; trips: TripReco
 // ─── Trip Card ────────────────────────────────────────────────────────────────────
 function TripCard({
     trip,
-    vehicleType,
     onEdit,
     onDelete,
     onComplete,
 }: {
     trip: TripRecord
-    vehicleType?: string
     onEdit: (trip: TripRecord) => void
     onDelete: (id: string) => void
     onComplete: (trip: TripRecord) => void
@@ -242,13 +155,12 @@ function TripCard({
     const userNotes = getTripCleanNotes(stripMeta(trip.notes))
     const hasExtra = !!(userNotes || trip.notes)
 
-    const isMoto = vehicleType === 'motorcycle'
     const accentColor = inProgress
         ? 'border-l-amber-400'
-        : isMoto ? 'border-l-orange-400' : 'border-l-blue-400'
+        : 'border-l-blue-400'
 
     return (
-        <div className={`overflow-hidden rounded-2xl bg-white shadow-sm border border-slate-100 border-l-4 ${accentColor} transition-all hover:shadow-md`}>
+        <div className={`overflow-hidden rounded-2xl bg-white shadow-md border border-slate-100 border-l-4 ${accentColor} transition-all hover:shadow-md`}>
             {/* In-progress banner */}
             {inProgress && (
                 <div className="flex items-center gap-2 bg-amber-50 border-b border-amber-100 px-4 py-2">
@@ -333,7 +245,7 @@ function TripCard({
                             <span className="font-semibold text-slate-700">{trip.end_km.toLocaleString()}</span>
                             <span>km</span>
                         </div>
-                        <span className={`text-base font-black ${isMoto ? 'text-orange-600' : 'text-blue-600'}`}>
+                        <span className={`text-base font-black text-blue-600`}>
                             {(trip.distance_km || (trip.end_km - trip.start_km)).toLocaleString()} km
                         </span>
                     </div>
@@ -386,7 +298,7 @@ export default function VehicleTrips() {
     const queryClient = useQueryClient()
 
     const { data: vehicles = [] } = useVehicles()
-    const [selectedVehicleId, setSelectedVehicleId] = useState<string>('')
+    const { selectedVehicleId, setSelectedVehicleId } = useVehicleStore()
     const [showAddModal, setShowAddModal] = useState(false)
     const [showStartModal, setShowStartModal] = useState(false)
     const [editingTrip, setEditingTrip] = useState<TripRecord | null>(null)
@@ -402,7 +314,7 @@ export default function VehicleTrips() {
             const def = vehicles.find(v => v.is_default) || vehicles[0]
             setSelectedVehicleId(def.id)
         }
-    }, [vehicles, selectedVehicleId])
+    }, [vehicles, selectedVehicleId, setSelectedVehicleId])
 
     const { data: allTrips = [], isLoading: loading } = useVehicleTrips(selectedVehicleId || undefined)
     const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId)
@@ -440,7 +352,7 @@ export default function VehicleTrips() {
         setDeleting(true)
         try {
             await deleteTrip(deleteConfirmId)
-            await queryClient.invalidateQueries({ queryKey: vehicleKeys.trips(selectedVehicleId) })
+            await queryClient.invalidateQueries({ queryKey: vehicleKeys.trips(selectedVehicleId || '') })
             success('Đã xóa lộ trình thành công!')
             setDeleteConfirmId(null)
         } catch (err) {
@@ -458,26 +370,13 @@ export default function VehicleTrips() {
         return new Date(key).toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'numeric' })
     }
 
-    const isElectric = selectedVehicle?.fuel_type === 'electric'
-    const isMoto = selectedVehicle?.vehicle_type === 'motorcycle'
-    const accentClass = isElectric
-        ? 'from-green-500 to-green-600'
-        : isMoto
-            ? 'from-orange-500 to-amber-500'
-            : 'from-blue-600 to-indigo-600'
+    const accentClass = 'from-blue-600 to-indigo-600'
 
     return (
         <div className="flex h-screen flex-col overflow-hidden bg-[#F7F9FC]">
             <HeaderBar variant="page" title="Quản Lý Lộ Trình" />
 
             <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-28 pt-4">
-
-                {/* ── Vehicle Selector ─────────────────────────────────── */}
-                <VehicleSelector
-                    vehicles={vehicles}
-                    selectedId={selectedVehicleId}
-                    onSelect={setSelectedVehicleId}
-                />
 
                 {/* ── Stats Card ───────────────────────────────────────── */}
                 {selectedVehicle && !loading && (
@@ -553,7 +452,7 @@ export default function VehicleTrips() {
 
                     {/* Period summary row */}
                     {trips.length > 0 && (
-                        <div className="flex items-center justify-between rounded-xl bg-white border border-slate-100 px-3 py-2 shadow-sm">
+                        <div className="flex items-center justify-between rounded-xl bg-white border border-slate-100 px-3 py-2 shadow-md">
                             <div className="flex items-center gap-3 text-xs text-slate-500">
                                 <span><span className="font-bold text-slate-700">{trips.length}</span> chuyến</span>
                                 <span>·</span>
@@ -568,7 +467,7 @@ export default function VehicleTrips() {
                 {loading ? (
                     <div className="space-y-3">
                         {[1, 2, 3].map(i => (
-                            <div key={i} className="animate-pulse rounded-2xl bg-white p-4 shadow-sm border border-slate-100">
+                            <div key={i} className="animate-pulse rounded-2xl bg-white p-4 shadow-md border border-slate-100">
                                 <div className="mb-3 flex gap-2">
                                     <div className="h-5 w-16 rounded-full bg-slate-200" />
                                     <div className="h-5 w-24 rounded-full bg-slate-100" />
@@ -579,8 +478,8 @@ export default function VehicleTrips() {
                     </div>
                 ) : trips.length === 0 ? (
                     <div className="flex flex-col items-center justify-center py-16 text-center">
-                        <div className={`mb-4 rounded-3xl p-6 ${isMoto ? 'bg-orange-50' : isElectric ? 'bg-green-50' : 'bg-blue-50'}`}>
-                            <Route className={`h-14 w-14 ${isMoto ? 'text-orange-300' : isElectric ? 'text-green-300' : 'text-blue-300'}`} />
+                        <div className={`mb-4 rounded-3xl p-6 bg-blue-50`}>
+                            <Route className={`h-14 w-14 text-blue-300`} />
                         </div>
                         <p className="font-semibold text-slate-600">Chưa có lộ trình nào</p>
                         <p className="mt-1 text-sm text-slate-400">
@@ -598,7 +497,7 @@ export default function VehicleTrips() {
                                     {/* Date separator */}
                                     <div className="mb-2 flex items-center justify-between px-1">
                                         <div className="flex items-center gap-2">
-                                            <div className={`h-2 w-2 rounded-full ${isMoto ? 'bg-orange-400' : isElectric ? 'bg-green-400' : 'bg-blue-400'}`} />
+                                            <div className={`h-2 w-2 rounded-full bg-blue-400`} />
                                             <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">
                                                 {dayLabel(dateKey)}
                                             </span>
@@ -607,12 +506,11 @@ export default function VehicleTrips() {
                                             {dayDistance.toLocaleString()} km · {dayTrips.length} chuyến
                                         </span>
                                     </div>
-                                    <div className={`space-y-2 pl-4 border-l-2 ${isMoto ? 'border-orange-100' : isElectric ? 'border-green-100' : 'border-blue-100'}`}>
+                                    <div className={`space-y-2 pl-4 border-l-2 border-blue-100`}>
                                         {dayTrips.map(trip => (
                                             <TripCard
                                                 key={trip.id}
                                                 trip={trip}
-                                                vehicleType={selectedVehicle?.vehicle_type}
                                                 onEdit={setEditingTrip}
                                                 onDelete={setDeleteConfirmId}
                                                 onComplete={setCompletingTrip}
@@ -641,7 +539,7 @@ export default function VehicleTrips() {
                     onSuccess={() => {
                         setShowAddModal(false)
                         setEditingTrip(null)
-                        queryClient.invalidateQueries({ queryKey: vehicleKeys.trips(selectedVehicleId) })
+                        queryClient.invalidateQueries({ queryKey: vehicleKeys.trips(selectedVehicleId || '') })
                     }}
                 />
             )}
@@ -653,7 +551,7 @@ export default function VehicleTrips() {
                     onClose={() => setShowStartModal(false)}
                     onSuccess={() => {
                         setShowStartModal(false)
-                        queryClient.invalidateQueries({ queryKey: vehicleKeys.trips(selectedVehicleId) })
+                        queryClient.invalidateQueries({ queryKey: vehicleKeys.trips(selectedVehicleId || '') })
                     }}
                 />
             )}
@@ -666,7 +564,7 @@ export default function VehicleTrips() {
                     onClose={() => setCompletingTrip(null)}
                     onSuccess={() => {
                         setCompletingTrip(null)
-                        queryClient.invalidateQueries({ queryKey: vehicleKeys.trips(selectedVehicleId) })
+                        queryClient.invalidateQueries({ queryKey: vehicleKeys.trips(selectedVehicleId || '') })
                     }}
                 />
             )}
@@ -720,9 +618,7 @@ function TripModal({
     const calcDist = Number(formData.end_km) - Number(formData.start_km)
     const validDist = Number(formData.start_km) > 0 && Number(formData.end_km) > Number(formData.start_km)
 
-    const isElectric = vehicle.fuel_type === 'electric'
-    const isMoto = vehicle.vehicle_type === 'motorcycle'
-    const accentBg = isElectric ? 'bg-green-500' : isMoto ? 'bg-orange-500' : 'bg-blue-600'
+    const accentBg = 'bg-blue-600'
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -823,7 +719,7 @@ function TripModal({
                                         type="button"
                                         onClick={() => setFormData({ ...formData, trip_type: key })}
                                         className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${formData.trip_type === key
-                                            ? `${cfg.dot} text-white shadow-sm`
+                                            ? `${cfg.dot} text-white shadow-md`
                                             : `${cfg.bg} ${cfg.text}`
                                             }`}
                                     >
@@ -857,11 +753,11 @@ function TripModal({
 
                             {/* Distance preview */}
                             {validDist && (
-                                <div className={`mt-2 flex items-center justify-between rounded-xl px-3 py-2 ${isElectric ? 'bg-green-50 border border-green-200' : isMoto ? 'bg-orange-50 border border-orange-200' : 'bg-blue-50 border border-blue-200'}`}>
-                                    <span className={`text-xs font-medium ${isElectric ? 'text-green-700' : isMoto ? 'text-orange-700' : 'text-blue-700'}`}>
+                                <div className={`mt-2 flex items-center justify-between rounded-xl px-3 py-2 bg-blue-50 border border-blue-200`}>
+                                    <span className={`text-xs font-medium text-blue-700`}>
                                         Quãng đường di chuyển
                                     </span>
-                                    <span className={`text-base font-black ${isElectric ? 'text-green-600' : isMoto ? 'text-orange-600' : 'text-blue-600'}`}>
+                                    <span className={`text-base font-black text-blue-600`}>
                                         {calcDist.toLocaleString()} km
                                     </span>
                                 </div>
@@ -958,9 +854,7 @@ function StartTripModal({ vehicle, onClose, onSuccess }: {
         start_location: '',
         notes: '',
     })
-    const isElectric = vehicle.fuel_type === 'electric'
-    const isMoto = vehicle.vehicle_type === 'motorcycle'
-    const accentBg = isElectric ? 'bg-green-500' : isMoto ? 'bg-orange-500' : 'bg-amber-500'
+    const accentBg = 'bg-blue-600'
     const inputCls = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all'
     const labelCls = 'mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide'
 

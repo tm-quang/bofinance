@@ -5,6 +5,7 @@ import { createVehicle, updateVehicle, type VehicleRecord } from '../../lib/vehi
 import { useNotification } from '../../contexts/notificationContext.helpers'
 import HeaderBar from '../../components/layout/HeaderBar'
 import { ModalFooterButtons } from '../../components/ui/ModalFooterButtons'
+import { ImageUpload } from '../../components/vehicles/ImageUpload'
 
 interface AddVehicleProps {
     vehicle?: VehicleRecord
@@ -29,6 +30,7 @@ export default function AddVehicle({ vehicle, onSuccess }: AddVehicleProps) {
         inspection_expiry_date: vehicle?.inspection_expiry_date || '',
         next_maintenance_km: vehicle?.next_maintenance_km || undefined,
         next_maintenance_date: vehicle?.next_maintenance_date || '',
+        image_url: vehicle?.image_url || null,
     })
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -51,6 +53,7 @@ export default function AddVehicle({ vehicle, onSuccess }: AddVehicleProps) {
                 inspection_expiry_date: formData.inspection_expiry_date || undefined,
                 next_maintenance_km: formData.next_maintenance_km || undefined,
                 next_maintenance_date: formData.next_maintenance_date || undefined,
+                image_url: formData.image_url || undefined,
             }
 
             if (vehicle) {
@@ -93,6 +96,16 @@ export default function AddVehicle({ vehicle, onSuccess }: AddVehicleProps) {
                                 {vehicle ? 'Cập nhật thông tin xe' : 'Thêm xe mới của bạn'}
                             </h2>
                             <p className="text-sm text-slate-600">Điền đầy đủ thông tin để quản lý tốt hơn</p>
+                        </div>
+
+                        {/* Vehicle Image */}
+                        <div className="rounded-2xl bg-white p-4 shadow-lg mb-4">
+                            <h3 className="mb-3 font-semibold text-slate-700">Hình ảnh phương tiện</h3>
+                            <ImageUpload
+                                value={formData.image_url}
+                                onChange={(url) => setFormData({ ...formData, image_url: url })}
+                                label="Chọn ảnh đại diện cho xe"
+                            />
                         </div>
 
                         {/* Vehicle Type Selection */}
@@ -250,7 +263,6 @@ export default function AddVehicle({ vehicle, onSuccess }: AddVehicleProps) {
                                             <option value="petrol">Xăng</option>
                                             <option value="diesel">Dầu diesel</option>
                                             <option value="electric">Điện</option>
-                                            <option value="hybrid">Hybrid</option>
                                         </select>
                                     </div>
                                 </div>

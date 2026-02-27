@@ -23,6 +23,7 @@ export interface VehicleRecord {
     maintenance_interval_months?: number  // Bổ sung chu kỳ tháng
     is_active: boolean
     is_default?: boolean
+    image_url?: string
     created_at: string
     updated_at: string
 }

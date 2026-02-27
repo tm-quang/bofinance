@@ -82,8 +82,8 @@ export const ProfileModal = ({ isOpen, onClose, userName, avatarUrl, avatarText 
                             <div>
                                 <h3 className="text-xl font-bold tracking-tight text-slate-800">{userName}</h3>
                                 <div className="flex items-center gap-1.5 mt-1">
-                                    <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 text-[10px] font-bold text-emerald-600 border border-emerald-100">
-                                        <FaShieldAlt className="h-2.5 w-2.5" /> Thường thành viên
+                                    <span className="flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-red-50 text-[10px] font-bold text-red-600 border border-red-100">
+                                        <FaShieldAlt className="h-2.5 w-2.5" /> Admin
                                     </span>
                                 </div>
                             </div>

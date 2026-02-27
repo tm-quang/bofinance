@@ -3,7 +3,7 @@ import {
     Wrench, Plus, Calendar, Trash2, AlertTriangle,
     CheckCircle2, Gauge, ChevronDown, ChevronUp,
     DollarSign, Store, ArrowRight, Clock, X, Save,
-    Bike, Car, ChevronLeft, ChevronRight, Activity, TrendingUp, Settings
+    ChevronLeft, ChevronRight, Activity, TrendingUp, Settings
 } from 'lucide-react'
 import { createMaintenance, deleteMaintenance, updateVehicle, type VehicleRecord } from '../../lib/vehicles/vehicleService'
 import { useVehicles, useVehicleMaintenance, vehicleKeys } from '../../lib/vehicles/useVehicleQueries'
@@ -12,6 +12,7 @@ import { useNotification } from '../../contexts/notificationContext.helpers'
 import HeaderBar from '../../components/layout/HeaderBar'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { VehicleFooterNav } from '../../components/vehicles/VehicleFooterNav'
+import { useVehicleStore } from '../../store/useVehicleStore'
 
 const fmt = (v: number) =>
     new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(v)
@@ -88,9 +89,7 @@ export default function VehicleMaintenance() {
     const queryClient = useQueryClient()
     const { data: vehicles = [] } = useVehicles()
 
-    const [selectedVehicleId, setSelectedVehicleId] = useState<string>(() =>
-        vehicles.find(v => v.is_default)?.id || vehicles[0]?.id || ''
-    )
+    const { selectedVehicleId } = useVehicleStore()
     const [showAddModal, setShowAddModal] = useState(false)
     const [showSettingsModal, setShowSettingsModal] = useState(false)
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
@@ -178,22 +177,7 @@ export default function VehicleMaintenance() {
 
             <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-28 pt-4">
 
-                {/* ── Vehicle Selector ──────────────────────────────────── */}
-                {vehicles.length > 1 && (
-                    <div className="mb-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                        {vehicles.map(v => {
-                            const sel = v.id === effectiveId
-                            const VIcon = v.vehicle_type === 'motorcycle' ? Bike : Car
-                            return (
-                                <button key={v.id} onClick={() => setSelectedVehicleId(v.id)}
-                                    className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-all ${sel ? 'border-gray-500 bg-gray-500 text-white shadow-md shadow-gray-200' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}`}>
-                                    <VIcon className="h-4 w-4" />
-                                    {v.license_plate}
-                                </button>
-                            )
-                        })}
-                    </div>
-                )}
+
 
                 {/* ── Hero Stats Card ───────────────────────────────────── */}
                 {selectedVehicle && (
@@ -345,7 +329,7 @@ export default function VehicleMaintenance() {
                         ))}
                     </div>
                 ) : filteredLogs.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center rounded-2xl bg-white border border-slate-100 py-14 shadow-sm">
+                    <div className="flex flex-col items-center justify-center rounded-3xl bg-white border border-slate-100 py-14 shadow-sm">
                         <div className="mb-4 rounded-3xl bg-gray-100 p-6">
                             <Wrench className="h-12 w-12 text-gray-400" />
                         </div>

@@ -30,6 +30,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useNotification } from '../../contexts/notificationContext.helpers'
 import HeaderBar from '../../components/layout/HeaderBar'
 import { VehicleFooterNav } from '../../components/vehicles/VehicleFooterNav'
+import { useVehicleStore } from '../../store/useVehicleStore'
 
 const formatCurrency = (value: number) =>
     new Intl.NumberFormat('vi-VN', {
@@ -42,7 +43,7 @@ export default function VehicleManagement() {
     const navigate = useNavigate()
     const queryClient = useQueryClient()
     const { success, error: showError } = useNotification()
-    const [selectedId, setSelectedId] = useState<string | null>(null)
+    const { selectedVehicleId: selectedId, setSelectedVehicleId: setSelectedId } = useVehicleStore()
     const [showOdoModal, setShowOdoModal] = useState(false)
     const [newOdo, setNewOdo] = useState('')
     const [savingOdo, setSavingOdo] = useState(false)
@@ -261,21 +262,28 @@ export default function VehicleManagement() {
                                         onClick={() => setSelectedId(vehicle.id)}
                                         className="group relative flex min-w-[calc(100%-1rem)] flex-shrink-0 snap-center transition-all duration-300 hover:scale-[1.01] active:scale-[0.99] rounded-3xl overflow-hidden cursor-pointer"
                                     >
-                                        <div className={`relative h-56 w-full overflow-hidden rounded-3xl bg-gradient-to-br ${gradientColor} p-5 ${isSelected ? 'shadow-2xl shadow-blue-500/30' : 'shadow-lg shadow-slate-300/40'}`}>
-                                            {/* Decorative patterns */}
-                                            <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none">
-                                                <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
-                                                <div className="absolute -right-8 top-1/2 h-32 w-32 rounded-full bg-white/5 blur-xl" />
-                                                <div className="absolute right-0 bottom-0 h-24 w-24 rounded-full bg-white/5 blur-lg" />
-                                                <div className="absolute -left-12 bottom-0 h-36 w-36 rounded-full bg-white/5 blur-2xl" />
-                                                <svg className="absolute bottom-0 left-0 w-full opacity-15" viewBox="0 0 400 180" preserveAspectRatio="none">
-                                                    <path d="M0,120 Q100,60 200,120 T400,120 L400,180 L0,180 Z" fill="white" />
-                                                    <path d="M0,150 Q150,90 300,150 T400,150 L400,180 L0,180 Z" fill="white" opacity="0.6" />
-                                                </svg>
-                                                <div className="absolute right-3 top-14 -translate-y-12 z-0 opacity-15">
-                                                    <VehicleIcon className="h-32 w-32 text-white" />
+                                        <div className={`relative h-56 w-full overflow-hidden rounded-3xl p-5 ${isSelected ? 'shadow-2xl shadow-blue-500/30' : 'shadow-lg shadow-slate-300/40'} ${!vehicle.image_url ? `bg-gradient-to-br ${gradientColor}` : 'bg-slate-900'}`}>
+                                            {/* Decorative patterns or Image */}
+                                            {vehicle.image_url ? (
+                                                <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none z-0">
+                                                    <img src={vehicle.image_url} alt={vehicle.license_plate} className="h-full w-full object-cover opacity-60" />
+                                                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/20 to-black/60" />
                                                 </div>
-                                            </div>
+                                            ) : (
+                                                <div className="absolute inset-0 overflow-hidden rounded-3xl pointer-events-none z-0">
+                                                    <div className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-white/5 blur-2xl" />
+                                                    <div className="absolute -right-8 top-1/2 h-32 w-32 rounded-full bg-white/5 blur-xl" />
+                                                    <div className="absolute right-0 bottom-0 h-24 w-24 rounded-full bg-white/5 blur-lg" />
+                                                    <div className="absolute -left-12 bottom-0 h-36 w-36 rounded-full bg-white/5 blur-2xl" />
+                                                    <svg className="absolute bottom-0 left-0 w-full opacity-15" viewBox="0 0 400 180" preserveAspectRatio="none">
+                                                        <path d="M0,120 Q100,60 200,120 T400,120 L400,180 L0,180 Z" fill="white" />
+                                                        <path d="M0,150 Q150,90 300,150 T400,150 L400,180 L0,180 Z" fill="white" opacity="0.6" />
+                                                    </svg>
+                                                    <div className="absolute right-3 top-14 -translate-y-12 z-0 opacity-15">
+                                                        <VehicleIcon className="h-32 w-32 text-white" />
+                                                    </div>
+                                                </div>
+                                            )}
 
                                             <div className="relative z-10 flex h-full flex-col justify-between text-white">
                                                 <div className="flex min-w-0 items-start justify-between gap-2">
@@ -314,7 +322,7 @@ export default function VehicleManagement() {
                                                                 onClick={(e) => { e.stopPropagation(); setNewOdo(''); setShowOdoModal(true) }}
                                                                 className="ml-auto flex items-center gap-1 rounded-xl bg-white/20 px-2.5 py-1 text-[11px] font-bold text-white hover:bg-white/30 transition-all active:scale-95"
                                                             >
-                                                                <Pencil className="h-3 w-3" /> Cập nhật
+                                                                <Pencil className="h-3 w-3" /> Cập nhật km
                                                             </button>
                                                         )}
                                                     </div>
@@ -387,21 +395,21 @@ export default function VehicleManagement() {
                             </div>
                         ) : stats ? (
                             <div className="grid grid-cols-3 gap-2 mb-3">
-                                <div className="flex flex-col items-center justify-center rounded-2xl bg-white border border-slate-100 shadow-sm py-3 px-2 text-center">
+                                <div className="flex flex-col items-center justify-center rounded-2xl bg-white border border-slate-100 shadow-md py-3 px-2 text-center">
                                     <div className={`mb-1.5 rounded-xl p-2 ${isMoto ? 'bg-orange-50' : 'bg-blue-50'}`}>
                                         <Navigation className={`h-4 w-4 ${isMoto ? 'text-orange-500' : 'text-blue-500'}`} />
                                     </div>
                                     <p className="text-base font-black text-slate-800">{stats.totalDistance.toLocaleString()}</p>
                                     <p className="text-[10px] text-slate-400 leading-tight mt-0.5">km đã đi</p>
                                 </div>
-                                <div className="flex flex-col items-center justify-center rounded-2xl bg-white border border-slate-100 shadow-sm py-3 px-2 text-center">
+                                <div className="flex flex-col items-center justify-center rounded-2xl bg-white border border-slate-100 shadow-md py-3 px-2 text-center">
                                     <div className="mb-1.5 rounded-xl bg-indigo-50 p-2">
                                         <Route className="h-4 w-4 text-indigo-500" />
                                     </div>
                                     <p className="text-base font-black text-slate-800">{stats.totalTrips}</p>
                                     <p className="text-[10px] text-slate-400 leading-tight mt-0.5">chuyến đi</p>
                                 </div>
-                                <div className="flex flex-col items-center justify-center rounded-2xl bg-white border border-slate-100 shadow-sm py-3 px-2 text-center">
+                                <div className="flex flex-col items-center justify-center rounded-2xl bg-white border border-slate-100 shadow-md py-3 px-2 text-center">
                                     <div className="mb-1.5 rounded-xl bg-emerald-50 p-2">
                                         <TrendingUp className="h-4 w-4 text-emerald-500" />
                                     </div>
@@ -414,7 +422,7 @@ export default function VehicleManagement() {
                         ) : null}
 
                         {/* Chi phí tháng này */}
-                        <div className="rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden">
+                        <div className="rounded-2xl bg-white border border-slate-100 shadow-md overflow-hidden">
                             <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-50">
                                 <Calendar className="h-4 w-4 text-blue-500" />
                                 <span className="text-sm font-bold text-slate-700">Chi phí tháng này</span>
@@ -485,9 +493,9 @@ export default function VehicleManagement() {
                 {selectedVehicle && (maintProgress || maintDateProgress || selectedVehicle.insurance_expiry_date || selectedVehicle.inspection_expiry_date) && (
                     <div className="mb-5">
                         <div className="mb-3 px-1">
-                            <h3 className="text-base font-bold text-slate-800">Nhắc nhở & Hạn giấy tờ</h3>
+                            <h3 className="text-base font-bold text-slate-800">Thông tin liên quan</h3>
                         </div>
-                        <div className="rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden divide-y divide-slate-50">
+                        <div className="rounded-2xl bg-white border border-slate-100 shadow-md overflow-hidden divide-y divide-slate-50">
 
                             {/* Maintenance km progress bar */}
                             {maintProgress && (
@@ -658,7 +666,7 @@ export default function VehicleManagement() {
                         {alerts.map((alert, index) => {
                             const { title, remainingText, isCritical } = getAlertInfo(alert)
                             return (
-                                <div key={index} className={`flex items-start gap-3 rounded-2xl p-4 shadow-sm ${isCritical ? 'bg-red-50' : 'bg-amber-50'}`}>
+                                <div key={index} className={`flex items-start gap-3 rounded-2xl p-4 shadow-md ${isCritical ? 'bg-red-50' : 'bg-amber-50'}`}>
                                     <div className={`mt-0.5 rounded-lg p-1.5 ${isCritical ? 'bg-red-100' : 'bg-amber-100'}`}>
                                         <AlertTriangle className={`h-4 w-4 ${isCritical ? 'text-red-600' : 'text-amber-600'}`} />
                                     </div>
@@ -692,7 +700,7 @@ export default function VehicleManagement() {
                                     <button
                                         key={module.id}
                                         onClick={() => navigate(`/vehicles/${module.id}`)}
-                                        className="group flex flex-col items-center gap-2.5 rounded-2xl bg-white border border-slate-100 px-4 py-5 shadow-sm transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-95"
+                                        className="group flex flex-col items-center gap-2.5 rounded-3xl bg-white border border-slate-100 px-4 py-5 shadow-md transition-all hover:shadow-md hover:-translate-y-0.5 active:scale-95"
                                     >
                                         {/* Icon container */}
                                         <div className={`flex h-14 w-14 items-center justify-center rounded-2xl ${module.bgColor} transition-transform group-hover:scale-105`}
@@ -758,7 +766,7 @@ export default function VehicleManagement() {
                                     value={newOdo}
                                     onChange={e => setNewOdo(e.target.value)}
                                     onKeyDown={e => e.key === 'Enter' && handleSaveOdo()}
-                                    className="w-full rounded-2xl border-2 border-slate-200 bg-white px-4 py-3 text-center text-2xl font-black tracking-tight text-slate-800 shadow-sm transition-all focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-200"
+                                    className="w-full rounded-2xl border-2 border-slate-200 bg-white px-4 py-3 text-center text-2xl font-black tracking-tight text-slate-800 shadow-md transition-all focus:border-blue-500 focus:outline-none focus:ring-4 focus:ring-blue-500/10 placeholder:text-slate-200"
                                 />
                             </div>
                             {newOdo && Number(newOdo) > 0 && (

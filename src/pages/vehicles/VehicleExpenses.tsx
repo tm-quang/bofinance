@@ -2,7 +2,7 @@ import { useState, useMemo } from 'react'
 import {
     Receipt, Plus, Calendar, Trash2, MapPin,
     ChevronDown, ChevronUp, DollarSign, FileText,
-    Bike, Car, X, Save,
+    X, Save,
     BarChart3, TrendingUp, Activity,
     ChevronLeft, ChevronRight,
 } from 'lucide-react'
@@ -13,6 +13,7 @@ import { useNotification } from '../../contexts/notificationContext.helpers'
 import HeaderBar from '../../components/layout/HeaderBar'
 import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { VehicleFooterNav } from '../../components/vehicles/VehicleFooterNav'
+import { useVehicleStore } from '../../store/useVehicleStore'
 
 const fmt = (v: number) =>
     new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(v)
@@ -85,9 +86,7 @@ export default function VehicleExpenses() {
     const queryClient = useQueryClient()
     const { data: vehicles = [] } = useVehicles()
 
-    const [selectedVehicleId, setSelectedVehicleId] = useState<string>(() =>
-        vehicles.find(v => v.is_default)?.id || vehicles[0]?.id || ''
-    )
+    const { selectedVehicleId } = useVehicleStore()
     const [showAddModal, setShowAddModal] = useState(false)
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
     const [deleting, setDeleting] = useState(false)
@@ -166,7 +165,7 @@ export default function VehicleExpenses() {
                 customContent={
                     <button
                         onClick={() => setShowAddModal(true)}
-                        className="flex items-center justify-center rounded-full bg-rose-500 p-2 shadow-md hover:bg-rose-600 active:scale-95 transition-all"
+                        className="flex items-center justify-center rounded-full bg-orange-500 p-2 shadow-md hover:bg-orange-600 active:scale-95 transition-all"
                     >
                         <Plus className="h-5 w-5 text-white" />
                     </button>
@@ -175,28 +174,13 @@ export default function VehicleExpenses() {
 
             <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-28 pt-4">
 
-                {/* ── Vehicle Selector ──────────────────────────────────── */}
-                {vehicles.length > 1 && (
-                    <div className="mb-4 flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
-                        {vehicles.map(v => {
-                            const sel = v.id === effectiveId
-                            const VIcon = v.vehicle_type === 'motorcycle' ? Bike : Car
-                            return (
-                                <button key={v.id} onClick={() => setSelectedVehicleId(v.id)}
-                                    className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-all ${sel ? 'border-rose-500 bg-rose-500 text-white shadow-md shadow-rose-200' : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'}`}>
-                                    <VIcon className="h-4 w-4" />
-                                    {v.license_plate}
-                                </button>
-                            )
-                        })}
-                    </div>
-                )}
+
 
                 {/* ── Hero Stats Card ───────────────────────────────────── */}
                 {selectedVehicle && (
                     <div className="mb-4 space-y-3">
-                        {/* Main card - solid rose */}
-                        <div className="rounded-2xl bg-rose-500 p-4 text-white shadow-lg shadow-rose-200">
+                        {/* Main card - solid orange */}
+                        <div className="rounded-2xl bg-orange-500 p-4 text-white shadow-lg shadow-orange-200">
                             <div className="mb-3 flex items-center gap-2">
                                 <div className="rounded-xl bg-white/20 p-1.5">
                                     <Receipt className="h-4 w-4" />
@@ -218,23 +202,23 @@ export default function VehicleExpenses() {
 
                         {/* Mini stats row */}
                         <div className="grid grid-cols-3 gap-2">
-                            <div className="flex flex-col items-center rounded-xl bg-white p-3 shadow-sm">
-                                <div className="mb-1 rounded-lg bg-rose-100 p-1.5">
-                                    <Receipt className="h-4 w-4 text-rose-600" />
+                            <div className="flex flex-col items-center rounded-xl bg-white p-3 shadow-md">
+                                <div className="mb-1 rounded-lg bg-orange-100 p-1.5">
+                                    <Receipt className="h-4 w-4 text-orange-600" />
                                 </div>
                                 <p className="text-sm font-bold text-slate-800">
                                     {avgCost > 0 ? `${Math.round(avgCost / 1000)}k` : '--'}
                                 </p>
                                 <p className="text-center text-[10px] leading-tight text-slate-500">TB/khoản</p>
                             </div>
-                            <div className="flex flex-col items-center rounded-xl bg-white p-3 shadow-sm">
+                            <div className="flex flex-col items-center rounded-xl bg-white p-3 shadow-md">
                                 <div className="mb-1 rounded-lg bg-blue-100 p-1.5">
                                     <Activity className="h-4 w-4 text-blue-600" />
                                 </div>
                                 <p className="text-sm font-bold text-slate-800">{thisMonthLogs.length}</p>
                                 <p className="text-center text-[10px] leading-tight text-slate-500">Tháng này</p>
                             </div>
-                            <div className="flex flex-col items-center rounded-xl bg-white p-3 shadow-sm">
+                            <div className="flex flex-col items-center rounded-xl bg-white p-3 shadow-md">
                                 <div className="mb-1 rounded-lg bg-green-100 p-1.5">
                                     <TrendingUp className="h-4 w-4 text-green-600" />
                                 </div>
@@ -247,12 +231,12 @@ export default function VehicleExpenses() {
 
                         {/* Month cost badge */}
                         {thisMonthCost > 0 && (
-                            <div className="flex items-center justify-between rounded-xl bg-rose-50 border border-rose-200 px-4 py-2.5">
+                            <div className="flex items-center justify-between rounded-xl bg-orange-50 border border-orange-200 px-4 py-2.5">
                                 <div className="flex items-center gap-2">
-                                    <Calendar className="h-4 w-4 text-rose-600" />
-                                    <span className="text-sm font-medium text-rose-700">Chi phí tháng này</span>
+                                    <Calendar className="h-4 w-4 text-orange-600" />
+                                    <span className="text-sm font-medium text-orange-700">Chi phí tháng này</span>
                                 </div>
-                                <span className="text-sm font-bold text-rose-700">{fmt(thisMonthCost)}</span>
+                                <span className="text-sm font-bold text-orange-700">{fmt(thisMonthCost)}</span>
                             </div>
                         )}
                     </div>
@@ -260,9 +244,9 @@ export default function VehicleExpenses() {
 
                 {/* ── By-type breakdown ─────────────────────────────────── */}
                 {byType.length > 0 && (
-                    <div className="mb-4 rounded-2xl bg-white border border-slate-100 shadow-sm overflow-hidden">
+                    <div className="mb-4 rounded-2xl bg-white border border-slate-100 shadow-md overflow-hidden">
                         <div className="flex items-center gap-2 px-4 py-3 border-b border-slate-50">
-                            <BarChart3 className="h-4 w-4 text-rose-500" />
+                            <BarChart3 className="h-4 w-4 text-orange-500" />
                             <span className="text-sm font-bold text-slate-700">Phân loại chi phí</span>
                         </div>
                         <div className="px-4 py-3 space-y-2.5">
@@ -279,7 +263,7 @@ export default function VehicleExpenses() {
                                             </div>
                                         </div>
                                         <div className="h-1.5 rounded-full bg-slate-100">
-                                            <div className="h-full rounded-full bg-rose-400 transition-all" style={{ width: `${pct}%` }} />
+                                            <div className="h-full rounded-full bg-orange-400 transition-all" style={{ width: `${pct}%` }} />
                                         </div>
                                     </div>
                                 )
@@ -292,7 +276,7 @@ export default function VehicleExpenses() {
                 {logs.length > 0 && (
                     <div className="mb-3 flex gap-2 overflow-x-auto scrollbar-hide pb-1">
                         <button onClick={() => setFilterType('all')}
-                            className={`shrink-0 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all ${filterType === 'all' ? 'border-rose-400 bg-rose-50 text-rose-700' : 'border-slate-200 bg-white text-slate-500'}`}>
+                            className={`shrink-0 rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all ${filterType === 'all' ? 'border-orange-400 bg-orange-50 text-orange-700' : 'border-slate-200 bg-white text-slate-500'}`}>
                             Tất cả ({logs.length})
                         </button>
                         {byType.map(([type]) => {
@@ -310,7 +294,7 @@ export default function VehicleExpenses() {
                 {/* ── Add Button ───────────────────────────────────────── */}
                 <button
                     onClick={() => setShowAddModal(true)}
-                    className="w-full mb-4 flex items-center justify-center gap-2.5 rounded-2xl bg-rose-500 px-4 py-3.5 font-bold text-white shadow-lg shadow-rose-200 transition-all hover:scale-[1.02] hover:bg-rose-600 active:scale-95"
+                    className="w-full mb-4 flex items-center justify-center gap-2.5 rounded-2xl bg-orange-500 px-4 py-3.5 font-bold text-white shadow-lg shadow-orange-200 transition-all hover:scale-[1.02] hover:bg-orange-600 active:scale-95"
                 >
                     <Plus className="h-5 w-5" />
                     Thêm khoản chi mới
@@ -323,7 +307,7 @@ export default function VehicleExpenses() {
                             <button key={tab.id} type="button"
                                 onClick={() => { setFilterPeriod(tab.id); setPeriodOffset(0) }}
                                 className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all ${filterPeriod === tab.id
-                                    ? 'bg-rose-500 text-white shadow-sm'
+                                    ? 'bg-orange-500 text-white shadow-md'
                                     : 'text-slate-500 hover:text-slate-700'
                                     }`}>
                                 {tab.label}
@@ -339,7 +323,7 @@ export default function VehicleExpenses() {
                                 <ChevronLeft className="h-4 w-4" />
                             </button>
                             <div className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-center">
-                                <p className="text-sm font-bold text-rose-700">{periodRange.label}</p>
+                                <p className="text-sm font-bold text-orange-700">{periodRange.label}</p>
                             </div>
                             <button type="button"
                                 onClick={() => setPeriodOffset(o => Math.min(0, o + 1))}
@@ -351,11 +335,11 @@ export default function VehicleExpenses() {
                     )}
 
                     {periodFilteredLogs.length > 0 && (
-                        <div className="flex items-center justify-between rounded-xl bg-rose-50 border border-rose-100 px-3 py-2">
+                        <div className="flex items-center justify-between rounded-xl bg-orange-50 border border-orange-100 px-3 py-2">
                             <span className="text-xs text-slate-500">
                                 <span className="font-bold text-slate-700">{periodFilteredLogs.length}</span> khoản chi
                             </span>
-                            <span className="text-sm font-black text-rose-700">{fmt(periodTotalCost)}</span>
+                            <span className="text-sm font-black text-orange-700">{fmt(periodTotalCost)}</span>
                         </div>
                     )}
                 </div>
@@ -364,16 +348,16 @@ export default function VehicleExpenses() {
                 {loading ? (
                     <div className="space-y-3">
                         {[1, 2, 3].map(i => (
-                            <div key={i} className="animate-pulse overflow-hidden rounded-2xl bg-white p-4 shadow-sm">
+                            <div key={i} className="animate-pulse overflow-hidden rounded-2xl bg-white p-4 shadow-md">
                                 <div className="mb-3 h-4 w-2/3 rounded-lg bg-slate-100" />
                                 <div className="h-16 w-full rounded-xl bg-slate-50" />
                             </div>
                         ))}
                     </div>
                 ) : periodFilteredLogs.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center rounded-2xl bg-white border border-slate-100 py-14 shadow-sm">
-                        <div className="mb-4 rounded-3xl bg-rose-50 p-6">
-                            <Receipt className="h-12 w-12 text-rose-300" />
+                    <div className="flex flex-col items-center justify-center rounded-3xl bg-white border border-slate-100 py-14 shadow-md">
+                        <div className="mb-4 rounded-3xl bg-orange-50 p-6">
+                            <Receipt className="h-12 w-12 text-orange-300" />
                         </div>
                         <p className="font-semibold text-slate-600">
                             {filterPeriod === 'all' ? 'Chưa có chi phí nào'
@@ -401,12 +385,12 @@ export default function VehicleExpenses() {
                                     {/* Date separator */}
                                     <div className="mb-2 flex items-center justify-between">
                                         <div className="flex items-center gap-2">
-                                            <div className="h-2 w-2 rounded-full bg-rose-400" />
+                                            <div className="h-2 w-2 rounded-full bg-orange-400" />
                                             <span className="text-xs font-bold text-slate-500 uppercase tracking-wide">{dayLabel}</span>
                                         </div>
                                         <span className="text-xs font-semibold text-slate-400">{fmt(dayTotal)}</span>
                                     </div>
-                                    <div className="space-y-2 pl-4 border-l-2 border-rose-100">
+                                    <div className="space-y-2 pl-4 border-l-2 border-orange-100">
                                         {dayLogs.map(log => {
                                             const t = EXPENSE_TYPES[log.expense_type] || EXPENSE_TYPES.other
                                             const isExpanded = expandedId === log.id
@@ -455,7 +439,7 @@ export default function VehicleExpenses() {
                                                                 )}
                                                                 {log.location && (
                                                                     <div className="flex items-center gap-2 text-xs text-slate-500">
-                                                                        <MapPin className="h-3.5 w-3.5 text-rose-400" />
+                                                                        <MapPin className="h-3.5 w-3.5 text-orange-400" />
                                                                         <span>{log.location}</span>
                                                                     </div>
                                                                 )}
@@ -567,7 +551,7 @@ function AddExpenseModal({ vehicle, onClose, onSuccess }: {
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-[3px]">
             <div className="w-full max-h-[92vh] overflow-y-auto rounded-t-3xl bg-white shadow-2xl">
                 {/* Header */}
-                <div className="sticky top-0 z-10 rounded-t-3xl bg-rose-500 px-5 pt-5 pb-4 text-white">
+                <div className="sticky top-0 z-10 rounded-t-3xl bg-orange-500 px-5 pt-5 pb-4 text-white">
                     <div className="flex items-center justify-between">
                         <div className="flex items-center gap-2">
                             <div className="rounded-xl bg-white/20 p-1.5"><Receipt className="h-4 w-4" /></div>
@@ -586,7 +570,7 @@ function AddExpenseModal({ vehicle, onClose, onSuccess }: {
                         <label className="mb-1.5 block text-xs font-bold text-slate-500 uppercase tracking-wide">Ngày</label>
                         <input type="date" value={form.expense_date}
                             onChange={e => setForm({ ...form, expense_date: e.target.value })}
-                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium focus:border-rose-400 focus:bg-white focus:outline-none" />
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm font-medium focus:border-orange-400 focus:bg-white focus:outline-none" />
                     </div>
 
                     {/* Expense type grid */}
@@ -596,7 +580,7 @@ function AddExpenseModal({ vehicle, onClose, onSuccess }: {
                             {Object.entries(EXPENSE_TYPES).map(([key, t]) => (
                                 <button key={key} onClick={() => setForm({ ...form, expense_type: key as any })}
                                     className={`flex flex-col items-center gap-1 rounded-xl border py-2.5 px-1 text-center transition-all ${form.expense_type === key
-                                        ? `${t.bg} ${t.text} border-transparent shadow-sm`
+                                        ? `${t.bg} ${t.text} border-transparent shadow-md`
                                         : 'border-slate-200 bg-slate-50 text-slate-500 hover:border-slate-300'}`}>
                                     <span className="text-[10px] font-bold leading-tight">{t.label}</span>
                                 </button>
@@ -612,14 +596,14 @@ function AddExpenseModal({ vehicle, onClose, onSuccess }: {
                             <input type="number" value={form.amount}
                                 onChange={e => setForm({ ...form, amount: e.target.value })}
                                 placeholder="0"
-                                className={`w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-3 text-xl font-black focus:bg-white focus:outline-none ${selectedType.text} focus:border-rose-400`} />
+                                className={`w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 py-3 text-xl font-black focus:bg-white focus:outline-none ${selectedType.text} focus:border-orange-400`} />
                         </div>
                         {/* Preset amounts */}
                         <div className="flex gap-2 flex-wrap">
                             {AMOUNT_PRESETS.map(v => (
                                 <button key={v} onClick={() => handlePreset(v)}
                                     className={`rounded-xl border px-3 py-1.5 text-xs font-semibold transition-all ${parseFloat(form.amount) === v
-                                        ? 'border-rose-400 bg-rose-50 text-rose-700'
+                                        ? 'border-orange-400 bg-orange-50 text-orange-700'
                                         : 'border-slate-200 bg-white text-slate-500 hover:border-slate-300'}`}>
                                     {v >= 1_000_000 ? `${v / 1_000_000}M` : `${v / 1_000}K`}
                                 </button>
@@ -635,7 +619,7 @@ function AddExpenseModal({ vehicle, onClose, onSuccess }: {
                             <input type="text" value={form.description}
                                 onChange={e => setForm({ ...form, description: e.target.value })}
                                 placeholder="VD: Vá lốp, nộp phạt nguội..."
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2.5 text-sm focus:border-rose-400 focus:bg-white focus:outline-none" />
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2.5 text-sm focus:border-orange-400 focus:bg-white focus:outline-none" />
                         </div>
                     </div>
 
@@ -647,7 +631,7 @@ function AddExpenseModal({ vehicle, onClose, onSuccess }: {
                             <input type="text" value={form.location}
                                 onChange={e => setForm({ ...form, location: e.target.value })}
                                 placeholder="Nơi phát sinh chi phí..."
-                                className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2.5 text-sm focus:border-rose-400 focus:bg-white focus:outline-none" />
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-2.5 text-sm focus:border-orange-400 focus:bg-white focus:outline-none" />
                         </div>
                     </div>
 
@@ -668,7 +652,7 @@ function AddExpenseModal({ vehicle, onClose, onSuccess }: {
                         <label className="mb-1.5 block text-xs font-bold text-slate-500 uppercase tracking-wide">Ghi chú</label>
                         <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
                             rows={2} placeholder="Ghi chú thêm..."
-                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-rose-400 focus:bg-white focus:outline-none resize-none" />
+                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-orange-400 focus:bg-white focus:outline-none resize-none" />
                     </div>
 
                     {/* Actions */}
@@ -678,7 +662,7 @@ function AddExpenseModal({ vehicle, onClose, onSuccess }: {
                             Hủy
                         </button>
                         <button onClick={handleSubmit} disabled={loading}
-                            className="flex-[2] flex items-center justify-center gap-2 rounded-2xl bg-rose-500 py-3.5 text-sm font-bold text-white shadow-lg shadow-rose-200 hover:bg-rose-600 disabled:opacity-50 active:scale-95 transition-all">
+                            className="flex-[2] flex items-center justify-center gap-2 rounded-2xl bg-orange-500 py-3.5 text-sm font-bold text-white shadow-lg shadow-orange-200 hover:bg-orange-600 disabled:opacity-50 active:scale-95 transition-all">
                             {loading ? 'Đang lưu...' : <><Save className="h-4 w-4" /> Thêm chi phí</>}
                         </button>
                     </div>

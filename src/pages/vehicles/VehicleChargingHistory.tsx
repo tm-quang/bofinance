@@ -298,7 +298,7 @@ export default function VehicleChargingHistory() {
 
             <main className="flex-1 overflow-y-auto px-4 pt-4 pb-28">
                 {/* Summary Info Row */}
-                <div className="mb-4 flex items-center justify-between rounded-xl bg-white border border-slate-100 px-4 py-3 shadow-sm">
+                <div className="mb-4 flex items-center justify-between rounded-xl bg-white border border-slate-100 px-4 py-3 shadow-md">
                     <p className="text-sm font-semibold text-slate-600">
                         <span className="font-black text-slate-800">{filteredLogs.length}</span> / {logs.length} phiên sạc
                     </p>
@@ -338,7 +338,7 @@ export default function VehicleChargingHistory() {
                         <button
                             onClick={() => setFilterMonth('all')}
                             className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${filterMonth === 'all'
-                                ? 'bg-blue-100 text-blue-700 border border-blue-200 shadow-sm'
+                                ? 'bg-blue-100 text-blue-700 border border-blue-200 shadow-md'
                                 : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
                                 }`}
                         >
@@ -349,7 +349,7 @@ export default function VehicleChargingHistory() {
                                 key={month}
                                 onClick={() => setFilterMonth(month)}
                                 className={`px-4 py-1.5 rounded-full text-xs font-bold transition-all whitespace-nowrap ${filterMonth === month
-                                    ? 'bg-blue-100 text-blue-700 border border-blue-200 shadow-sm'
+                                    ? 'bg-blue-100 text-blue-700 border border-blue-200 shadow-md'
                                     : 'bg-white text-slate-500 border border-slate-200 hover:bg-slate-50'
                                     }`}
                             >
@@ -451,6 +451,19 @@ export default function VehicleChargingHistory() {
                                                 <span className="text-[15px] font-black text-slate-800">{formatCurrency(log.total_cost || log.total_amount || 0).replace('₫', 'đ').trim()}</span>
                                             </>
                                         )}
+                                    </div>
+                                </div>
+                                {/* Progress Bar */}
+                                <div className="mt-1">
+                                    <div className="flex justify-between text-[10px] text-slate-500 font-medium mb-1.5 px-0.5">
+                                        <span>Tỉ lệ sạc</span>
+                                        <span className="text-emerald-500 font-bold">{Math.round(Math.min(100, Math.max(0, ((log.kwh || 0) / 37.23) * 100)))}%</span>
+                                    </div>
+                                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                                        <div
+                                            className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                                            style={{ width: `${Math.min(100, Math.max(0, ((log.kwh || 0) / 37.23) * 100))}%` }}
+                                        ></div>
                                     </div>
                                 </div>
 

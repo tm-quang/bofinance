@@ -85,20 +85,34 @@ export function GPSInfoDisplay({ notes }: GPSInfoDisplayProps) {
     )
 }
 
-/**
- * Get clean notes without GPS data
- */
 export function getCleanNotes(notes: string): string {
     if (!notes) return ''
 
-    const lines = notes.split('\n')
-    const cleanLines = lines.filter(line => {
-        // Remove GPS coordinate lines
-        if (line.match(/📍\s*(?:Vị trí|Điểm đi|Điểm đến):/)) return false
-        // Remove Google Maps URL lines
-        if (line.match(/🔗\s*https:\/\/www\.google\.com\/maps/)) return false
-        return true
-    })
+    let clean = notes
+
+    // Remove (áp dụng hàng loạt)
+    clean = clean.replace(/\(áp dụng hàng loạt\)/gi, '')
+
+    // Remove "Kết thúc: HH:MM"
+    clean = clean.replace(/Kết thúc:\s*\d{1,2}:\d{2}/gi, '')
+
+    // Remove "Thời gian sạc: XX phút"
+    clean = clean.replace(/Thời gian sạc:\s*\d+\s*phút/gi, '')
+
+    // Remove GPS points in single line if they somehow leaked
+    clean = clean.replace(/📍\s*(?:Vị trí|Điểm đi|Điểm đến):(.*?)(\n|$)/gi, '')
+    clean = clean.replace(/🔗\s*https:\/\/www\.google\.com\/maps(.*?)(?=\n|$)/gi, '')
+
+    // Cleanup extra spaces
+    clean = clean.replace(/\s{2,}/g, ' ')
+
+    // Ensure "Khuyến mãi:" is on a new line for better layout if it exists
+    clean = clean.replace(/Khuyến mãi:/gi, '\nKhuyến mãi:')
+
+    // Split to clear empty lines
+    const cleanLines = clean.split('\n')
+        .map(line => line.trim())
+        .filter(line => line.length > 0)
 
     return cleanLines.join('\n').trim()
 }

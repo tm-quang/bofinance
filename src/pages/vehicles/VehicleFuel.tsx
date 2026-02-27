@@ -5,7 +5,7 @@ import {
     BatteryCharging, Activity, TrendingUp, Clock, ChevronDown, ChevronUp,
     Bolt, Gauge, Check, Gift, DollarSign, Image, Loader2,
     Fuel, CreditCard, ScanLine, X, CheckSquare, Square, Save,
-    ChevronLeft, ChevronRight, Edit2
+    ChevronLeft, ChevronRight, Edit2, Search
 } from 'lucide-react'
 import { createFuelLog, deleteFuelLog, updateFuelLog, type VehicleRecord, type FuelLogRecord } from '../../lib/vehicles/vehicleService'
 import { useVehicles, useVehicleFuel, vehicleKeys } from '../../lib/vehicles/useVehicleQueries'
@@ -21,6 +21,7 @@ import { SimpleLocationInput, type SimpleLocationData } from '../../components/v
 import { GPSInfoDisplay, getCleanNotes } from '../../components/vehicles/GPSInfoDisplay'
 import { VehicleFooterNav } from '../../components/vehicles/VehicleFooterNav'
 import { analyzeChargeReceipt, type ChargeReceiptData } from '../../lib/vehicles/chargeReceiptAnalyzer'
+import { useVehicleStore } from '../../store/useVehicleStore'
 
 const FUEL_TYPES = {
     petrol_a95: { label: 'Xăng A95', color: 'gray', category: 'fuel' as const },
@@ -110,7 +111,7 @@ function ElectricStatsCard({ logs }: { logs: FuelLogRecord[] }) {
 
             {/* Mini stats row */}
             <div className="grid grid-cols-3 gap-2">
-                <div className="flex flex-col items-center rounded-xl bg-white p-3 shadow-sm">
+                <div className="flex flex-col items-center rounded-2xl bg-white p-3 shadow-md">
                     <div className="mb-1 rounded-lg bg-amber-100 p-1.5">
                         <Bolt className="h-4 w-4 text-amber-600" />
                     </div>
@@ -119,7 +120,7 @@ function ElectricStatsCard({ logs }: { logs: FuelLogRecord[] }) {
                     </p>
                     <p className="text-center text-[10px] leading-tight text-slate-500">TB/kWh</p>
                 </div>
-                <div className="flex flex-col items-center rounded-xl bg-white p-3 shadow-sm">
+                <div className="flex flex-col items-center rounded-2xl bg-white p-3 shadow-md">
                     <div className="mb-1 rounded-lg bg-blue-100 p-1.5">
                         <Activity className="h-4 w-4 text-blue-600" />
                     </div>
@@ -128,7 +129,7 @@ function ElectricStatsCard({ logs }: { logs: FuelLogRecord[] }) {
                     </p>
                     <p className="text-center text-[10px] leading-tight text-slate-500">TB/lần sạc</p>
                 </div>
-                <div className="flex flex-col items-center rounded-xl bg-white p-3 shadow-sm">
+                <div className="flex flex-col items-center rounded-2xl bg-white p-3 shadow-md">
                     <div className="mb-1 rounded-lg bg-green-100 p-1.5">
                         <TrendingUp className="h-4 w-4 text-green-600" />
                     </div>
@@ -198,8 +199,16 @@ function ChargeLogCard({
 
     const kwh = log.kwh || log.liters || 0
     const cost = log.total_cost || log.total_amount || 0
-    const pricePerKwh = kwh > 0 ? cost / kwh : log.unit_price || 0
     const hasExtra = log.station_name || log.notes || log.receipt_image_url
+
+    const durationMins = (() => {
+        let mins = log.charge_duration_minutes || 0
+        if (log.notes) {
+            const match = log.notes.match(/Thời gian sạc:\s*(\d+)/)
+            if (match) mins = parseInt(match[1], 10)
+        }
+        return mins
+    })()
 
     const formatCurrency = (v: number) =>
         new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(v)
@@ -259,15 +268,29 @@ function ChargeLogCard({
                     </div>
                     <div className="rounded-xl bg-amber-50 p-2.5 text-center">
                         <p className="text-base font-black text-amber-700">
-                            {pricePerKwh > 0 ? `${Math.round(pricePerKwh).toLocaleString('vi-VN')}đ` : '--'}
+                            {durationMins > 0 ? `${durationMins}m` : '--'}
                         </p>
-                        <p className="text-[10px] text-amber-600 font-medium">đ/kWh</p>
+                        <p className="text-[10px] text-amber-600 font-medium">thời gian sạc</p>
                     </div>
                     <div className="rounded-xl bg-red-100 p-2.5 text-center">
                         <p className="text-base font-black text-red-700">
                             {formatCurrency(cost).replace('₫', '').trim()}
                         </p>
                         <p className="text-[10px] text-red-600 font-medium">tổng tiền</p>
+                    </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div className="mt-3.5 px-0.5">
+                    <div className="flex justify-between text-[10px] text-slate-500 font-medium mb-1.5">
+                        <span>Tỉ lệ sạc</span>
+                        <span className="text-emerald-500 font-bold">{Math.round(Math.min(100, Math.max(0, (kwh / 37.23) * 100)))}%</span>
+                    </div>
+                    <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                        <div
+                            className="bg-emerald-500 h-full rounded-full transition-all duration-500"
+                            style={{ width: `${Math.min(100, Math.max(0, (kwh / 37.23) * 100))}%` }}
+                        ></div>
                     </div>
                 </div>
 
@@ -303,7 +326,7 @@ function ChargeLogCard({
                         )}
                         {log.notes && <GPSInfoDisplay notes={log.notes} />}
                         {log.notes && getCleanNotes(log.notes) && (
-                            <div className="text-xs text-slate-600">
+                            <div className="text-xs text-slate-600 whitespace-pre-wrap">
                                 <span className="font-medium">Ghi chú: </span>
                                 {getCleanNotes(log.notes)}
                             </div>
@@ -396,14 +419,16 @@ export default function VehicleFuel() {
     const { success, error: showError } = useNotification()
     const queryClient = useQueryClient()
 
-    const [selectedVehicleId, setSelectedVehicleId] = useState<string>('')
     const [activeTab, setActiveTab] = useState<TabType>('fuel')
     const [showAddModal, setShowAddModal] = useState(false)
     const [editingLog, setEditingLog] = useState<FuelLogRecord | null>(null)
     const [showBulkDiscount, setShowBulkDiscount] = useState(false)
     const [showSettings, setShowSettings] = useState(false)
+    const [isSearchOpen, setIsSearchOpen] = useState(false)
+    const [searchTerm, setSearchTerm] = useState('')
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
     const [deleting, setDeleting] = useState(false)
+    const { selectedVehicleId, setSelectedVehicleId } = useVehicleStore()
 
     // ── Time-period filter ──────────────────────────────────
     type FilterPeriod = 'day' | 'week' | 'month' | 'quarter' | 'all'
@@ -440,7 +465,7 @@ export default function VehicleFuel() {
         setDeleting(true)
         try {
             await deleteFuelLog(deleteConfirmId)
-            await queryClient.invalidateQueries({ queryKey: vehicleKeys.fuel(selectedVehicleId) })
+            await queryClient.invalidateQueries({ queryKey: vehicleKeys.fuel(selectedVehicleId || '') })
             success('Đã xóa nhật ký thành công!')
             setDeleteConfirmId(null)
         } catch (err) {
@@ -500,11 +525,52 @@ export default function VehicleFuel() {
     const periodRange = getPeriodRange(filterPeriod, periodOffset)
 
     // Filter logs by time range
-    const filteredLogs = logs.filter(log => {
+    let filteredLogs = logs.filter(log => {
         if (filterPeriod === 'all') return true
         const d = new Date(log.refuel_date)
         return d >= periodRange.start && d <= periodRange.end
     })
+
+    if (searchTerm.trim()) {
+        const term = searchTerm.toLowerCase().trim()
+
+        // Smart queries
+        if (term.includes('chi phí cao nhất') || term.includes('tiền nhiều nhất') || term.includes('đắt nhất')) {
+            const maxCost = Math.max(0, ...filteredLogs.map(l => l.total_cost || l.total_amount || 0))
+            filteredLogs = filteredLogs.filter(l => (l.total_cost || l.total_amount || 0) === maxCost && maxCost > 0)
+        } else if (term.includes('nhiều năng lượng') || term.includes('nhiều điện') || term.includes('kwh cao nhất')) {
+            const maxKwh = Math.max(0, ...filteredLogs.map(l => l.kwh || 0))
+            filteredLogs = filteredLogs.filter(l => (l.kwh || 0) === maxKwh && maxKwh > 0)
+        } else if (term.includes('nhiều nhiên liệu') || term.includes('nhiều xăng') || term.includes('nhiều lít')) {
+            const maxLiters = Math.max(0, ...filteredLogs.map(l => l.liters || 0))
+            filteredLogs = filteredLogs.filter(l => (l.liters || 0) === maxLiters && maxLiters > 0)
+        } else if (term.includes('thời gian sạc lâu nhất') || term.includes('thời gian sạc nhiều') || term.includes('sạc lâu')) {
+            const getDuration = (l: FuelLogRecord) => {
+                let mins = l.charge_duration_minutes || 0
+                if (l.notes) {
+                    const match = l.notes.match(/Thời gian sạc:\s*(\d+)/)
+                    if (match) mins = parseInt(match[1], 10)
+                }
+                return mins
+            }
+            const maxDur = Math.max(0, ...filteredLogs.map(getDuration))
+            filteredLogs = filteredLogs.filter(l => getDuration(l) === maxDur && maxDur > 0)
+        } else {
+            // Normal text search
+            filteredLogs = filteredLogs.filter(log => {
+                const searchFields = [
+                    log.station_name,
+                    log.location,
+                    log.notes,
+                    log.total_cost?.toString(),
+                    log.total_amount?.toString(),
+                    log.kwh?.toString(),
+                    log.liters?.toString(),
+                ].filter(Boolean).map(s => String(s).toLowerCase())
+                return searchFields.some(field => field.includes(term))
+            })
+        }
+    }
 
     // Group logs by date (newest first)
     const groupedLogs = filteredLogs.reduce<Record<string, typeof filteredLogs>>((acc, log) => {
@@ -531,66 +597,44 @@ export default function VehicleFuel() {
         <div className="flex h-screen flex-col overflow-hidden bg-[#F7F9FC]">
             <HeaderBar
                 variant="page"
-                title={activeTab === 'electric' ? 'Lịch sử sạc điện' : 'Lịch sử nhiên liệu'}
-                customContent={
+                title={isSearchOpen ? '' : (activeTab === 'electric' ? 'Lịch sử sạc điện' : 'Lịch sử nhiên liệu')}
+                showIcon={
                     <button
-                        onClick={() => setShowSettings(true)}
-                        className="flex items-center justify-center rounded-full bg-white/80 p-2 shadow-sm backdrop-blur-sm transition-all hover:bg-white hover:shadow-md"
-                        title="Cài đặt giá"
+                        type="button"
+                        onClick={() => setIsSearchOpen(!isSearchOpen)}
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-white shadow-lg border border-slate-100 transition hover:scale-110 active:scale-95"
+                        aria-label="Tìm kiếm"
                     >
-                        <Settings className="h-5 w-5 text-slate-600" />
+                        <Search className="h-4 w-4 text-slate-600" />
                     </button>
+                }
+                customContent={
+                    <div className="flex items-center gap-2 flex-1">
+                        {isSearchOpen && (
+                            <div className="flex-1 relative">
+                                <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                                <input
+                                    type="text"
+                                    placeholder="Tìm kiếm..."
+                                    value={searchTerm}
+                                    onChange={(e) => setSearchTerm(e.target.value)}
+                                    autoFocus
+                                    className="w-full rounded-xl border-2 border-slate-200 bg-white py-1.5 pl-9 pr-3 text-sm text-slate-900 placeholder-slate-400 transition focus:border-blue-400 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                />
+                            </div>
+                        )}
+                        <button
+                            onClick={() => setShowSettings(true)}
+                            className="flex items-center justify-center rounded-full bg-white/80 p-2 shadow-md backdrop-blur-sm transition-all hover:bg-white hover:shadow-md shrink-0"
+                            title="Cài đặt giá"
+                        >
+                            <Settings className="h-5 w-5 text-slate-600" />
+                        </button>
+                    </div>
                 }
             />
 
             <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-28 pt-4">
-                {/* Vehicle Selector */}
-                {vehicles.length > 1 && (
-                    <div className="mb-4">
-                        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-                            {vehicles.map(vehicle => (
-                                <button
-                                    key={vehicle.id}
-                                    onClick={() => setSelectedVehicleId(vehicle.id)}
-                                    className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2 text-sm font-medium transition-all ${selectedVehicleId === vehicle.id
-                                        ? 'border-blue-500 bg-blue-500 text-white shadow-md shadow-blue-200'
-                                        : 'border-slate-200 bg-white text-slate-700 hover:border-slate-300'
-                                        }`}
-                                >
-                                    {vehicle.fuel_type === 'electric' ? <Zap className="h-4 w-4" /> : <Droplet className="h-4 w-4" />}
-                                    {vehicle.license_plate}
-                                </button>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Tabs */}
-                {!isElectricVehicle && (
-                    <div className="mb-4 flex rounded-xl bg-slate-100 p-1">
-                        <button
-                            onClick={() => setActiveTab('fuel')}
-                            className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold transition-all ${activeTab === 'fuel'
-                                ? 'bg-white text-slate-700 shadow-sm'
-                                : 'text-slate-500 hover:text-slate-700'
-                                }`}
-                        >
-                            <Droplet className="h-4 w-4" />
-                            Xăng/Dầu
-                        </button>
-                        <button
-                            onClick={() => setActiveTab('electric')}
-                            className={`flex-1 flex items-center justify-center gap-2 rounded-lg py-2.5 text-sm font-semibold transition-all ${activeTab === 'electric'
-                                ? 'bg-white text-green-700 shadow-sm'
-                                : 'text-slate-500 hover:text-slate-700'
-                                }`}
-                        >
-                            <Zap className="h-4 w-4" />
-                            Sạc điện
-                        </button>
-                    </div>
-                )}
-
                 {/* Electric header when electric vehicle */}
                 {isElectricVehicle && (
                     <div className="mb-4 flex items-center gap-3 rounded-2xl bg-green-500 px-4 py-3 text-white">
@@ -648,8 +692,8 @@ export default function VehicleFuel() {
                                 onClick={() => { setFilterPeriod(tab.id); setPeriodOffset(0) }}
                                 className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all ${filterPeriod === tab.id
                                     ? activeTab === 'electric'
-                                        ? 'bg-green-500 text-white shadow-sm'
-                                        : 'bg-slate-600 text-white shadow-sm'
+                                        ? 'bg-green-500 text-white shadow-md'
+                                        : 'bg-slate-600 text-white shadow-md'
                                     : 'text-slate-500 hover:text-slate-700'
                                     }`}>
                                 {tab.label}
@@ -698,7 +742,7 @@ export default function VehicleFuel() {
                     loading ? (
                         <div className="space-y-3">
                             {[1, 2, 3].map(i => (
-                                <div key={i} className="animate-pulse overflow-hidden rounded-2xl bg-white p-4 shadow-sm">
+                                <div key={i} className="animate-pulse overflow-hidden rounded-2xl bg-white p-4 shadow-md">
                                     <div className="mb-3 h-4 w-2/3 rounded-lg bg-slate-100" />
                                     <div className="h-16 w-full rounded-xl bg-slate-50" />
                                 </div>
@@ -789,7 +833,7 @@ export default function VehicleFuel() {
                         onSuccess={() => {
                             setShowAddModal(false)
                             setEditingLog(null)
-                            queryClient.invalidateQueries({ queryKey: vehicleKeys.fuel(selectedVehicleId) })
+                            queryClient.invalidateQueries({ queryKey: vehicleKeys.fuel(selectedVehicleId || '') })
                         }}
                     />
                 )
@@ -803,7 +847,7 @@ export default function VehicleFuel() {
                         onClose={() => setShowBulkDiscount(false)}
                         onSuccess={() => {
                             setShowBulkDiscount(false)
-                            queryClient.invalidateQueries({ queryKey: vehicleKeys.fuel(selectedVehicleId) })
+                            queryClient.invalidateQueries({ queryKey: vehicleKeys.fuel(selectedVehicleId || '') })
                         }}
                     />
                 )
@@ -1148,10 +1192,10 @@ function AddChargeModal({
                                         <button type="button" onClick={() => scanInputRef.current?.click()} className="ml-auto text-xs text-green-600 underline">Scan lại</button>
                                     </div>
                                     <div className="flex flex-wrap gap-1.5">
-                                        {scanResult.kwh != null && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs font-bold text-green-700 shadow-sm border border-green-200"><Zap className="h-3 w-3" /> {scanResult.kwh} kWh</span>}
-                                        {(scanResult.chargeAmount ?? scanResult.totalPayment) != null && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs font-bold text-slate-700 shadow-sm border border-slate-200"><CreditCard className="h-3 w-3" /> {((scanResult.chargeAmount ?? scanResult.totalPayment) ?? 0).toLocaleString('vi-VN')}đ</span>}
-                                        {scanResult.date && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs text-slate-600 shadow-sm border border-slate-200"><Calendar className="h-3 w-3" /> {new Date(scanResult.date).toLocaleDateString('vi-VN')}</span>}
-                                        {scanResult.stationName && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs text-slate-600 shadow-sm border border-slate-200 max-w-[180px] truncate"><MapPin className="h-3 w-3 shrink-0" /> {scanResult.stationName}</span>}
+                                        {scanResult.kwh != null && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs font-bold text-green-700 shadow-md border border-green-200"><Zap className="h-3 w-3" /> {scanResult.kwh} kWh</span>}
+                                        {(scanResult.chargeAmount ?? scanResult.totalPayment) != null && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs font-bold text-slate-700 shadow-md border border-slate-200"><CreditCard className="h-3 w-3" /> {((scanResult.chargeAmount ?? scanResult.totalPayment) ?? 0).toLocaleString('vi-VN')}đ</span>}
+                                        {scanResult.date && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs text-slate-600 shadow-md border border-slate-200"><Calendar className="h-3 w-3" /> {new Date(scanResult.date).toLocaleDateString('vi-VN')}</span>}
+                                        {scanResult.stationName && <span className="inline-flex items-center gap-1 rounded-full bg-white px-2 py-0.5 text-xs text-slate-600 shadow-md border border-slate-200 max-w-[180px] truncate"><MapPin className="h-3 w-3 shrink-0" /> {scanResult.stationName}</span>}
                                     </div>
                                     {scanResult.summary && <p className="mt-1.5 text-[10px] text-green-600">{scanResult.summary}</p>}
                                     {scanPreviewUrl && <img src={scanPreviewUrl} alt="Hóa đơn" className="mt-2 h-16 w-auto rounded-lg object-cover border border-green-200" />}
@@ -1332,7 +1376,7 @@ function AddChargeModal({
                                         <button key={pct} type="button"
                                             onClick={() => setFormData(prev => ({ ...prev, discount: pct.toString() }))}
                                             className={`flex-1 rounded-xl border py-2 text-sm font-bold transition-all ${formData.discount === pct.toString()
-                                                ? 'border-red-500 bg-red-500 text-white shadow-sm'
+                                                ? 'border-red-500 bg-red-500 text-white shadow-md'
                                                 : 'border-red-200 bg-white text-red-600 hover:border-red-400'
                                                 }`}>
                                             -{pct}%
@@ -1531,9 +1575,9 @@ function BulkDiscountModal({
 
                     let newNotes = log.notes || ''
                     // clean old bulk discount notes if any (simple approach)
-                    newNotes = newNotes.replace(/\n?Khuyến mãi: -[\d.]+đ \(áp dụng hàng loạt\)/g, '')
+                    newNotes = newNotes.replace(/\n?Khuyến mãi: -[\d.]+đ \)/g, '')
                     if (disc > 0) {
-                        newNotes += `\nKhuyến mãi: -${disc.toLocaleString('vi-VN')}đ (áp dụng hàng loạt)`
+                        newNotes += `\nKhuyến mãi: -${disc.toLocaleString('vi-VN')}đ`
                     }
 
                     await updateFuelLog(id, {
@@ -1614,7 +1658,7 @@ function BulkDiscountModal({
                                         const dateStr = new Date(log.refuel_date).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: '2-digit' })
                                         return (
                                             <div key={log.id} onClick={() => toggleLog(log.id)}
-                                                className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${sel ? 'border-red-400 bg-red-50 shadow-sm' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
+                                                className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-colors ${sel ? 'border-red-400 bg-red-50 shadow-md' : 'border-slate-200 bg-white hover:border-slate-300'}`}>
                                                 {sel ? <CheckSquare className="h-5 w-5 text-red-500 shrink-0" /> : <Square className="h-5 w-5 text-slate-300 shrink-0" />}
                                                 <div className="flex-1 min-w-0">
                                                     <p className="text-sm font-bold text-slate-700 truncate">{log.station_name || 'Không rõ địa điểm'}</p>
