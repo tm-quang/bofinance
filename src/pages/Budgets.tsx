@@ -32,7 +32,7 @@ export const BudgetsPage = () => {
 
   useEffect(() => {
     loadData()
-    
+
     // Check budget alerts when Budgets page loads (chạy trong background)
     checkAndSendBudgetAlerts().catch((error) => {
       console.warn('Error checking budget alerts on Budgets page load:', error)
@@ -138,7 +138,7 @@ export const BudgetsPage = () => {
       <HeaderBar variant="page" title="Hạn mức" />
 
       <main className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 pt-2 pb-4 sm:pt-2 sm:pb-5">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 pt-2 pb-24 sm:pt-2 sm:pb-28">
           {/* Header */}
           <div className="flex items-center justify-between">
             <div>

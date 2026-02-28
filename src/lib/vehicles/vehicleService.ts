@@ -1,4 +1,5 @@
 import { getSupabaseClient } from '../supabaseClient'
+import { applyArchiveFilter } from '../../store/useArchiveStore'
 
 // ============================================
 // TYPES & INTERFACES
@@ -240,6 +241,8 @@ export async function fetchTrips(vehicleId?: string): Promise<TripRecord[]> {
         .select('*')
         .eq('user_id', user.id)
 
+    query = applyArchiveFilter(query, 'trip_date')
+
     if (vehicleId) {
         query = query.eq('vehicle_id', vehicleId)
     }
@@ -310,6 +313,8 @@ export async function fetchFuelLogs(vehicleId?: string): Promise<FuelLogRecord[]
         .select('*')
         .eq('user_id', user.id)
 
+    query = applyArchiveFilter(query, 'refuel_date')
+
     if (vehicleId) {
         query = query.eq('vehicle_id', vehicleId)
     }
@@ -379,6 +384,8 @@ export async function fetchMaintenance(vehicleId?: string): Promise<MaintenanceR
         .from('vehicle_maintenance')
         .select('*')
         .eq('user_id', user.id)
+
+    query = applyArchiveFilter(query, 'maintenance_date')
 
     if (vehicleId) {
         query = query.eq('vehicle_id', vehicleId)
@@ -453,6 +460,8 @@ export async function fetchExpenses(vehicleId?: string): Promise<ExpenseRecord[]
         .from('vehicle_expenses')
         .select('*')
         .eq('user_id', user.id)
+
+    query = applyArchiveFilter(query, 'expense_date')
 
     if (vehicleId) {
         query = query.eq('vehicle_id', vehicleId)

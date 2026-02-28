@@ -4,6 +4,7 @@ import { getSupabaseClient } from './supabaseClient'
 import { getCachedUser } from './userCache'
 import { formatDateUTC7, getNowUTC7, getDateComponentsUTC7, createDateUTC7 } from '../utils/dateUtils'
 import { queryClient } from './react-query'
+import { applyArchiveFilter } from '../store/useArchiveStore'
 
 export type TaskStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
 export type TaskPriority = 'low' | 'medium' | 'high' | 'urgent'
@@ -101,6 +102,10 @@ export const fetchTasks = async (filters?: TaskFilters): Promise<TaskRecord[]> =
     .from(TABLE_NAME)
     .select('*')
     .eq('user_id', user.id)
+
+  query = applyArchiveFilter(query, 'created_at')
+
+  query = query
     .order('deadline', { ascending: true })
     .order('priority', { ascending: false })
     .order('created_at', { ascending: false })

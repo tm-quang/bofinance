@@ -350,7 +350,7 @@ export const DebtManagerPage = () => {
             <HeaderBar variant="page" title="SỔ NỢ" onReload={loadData} isReloading={isLoading} />
 
             <main className="flex-1 overflow-y-auto overscroll-contain">
-                <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 pt-2 pb-4 sm:pt-2 sm:pb-5">
+                <div className="mx-auto flex w-full max-w-md flex-col gap-4 px-4 pt-2 pb-24 sm:pt-2 sm:pb-28">
                     {/* Header */}
                     <div className="flex items-center justify-between">
                         <div>

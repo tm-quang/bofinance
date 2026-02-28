@@ -200,7 +200,7 @@ export default function VehicleReports() {
         <div className="flex h-screen flex-col overflow-hidden bg-[#F7F9FC]">
             <HeaderBar variant="page" title="Báo Cáo Phương Tiện" />
 
-            <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-28 pt-4 space-y-5">
+            <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-4 pt-4 space-y-5">
 
 
 
@@ -448,6 +448,7 @@ export default function VehicleReports() {
                     </div>
                 )}
 
+                <div className="h-[150px] w-full flex-shrink-0"></div>
             </main>
 
             <VehicleFooterNav addLabel="Ghi chép" />

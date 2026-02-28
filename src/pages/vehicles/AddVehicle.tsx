@@ -84,7 +84,7 @@ export default function AddVehicle({ vehicle, onSuccess }: AddVehicleProps) {
                 title={vehicle ? 'CẬP NHẬT XE' : 'THÊM XE MỚI'}
             />
 
-            <main className="flex-1 overflow-y-auto overscroll-contain pb-20">
+            <main className="flex-1 overflow-y-auto overscroll-contain pb-4">
                 <div className="mx-auto flex w-full max-w-md flex-col gap-2 px-4 pt-2 pb-4">
                     <form onSubmit={handleSubmit} id="vehicle-form" className="space-y-4">
                         {/* Header */}
@@ -326,6 +326,7 @@ export default function AddVehicle({ vehicle, onSuccess }: AddVehicleProps) {
                         </div>
                     </form>
                 </div>
+                <div className="h-[150px] w-full flex-shrink-0"></div>
             </main>
 
             {/* Fixed Footer with Action Buttons */}

@@ -208,7 +208,7 @@ export default function VehicleManagement() {
         return (
             <div className="flex h-screen flex-col overflow-hidden bg-[#F7F9FC]">
                 <HeaderBar variant="page" title="Quản Lý Phương Tiện" />
-                <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-20 pt-4">
+                <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-4 pt-4">
                     <div className="animate-pulse space-y-4">
                         <div className="h-48 bg-gray-200 rounded-3xl" />
                         <div className="h-32 bg-gray-200 rounded-2xl" />
@@ -216,6 +216,7 @@ export default function VehicleManagement() {
                             {[1, 2, 3, 4].map(i => <div key={i} className="h-24 bg-gray-200 rounded-2xl" />)}
                         </div>
                     </div>
+                    <div className="h-[150px] w-full flex-shrink-0"></div>
                 </main>
             </div>
         )
@@ -237,7 +238,7 @@ export default function VehicleManagement() {
                 }
             />
 
-            <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-28 pt-4">
+            <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-4 pt-4">
 
                 {/* ── Xe của bạn ──────────────────────────────────────────── */}
                 <div className="mb-5">
@@ -724,6 +725,7 @@ export default function VehicleManagement() {
                         </div>
                     </div>
                 )}
+                <div className="h-[150px] w-full flex-shrink-0"></div>
             </main>
 
             {/* ── ODO Quick Update Modal ─────────────────────────────── */}

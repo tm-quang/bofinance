@@ -172,7 +172,7 @@ export default function VehicleExpenses() {
                 }
             />
 
-            <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-28 pt-4">
+            <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-4 pt-4">
 
 
 
@@ -472,6 +472,7 @@ export default function VehicleExpenses() {
                     </div>
                 )}
 
+                <div className="h-[150px] w-full flex-shrink-0"></div>
             </main>
 
             <VehicleFooterNav onAddClick={() => setShowAddModal(true)} addLabel="Chi phí" />

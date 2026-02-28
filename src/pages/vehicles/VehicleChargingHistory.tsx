@@ -296,7 +296,7 @@ export default function VehicleChargingHistory() {
                 }
             />
 
-            <main className="flex-1 overflow-y-auto px-4 pt-4 pb-28">
+            <main className="flex-1 overflow-y-auto px-4 pt-4 pb-4">
                 {/* Summary Info Row */}
                 <div className="mb-4 flex items-center justify-between rounded-xl bg-white border border-slate-100 px-4 py-3 shadow-md">
                     <p className="text-sm font-semibold text-slate-600">
@@ -477,6 +477,7 @@ export default function VehicleChargingHistory() {
                         )
                     })}
                 </div>
+                <div className="h-[150px] w-full flex-shrink-0"></div>
             </main>
 
             {/* Edit Modal */}

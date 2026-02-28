@@ -5,6 +5,7 @@ import { getCachedUser } from './userCache'
 import { getNowUTC7 } from '../utils/dateUtils'
 import { generateUUID } from '../utils/uuid'
 import { queryClient } from './react-query'
+import { applyArchiveFilter } from '../store/useArchiveStore'
 
 export type ShoppingItemStatus = 'pending' | 'completed'
 
@@ -63,7 +64,10 @@ export const fetchShoppingLists = async (includeCompleted: boolean = true): Prom
     .from(TABLE_NAME)
     .select('*')
     .eq('user_id', user.id)
-    .order('created_at', { ascending: false })
+
+  query = applyArchiveFilter(query, 'created_at')
+
+  query = query.order('created_at', { ascending: false })
 
   if (!includeCompleted) {
     query = query.is('completed_at', null)
@@ -175,7 +179,7 @@ export const createShoppingList = async (list: ShoppingListInsert): Promise<Shop
 
       // Provide more user-friendly error messages
       let errorMessage = 'Không thể tạo danh sách mua sắm.'
-      
+
       if (error.code === 'PGRST116' || error.message?.includes('relation') || error.message?.includes('does not exist')) {
         errorMessage = 'Bảng shopping_lists chưa được tạo. Vui lòng chạy migration SQL trong Supabase Dashboard → SQL Editor.'
       } else if (error.message?.includes('column') && error.message?.includes('not found')) {

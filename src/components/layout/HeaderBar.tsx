@@ -2,6 +2,7 @@ import { useEffect, useState, type ReactNode } from 'react'
 import { FaBell, FaArrowLeft, FaRedoAlt } from 'react-icons/fa'
 import { useNavigate } from 'react-router-dom'
 import { ProfileModal } from './ProfileModal'
+import { useArchiveStore } from '../../store/useArchiveStore'
 
 type HeaderBarProps =
   | {
@@ -31,6 +32,7 @@ const HeaderBar = (props: HeaderBarProps) => {
   const [isScrolled, setIsScrolled] = useState(false)
   const [isOnline, setIsOnline] = useState(navigator.onLine)
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false)
+  const isArchiveMode = useArchiveStore((state) => state.isArchiveMode)
 
   useEffect(() => {
     const handleOnline = () => setIsOnline(true)
@@ -135,6 +137,11 @@ const HeaderBar = (props: HeaderBarProps) => {
             </div>
           </div>
         </div>
+        {isArchiveMode && (
+          <div className="bg-amber-100 px-4 py-2 text-center text-sm font-semibold text-amber-800">
+            Cảnh báo: Đang xem Kho lưu trữ dữ liệu năm 2025.
+          </div>
+        )}
       </header>
     )
   }
@@ -249,6 +256,11 @@ const HeaderBar = (props: HeaderBarProps) => {
           </div>
         </div>
       </div>
+      {isArchiveMode && (
+        <div className="bg-amber-100 px-4 py-2 text-center text-sm font-semibold text-amber-800">
+          Cảnh báo: Đang xem Kho lưu trữ dữ liệu năm 2025.
+        </div>
+      )}
       {(props.variant === 'greeting' || !props.variant) && userName && (
         <ProfileModal
           isOpen={isProfileModalOpen}

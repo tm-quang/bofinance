@@ -11,8 +11,9 @@ import ErrorBoundary from './components/ErrorBoundary'
 import { ProtectedRoute } from './components/ProtectedRoute'
 
 
-import { QueryClientProvider } from '@tanstack/react-query'
-import { queryClient } from './lib/react-query'
+
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client'
+import { queryClient, persister } from './lib/react-query'
 
 const DashboardPage = lazy(() => import('./pages/Dashboard'))
 const CategoriesPage = lazy(() => import('./pages/Categories'))
@@ -44,6 +45,7 @@ const VehicleMaintenancePage = lazy(() => import('./pages/vehicles/VehicleMainte
 const VehicleExpensesPage = lazy(() => import('./pages/vehicles/VehicleExpenses'))
 const VehicleReportsPage = lazy(() => import('./pages/vehicles/VehicleReports'))
 const VehicleChargingHistoryPage = lazy(() => import('./pages/vehicles/VehicleChargingHistory'))
+const ArchiveDashboardPage = lazy(() => import('./pages/Archive2025'))
 
 const PageFallback = () => {
   const { value: splashLogo } = useSystemSetting('app_splash_logo', '/logo-nontext.png')
@@ -173,6 +175,14 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <SettingsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/archive"
+              element={
+                <ProtectedRoute>
+                  <ArchiveDashboardPage />
                 </ProtectedRoute>
               }
             />
@@ -469,13 +479,13 @@ function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
-        <QueryClientProvider client={queryClient}>
+        <PersistQueryClientProvider client={queryClient} persistOptions={{ persister }}>
           <NotificationProvider>
             <DialogProvider>
               <AppContent />
             </DialogProvider>
           </NotificationProvider>
-        </QueryClientProvider>
+        </PersistQueryClientProvider>
       </BrowserRouter>
     </ErrorBoundary>
   )

@@ -4,6 +4,7 @@ import { getCachedUser } from './userCache'
 import { fetchTransactions, type TransactionRecord } from './transactionService'
 import { fetchCategories } from './categoryService'
 import { queryClient } from './react-query'
+import { applyArchiveFilter } from '../store/useArchiveStore'
 import {
   getNowUTC7,
   formatDateUTC7,
@@ -257,6 +258,10 @@ export const fetchBudgets = async (filters?: BudgetFilters): Promise<BudgetRecor
     .from(TABLE_NAME)
     .select('*')
     .eq('user_id', user.id)
+
+  query = applyArchiveFilter(query, 'period_start')
+
+  query = query
     .order('period_start', { ascending: false })
     .order('created_at', { ascending: false })
 

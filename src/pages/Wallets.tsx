@@ -559,7 +559,7 @@ export const WalletsPage = () => {
       <HeaderBar variant="page" title="VÍ CỦA BẠN" />
 
       <main className="flex-1 overflow-y-auto overscroll-contain">
-        <div className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 pt-2 pb-6 sm:pt-2 sm:pb-8">
+        <div className="mx-auto flex w-full max-w-md flex-col gap-6 px-4 pt-2 pb-24 sm:pt-2 sm:pb-28">
           {/* Add button */}
           <button
             onClick={() => handleOpenForm()}

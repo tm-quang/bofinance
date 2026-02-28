@@ -376,7 +376,7 @@ export default function VehicleTrips() {
         <div className="flex h-screen flex-col overflow-hidden bg-[#F7F9FC]">
             <HeaderBar variant="page" title="Quản Lý Lộ Trình" />
 
-            <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-28 pt-4">
+            <main className="flex-1 overflow-y-auto overflow-x-hidden px-4 pb-4 pt-4">
 
                 {/* ── Stats Card ───────────────────────────────────────── */}
                 {selectedVehicle && !loading && (
@@ -522,6 +522,7 @@ export default function VehicleTrips() {
                         })}
                     </div>
                 )}
+                <div className="h-[150px] w-full flex-shrink-0"></div>
             </main>
 
             {/* Footer Nav */}

@@ -1,6 +1,7 @@
 import { getSupabaseClient } from './supabaseClient'
 import { getCachedUser } from './userCache'
 import { queryClient } from './react-query'
+import { applyArchiveFilter } from '../store/useArchiveStore'
 
 export type ReminderType = 'Thu' | 'Chi'
 export type ReminderStatus = 'pending' | 'completed' | 'skipped'
@@ -87,6 +88,10 @@ export const fetchReminders = async (filters?: ReminderFilters): Promise<Reminde
     .from('reminders')
     .select('*')
     .eq('user_id', user.id)
+
+  query = applyArchiveFilter(query, 'reminder_date')
+
+  query = query
     .order('reminder_date', { ascending: true })
     .order('reminder_time', { ascending: true, nullsFirst: false })
 

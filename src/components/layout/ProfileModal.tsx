@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { useNavigate } from 'react-router-dom'
 import { FaTimes, FaCog, FaEyeSlash, FaMoon, FaSignOutAlt, FaShieldAlt } from 'react-icons/fa'
 import { getSupabaseClient } from '../../lib/supabaseClient'
 import { clearUserCache } from '../../lib/userCache'
+import { queryClient } from '../../lib/react-query'
 
 type ProfileModalProps = {
     isOpen: boolean
@@ -36,6 +38,7 @@ export const ProfileModal = ({ isOpen, onClose, userName, avatarUrl, avatarText 
             const supabase = getSupabaseClient()
             await supabase.auth.signOut({ scope: 'local' })
             clearUserCache()
+            queryClient.clear()
             window.location.href = '/login'
         } catch (error) {
             console.error('Error logging out:', error)
@@ -53,7 +56,7 @@ export const ProfileModal = ({ isOpen, onClose, userName, avatarUrl, avatarText 
         // Dark mode state handling
     }
 
-    return (
+    const modalContent = (
         <>
             <div
                 className="fixed inset-0 z-[100] bg-slate-900/40 backdrop-blur-sm transition-opacity animate-in fade-in duration-300 touch-none"
@@ -168,4 +171,6 @@ export const ProfileModal = ({ isOpen, onClose, userName, avatarUrl, avatarText 
             </div>
         </>
     )
+
+    return createPortal(modalContent, document.body)
 }

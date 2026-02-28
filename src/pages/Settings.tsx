@@ -13,6 +13,7 @@ import {
   FaQrcode,
   FaCalculator,
   FaHandHoldingUsd,
+  FaArchive,
 } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
@@ -22,6 +23,7 @@ import { NotificationSettingsModal } from '../components/settings/NotificationSe
 import { AdminSettingsModal } from '../components/settings/AdminSettingsModal'
 import { CalculatorModal } from '../components/settings/CalculatorModal'
 import { getCurrentProfile, type ProfileRecord } from '../lib/profileService'
+import { queryClient } from '../lib/react-query'
 import { useDialog } from '../contexts/dialogContext.helpers'
 import { getSupabaseClient } from '../lib/supabaseClient'
 import { useNotification } from '../contexts/notificationContext.helpers'
@@ -213,6 +215,7 @@ const SettingsPage = () => {
       }
 
       clearUserCache()
+      queryClient.clear()
 
       try {
         localStorage.removeItem('bofin-auth-token')
@@ -401,6 +404,20 @@ const SettingsPage = () => {
                 <div>
                   <p className="font-bold text-slate-800">Tài khoản</p>
                   <p className="text-xs text-slate-500">Bảo mật</p>
+                </div>
+              </button>
+
+              {/* Archive 2025 */}
+              <button
+                onClick={() => navigate('/archive')}
+                className="group flex flex-col items-center justify-center gap-3 rounded-3xl bg-white p-4 text-center shadow-lg border border-slate-100 transition-all hover:-translate-y-1 hover:shadow-xl active:scale-95"
+              >
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-slate-50 text-slate-600 shadow-inner group-hover:scale-110 transition-transform">
+                  <FaArchive className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="font-bold text-slate-800">Lưu trữ</p>
+                  <p className="text-xs text-slate-500">Dữ liệu 2025</p>
                 </div>
               </button>
 

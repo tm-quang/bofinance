@@ -4,6 +4,7 @@ import { getSupabaseClient } from './supabaseClient'
 import { getCachedUser } from './userCache'
 import { formatDateUTC7, getNowUTC7 } from '../utils/dateUtils'
 import { queryClient } from './react-query'
+import { applyArchiveFilter } from '../store/useArchiveStore'
 
 export type TransactionType = 'Thu' | 'Chi'
 
@@ -92,6 +93,10 @@ export const fetchTransactions = async (
     .from(TABLE_NAME)
     .select('*')
     .eq('user_id', user.id)
+
+  query = applyArchiveFilter(query, 'transaction_date')
+
+  query = query
     .order('transaction_date', { ascending: false })
     .order('created_at', { ascending: false })
 
@@ -365,6 +370,8 @@ export const getTransactionStats = async (
     .from(TABLE_NAME)
     .select('type, amount')
     .eq('user_id', user.id)
+
+  query = applyArchiveFilter(query, 'transaction_date')
 
   if (walletId) {
     query = query.eq('wallet_id', walletId)

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import {
     LayoutDashboard, Route, Zap, Wrench, Fuel, Home,
@@ -38,6 +38,21 @@ export function VehicleFooterNav({
     const navigate = useNavigate()
     const location = useLocation()
     const [addAnimating, setAddAnimating] = useState(false)
+    const [animatingTab, setAnimatingTab] = useState<string | null>(null)
+
+    // Check for animation trigger from navigation state
+    useEffect(() => {
+        if (location.state?.animateTab) {
+            const tabId = location.state.animateTab
+            // Small delay to ensure DOM is ready and transition can happen
+            requestAnimationFrame(() => {
+                setAnimatingTab(tabId)
+                setTimeout(() => {
+                    setAnimatingTab(null)
+                }, 600)
+            })
+        }
+    }, [location.state])
 
     const triggerAddAnimation = () => {
         setAddAnimating(false)
@@ -95,8 +110,22 @@ export function VehicleFooterNav({
             onAddClick?.()
             return
         }
+
+        // Trigger animation when clicking on a menu item
         if (tab.path) {
-            navigate(tab.path)
+            // If staying on same page, animate locally
+            if (location.pathname === tab.path) {
+                setAnimatingTab(null)
+                requestAnimationFrame(() => {
+                    setAnimatingTab(tab.id)
+                    setTimeout(() => {
+                        setAnimatingTab(null)
+                    }, 600)
+                })
+            } else {
+                // If navigating, pass state to trigger animation on next mount
+                navigate(tab.path, { state: { animateTab: tab.id } })
+            }
         }
     }
 
@@ -158,6 +187,7 @@ export function VehicleFooterNav({
 
                             const Icon = tab.icon
                             const active = isActive(tab.path)
+                            const shouldAnimate = animatingTab === tab.id
 
                             return (
                                 <button
@@ -165,18 +195,19 @@ export function VehicleFooterNav({
                                     type="button"
                                     onClick={() => handleClick(tab)}
                                     aria-current={active ? 'page' : undefined}
+                                    data-no-haptic="true"
                                     className={`relative z-20 flex flex-1 flex-col items-center gap-0.5 text-[10px] font-semibold transition-colors ${active ? 'text-blue-800' : 'text-slate-500 hover:text-slate-700'
                                         }`}
                                 >
                                     <span
                                         className={`flex h-9 w-9 items-center justify-center rounded-full transition-all ${active
                                             ? 'bg-blue-800 text-white shadow-md'
-                                            : 'text-slate-500'
-                                            }`}
+                                            : 'text-slate-500 hover:bg-slate-100/50'
+                                            } ${shouldAnimate ? 'animate-zoom-once' : ''}`}
                                     >
-                                        <Icon className="h-5 w-5" />
+                                        <Icon className={`h-5 w-5 ${shouldAnimate ? 'animate-zoom-once' : ''}`} />
                                     </span>
-                                    <span className="leading-tight">{tab.label}</span>
+                                    <span className={`leading-tight inline-block ${shouldAnimate ? 'animate-zoom-text-once' : ''}`}>{tab.label}</span>
                                 </button>
                             )
                         })}
