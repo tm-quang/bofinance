@@ -1,155 +1,201 @@
-import { ExternalLink, MapPin } from 'lucide-react'
+import { ExternalLink, MapPin, Navigation, Flag, Clock } from 'lucide-react'
 
-type TripGPSLocation = {
-    type: 'start' | 'end' | 'waypoint'
+export type TripTimelineNode = {
+    type: 'start' | 'waypoint' | 'end'
     label: string
-    lat: number
-    lng: number
-    url: string
+    lat?: number
+    lng?: number
+    url?: string
+    odo?: number
+    time?: Date
+    address?: string
 }
 
-type TripGPSDisplayProps = {
-    notes: string
+function parseMeta(notes: string) {
+    const metaMatch = notes.match(/\[TRIPMETA:([^\]]+)\]/)
+    if (!metaMatch) return {}
+    return Object.fromEntries(metaMatch[1].split(',').map(e => {
+        const i = e.indexOf('=')
+        return [e.slice(0, i), e.slice(i + 1)]
+    }))
 }
 
-/**
- * Parse GPS coordinates for trips (start and end locations)
- * Expected format:
- * 📍 Điểm đi: 10.123456, 105.123456
- * 🔗 https://www.google.com/maps?q=10.123456,105.123456
- * 📍 Điểm đến: 10.654321, 105.654321
- * 🔗 https://www.google.com/maps?q=10.654321,105.654321
- */
-function parseTripGPSFromNotes(notes: string): TripGPSLocation[] {
-    if (!notes) return []
-
+export function parseTripTimeline(trip: any): TripTimelineNode[] {
+    const notes = trip.notes || ''
     const lines = notes.split('\n')
-    const locations: TripGPSLocation[] = []
-    let currentLocation: Partial<TripGPSLocation> | null = null
+    const nodes: TripTimelineNode[] = []
+
+    let currentNode: Partial<TripTimelineNode> | null = null
+    const meta = parseMeta(notes)
 
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i]
 
-        // Match start location: [Start] 10.123456, 105.123456
-        const startMatch = line.match(/\[Start\]\s*([-\d.]+),\s*([-\d.]+)/)
-        if (startMatch) {
-            currentLocation = {
-                type: 'start',
-                label: 'Điểm khởi hành',
-                lat: parseFloat(startMatch[1]),
-                lng: parseFloat(startMatch[2]),
+        const tagMatch = line.match(/\[(Start|Waypoint|End)\]/)
+        if (tagMatch) {
+            if (currentNode) nodes.push(currentNode as TripTimelineNode)
+
+            const typeStr = tagMatch[1].toLowerCase() as 'start' | 'waypoint' | 'end'
+            currentNode = {
+                type: typeStr,
+                label: typeStr === 'start' ? 'Bắt đầu' : typeStr === 'end' ? 'Kết thúc' : 'Điểm dừng'
             }
+
+            const coordMatch = line.match(/([-\d.]+),\s*([-\d.]+)/)
+            if (coordMatch) {
+                currentNode.lat = parseFloat(coordMatch[1])
+                currentNode.lng = parseFloat(coordMatch[2])
+            }
+
+            const odoMatch = line.match(/Odo:\s*([\d.]+)/)
+            if (odoMatch) {
+                currentNode.odo = parseFloat(odoMatch[1])
+            }
+
+            const timeMatch = line.match(/Time:\s*([^|\s]+)/) // Matches until space or pipe
+            if (timeMatch && timeMatch[1]) {
+                currentNode.time = new Date(timeMatch[1])
+            }
+            continue;
         }
 
-        // Match end location: [End] 10.123456, 105.123456
-        const endMatch = line.match(/\[End\]\s*([-\d.]+),\s*([-\d.]+)/)
-        if (endMatch) {
-            currentLocation = {
-                type: 'end',
-                label: 'Điểm kết thúc',
-                lat: parseFloat(endMatch[1]),
-                lng: parseFloat(endMatch[2]),
+        if (currentNode) {
+            const urlMatch = line.match(/https:\/\/www\.google\.com\/maps\?q=[-\d.,]+/)
+            if (urlMatch) {
+                currentNode.url = urlMatch[0]
+                continue;
             }
-        }
-
-        // Match waypoint: [Waypoint] 10.123456, 105.123456
-        const wpMatch = line.match(/\[Waypoint\]\s*([-\d.]+),\s*([-\d.]+)/)
-        if (wpMatch) {
-            currentLocation = {
-                type: 'waypoint',
-                label: 'Điểm ghé',
-                lat: parseFloat(wpMatch[1]),
-                lng: parseFloat(wpMatch[2]),
-            }
-        }
-
-        // Match URL line: 🔗 https://www.google.com/maps?q=...
-        const urlMatch = line.match(/🔗\s*(https:\/\/www\.google\.com\/maps\?q=[-\d.,]+)/)
-        if (urlMatch && currentLocation) {
-            currentLocation.url = urlMatch[1]
-            if (currentLocation.type && currentLocation.lat && currentLocation.lng && currentLocation.url) {
-                locations.push(currentLocation as TripGPSLocation)
-                currentLocation = null
+            const addrMatch = line.match(/Địa điểm ghé:\s*(.+)/)
+            if (addrMatch) {
+                currentNode.address = addrMatch[1]
+                continue;
             }
         }
     }
+    if (currentNode) nodes.push(currentNode as TripTimelineNode)
 
-    return locations
+    // Synthesize start/end if totally manual or missing
+    if (!nodes.find(n => n.type === 'start')) {
+        nodes.unshift({
+            type: 'start',
+            label: 'Bắt đầu',
+            odo: trip.start_km,
+            time: meta.started_at ? new Date(meta.started_at) : new Date(`${trip.trip_date}T${trip.trip_time || '00:00'}`),
+            address: trip.start_location
+        })
+    }
+
+    if (meta.status === 'completed' || trip.end_km > trip.start_km) {
+        if (!nodes.find(n => n.type === 'end')) {
+            nodes.push({
+                type: 'end',
+                label: 'Kết thúc',
+                odo: trip.end_km,
+                time: meta.completed_at ? new Date(meta.completed_at) : undefined,
+                address: trip.end_location
+            })
+        }
+    }
+
+    return nodes
 }
 
-/**
- * Display GPS information for trips with clickable Google Maps links
- */
-export function TripGPSDisplay({ notes }: TripGPSDisplayProps) {
-    const locations = parseTripGPSFromNotes(notes)
-
-    if (locations.length === 0) return null
+export function TripGPSDisplay({ trip }: { trip: any }) {
+    const nodes = parseTripTimeline(trip)
+    if (nodes.length === 0) return null
 
     return (
-        <div className="mt-3 space-y-2">
-            <p className="text-xs font-medium text-slate-700">Tọa độ GPS:</p>
-            {locations.map((location, index) => (
-                <div
-                    key={index}
-                    className={`rounded-lg border p-3 space-y-2 ${location.type === 'start' ? 'bg-green-50 border-green-200' :
-                        location.type === 'end' ? 'bg-red-50 border-red-200' :
-                            'bg-cyan-50 border-cyan-200'
-                        }`}
-                >
-                    <div className="flex items-start gap-2">
-                        <MapPin
-                            className={`h-4 w-4 mt-0.5 flex-shrink-0 ${location.type === 'start' ? 'text-green-600' :
-                                location.type === 'end' ? 'text-red-600' :
-                                    'text-cyan-600'
-                                }`}
-                        />
-                        <div className="flex-1 min-w-0">
-                            <p
-                                className={`text-xs font-medium ${location.type === 'start' ? 'text-green-800' :
-                                    location.type === 'end' ? 'text-red-800' :
-                                        'text-cyan-800'
-                                    }`}
-                            >
-                                {location.label}
-                            </p>
-                            <p
-                                className={`text-xs font-mono ${location.type === 'start' ? 'text-green-700' :
-                                    location.type === 'end' ? 'text-red-700' :
-                                        'text-cyan-700'
-                                    }`}
-                            >
-                                {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
-                            </p>
-                        </div>
-                    </div>
+        <div className="mt-3 relative">
+            <div className="absolute left-[15px] top-4 bottom-4 w-0.5 bg-slate-200"></div>
 
-                    <a
-                        href={location.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-2 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
-                    >
-                        <ExternalLink className="h-3 w-3" />
-                        Mở trong Google Maps
-                    </a>
-                </div>
-            ))}
+            <div className="space-y-4 relative z-10">
+                {nodes.map((node, i) => {
+                    const prevNode = i > 0 ? nodes[i - 1] : null
+                    const dist = prevNode && node.odo !== undefined && prevNode.odo !== undefined
+                        ? (node.odo - prevNode.odo)
+                        : null
+                    const mins = prevNode && node.time && prevNode.time
+                        ? Math.round((node.time.getTime() - prevNode.time.getTime()) / 60000)
+                        : null
+
+                    const Icon = node.type === 'start' ? Navigation : node.type === 'end' ? Flag : MapPin
+                    const colorAttr = node.type === 'start' ? 'text-blue-500 bg-blue-100 border-blue-200' :
+                        node.type === 'end' ? 'text-emerald-500 bg-emerald-100 border-emerald-200' :
+                            'text-cyan-500 bg-cyan-100 border-cyan-200'
+
+                    const timeStr = node.time ? node.time.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '---'
+
+                    return (
+                        <div key={i} className="flex gap-4 items-start">
+                            <div className="flex flex-col items-center flex-shrink-0 mt-1">
+                                <div className={`h-8 w-8 rounded-full border-2 flex items-center justify-center bg-white ${colorAttr}`}>
+                                    <Icon className="h-4 w-4" />
+                                </div>
+                            </div>
+
+                            <div className="flex-1 bg-slate-50 border border-slate-100 rounded-xl p-3 shadow-sm">
+                                <div className="flex items-start justify-between mb-1.5">
+                                    <div className="flex items-center gap-1.5">
+                                        <span className={`text-xs font-bold ${colorAttr.split(' ')[0]}`}>{node.label}</span>
+                                        <span className="text-[10px] text-slate-400 font-medium">({timeStr})</span>
+                                    </div>
+                                    {node.odo !== undefined && (
+                                        <div className="text-xs font-mono font-semibold text-slate-600">
+                                            {node.odo.toLocaleString()} km
+                                        </div>
+                                    )}
+                                </div>
+
+                                {node.address && (
+                                    <p className="text-xs font-medium text-slate-700 leading-tight mb-1.5">
+                                        {node.address}
+                                    </p>
+                                )}
+
+                                {node.lat && node.lng && (
+                                    <div className="flex items-center justify-between mt-2">
+                                        <p className="text-[10px] font-mono text-slate-500">
+                                            {node.lat.toFixed(6)}, {node.lng.toFixed(6)}
+                                        </p>
+                                        {node.url && (
+                                            <a href={node.url} target="_blank" rel="noopener noreferrer" className="text-[10px] flex items-center gap-1 font-semibold text-blue-500 hover:text-blue-600 transition-colors">
+                                                <ExternalLink className="h-3 w-3" /> Bản đồ
+                                            </a>
+                                        )}
+                                    </div>
+                                )}
+
+                                {prevNode && (dist !== null || mins !== null) && (
+                                    <div className="mt-2.5 pt-2.5 border-t border-slate-200/60 flex items-center gap-4 text-xs">
+                                        {dist !== null && (
+                                            <span className="flex items-center gap-1 text-slate-600">
+                                                <Navigation className="h-3 w-3 text-slate-400" /> +{dist.toLocaleString()} km
+                                            </span>
+                                        )}
+                                        {mins !== null && (
+                                            <span className="flex items-center gap-1 text-slate-600">
+                                                <Clock className="h-3 w-3 text-slate-400" /> +{mins} phút
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    )
+                })}
+            </div>
         </div>
     )
 }
 
-/**
- * Get clean notes without GPS data for trips
- */
 export function getTripCleanNotes(notes: string): string {
     if (!notes) return ''
-
     const lines = notes.split('\n')
     const cleanLines = lines.filter(line => {
-        if (line.match(/\[(Start|End|Waypoint)\]/)) return false
+        if (line.match(/\[(Start|End|Waypoint|TRIPMETA)/)) return false
         if (line.match(/https:\/\/www\.google\.com\/maps/)) return false
+        if (line.match(/Địa điểm ghé:/)) return false
         return true
     })
-
     return cleanLines.join('\n').trim()
 }

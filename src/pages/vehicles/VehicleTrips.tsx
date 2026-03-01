@@ -4,7 +4,7 @@ import {
     ChevronDown, Clock, Navigation, TrendingUp, BarChart3,
     X, ArrowRight, Filter, Map,
     ChevronLeft, ChevronRight, Gauge, FileText, Tag, Save,
-    Timer, PlayCircle, Flag, CheckCircle2
+    Timer, PlayCircle, Flag, CheckCircle2, Star
 } from 'lucide-react'
 import { createTrip, updateTrip, deleteTrip, type VehicleRecord, type TripRecord } from '../../lib/vehicles/vehicleService'
 import { useVehicles, useVehicleTrips, vehicleKeys } from '../../lib/vehicles/useVehicleQueries'
@@ -28,6 +28,74 @@ const TRIP_TYPES = {
 } as const
 
 type TripTypeKey = keyof typeof TRIP_TYPES
+
+export function getTripTags(trip: TripRecord): string[] {
+    const meta = parseMeta(trip.notes)
+    if (meta.tags) {
+        return meta.tags.split('|').filter(Boolean)
+    }
+    const preset = TRIP_TYPES[trip.trip_type as TripTypeKey]
+    return [preset ? preset.label : TRIP_TYPES.other.label]
+}
+
+export function getTripTagConfig(tagLabel: string) {
+    const preset = Object.values(TRIP_TYPES).find(cfg => cfg.label === tagLabel)
+    if (preset) return preset
+    return { label: tagLabel, color: 'slate', bg: 'bg-slate-100', text: 'text-slate-700', dot: 'bg-slate-500' }
+}
+
+function TripTypeSelector({ selectedTags, onChange }: { selectedTags: string[], onChange: (tags: string[]) => void }) {
+    const [customTags, setCustomTags] = useState<string[]>(() => {
+        try { return JSON.parse(localStorage.getItem('bofin_custom_tags') || '[]') } catch { return [] }
+    })
+    const [input, setInput] = useState('')
+    const addCustomTag = () => {
+        const val = input.trim()
+        if (!val || customTags.includes(val) || Object.values(TRIP_TYPES).some(c => c.label === val)) return
+        const newTags = [...customTags, val]
+        setCustomTags(newTags)
+        localStorage.setItem('bofin_custom_tags', JSON.stringify(newTags))
+        onChange([...selectedTags, val])
+        setInput('')
+    }
+    const removeCustomTag = (tag: string) => {
+        const newTags = customTags.filter(t => t !== tag)
+        setCustomTags(newTags)
+        localStorage.setItem('bofin_custom_tags', JSON.stringify(newTags))
+        onChange(selectedTags.filter(t => t !== tag))
+    }
+    const toggleTag = (tag: string) => {
+        if (selectedTags.includes(tag)) onChange(selectedTags.filter(t => t !== tag))
+        else onChange([...selectedTags, tag])
+    }
+    return (
+        <div className="space-y-3">
+            <div className="flex gap-2 flex-wrap">
+                {(Object.values(TRIP_TYPES)).map((cfg) => (
+                    <button key={cfg.label} type="button" onClick={() => toggleTag(cfg.label)} className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${selectedTags.includes(cfg.label) ? `${cfg.dot} text-white shadow-md scale-105` : `${cfg.bg} ${cfg.text} opacity-80 hover:opacity-100`}`}>
+                        {cfg.label} {selectedTags.includes(cfg.label) && <CheckCircle2 className="h-3 w-3 ml-0.5" />}
+                    </button>
+                ))}
+                {customTags.map(tag => (
+                    <div key={tag} className={`flex items-center gap-1 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${selectedTags.includes(tag) ? `bg-slate-700 text-white shadow-md scale-105` : `bg-slate-100 text-slate-700 opacity-80 hover:opacity-100`}`}>
+                        <button type="button" onClick={() => toggleTag(tag)} className="flex items-center gap-1">
+                            {tag} {selectedTags.includes(tag) && <CheckCircle2 className="h-3 w-3 ml-0.5" />}
+                        </button>
+                        <button type="button" onClick={() => removeCustomTag(tag)} className={`ml-1 hover:text-red-400 ${selectedTags.includes(tag) ? 'text-slate-300' : 'text-slate-400'}`}>
+                            <X className="h-3 w-3" />
+                        </button>
+                    </div>
+                ))}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-2 mt-2">
+                <input type="text" value={input} onChange={e => setInput(e.target.value)} placeholder="Nhập loại lộ trình mới..." onKeyDown={e => e.key === 'Enter' && (e.preventDefault(), addCustomTag())} className="flex-1 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100" />
+                <button type="button" onClick={addCustomTag} disabled={!input.trim()} className="rounded-xl bg-blue-100 px-4 py-2 text-xs font-bold text-blue-600 disabled:opacity-50 hover:bg-blue-200 transition-colors">
+                    Thêm & Chọn
+                </button>
+            </div>
+        </div>
+    )
+}
 
 // ─── Trip Status Metadata (stored in notes field) ────────────────────────────
 // Format: [TRIPMETA:key=value,key2=value2]
@@ -57,6 +125,18 @@ function isInProgress(trip: TripRecord): boolean {
 
 function isTour(trip: TripRecord): boolean {
     return parseMeta(trip.notes).tour === 'true'
+}
+
+function parseManualCoords(str: string): { lat: number, lng: number } | null {
+    const m = str.match(/([-+]?[0-9]*\.?[0-9]+)\s*,\s*([-+]?[0-9]*\.?[0-9]+)/)
+    if (m) {
+        const lat = parseFloat(m[1])
+        const lng = parseFloat(m[2])
+        if (!isNaN(lat) && !isNaN(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180) {
+            return { lat, lng }
+        }
+    }
+    return null
 }
 
 function getTripDuration(trip: TripRecord): { startedAt: Date | null; completedAt: Date | null; mins: number | null } {
@@ -154,168 +234,176 @@ function StatsCard({ vehicle, trips }: { vehicle: VehicleRecord; trips: TripReco
     )
 }
 
+// ─── Trip Status UX helper ──────────────────────────────────────────────────
+function getTripUXStatus(trip: TripRecord) {
+    const meta = parseMeta(trip.notes)
+
+    if (meta.status === 'in_progress') {
+        return {
+            key: 'in_progress', label: 'Đang di chuyển',
+            badgeCls: 'bg-blue-100 text-blue-700 border-blue-200',
+            dot: 'bg-blue-500 animate-pulse', border: 'border-l-blue-400'
+        }
+    }
+    if (meta.status === 'completed') {
+        return {
+            key: 'completed', label: 'Hoàn tất',
+            badgeCls: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+            dot: 'bg-emerald-500', border: 'border-l-emerald-400'
+        }
+    }
+
+    const now = new Date()
+    const tripDate = new Date(`${trip.trip_date}T${trip.trip_time || '00:00'}`)
+    if (tripDate > now) {
+        return {
+            key: 'upcoming', label: 'Sắp tới',
+            badgeCls: 'bg-amber-100 text-amber-700 border-amber-200',
+            dot: 'bg-amber-500', border: 'border-l-amber-200'
+        }
+    }
+    return {
+        key: 'manual', label: 'Đã lưu',
+        badgeCls: 'bg-slate-100 text-slate-700 border-slate-200',
+        dot: 'bg-slate-500', border: 'border-l-transparent'
+    }
+}
+
 // ─── Trip Card ────────────────────────────────────────────────────────────────────
 function TripCard({
-    trip,
-    onEdit,
-    onDelete,
-    onComplete,
-    onCheckpoint,
+    trip, onEdit, onDelete, onComplete, onCheckpoint, onTogglePin
 }: {
-    trip: TripRecord
-    onEdit: (trip: TripRecord) => void
-    onDelete: (id: string) => void
-    onComplete: (trip: TripRecord) => void
-    onCheckpoint: (trip: TripRecord) => void
+    trip: TripRecord; onEdit: (trip: TripRecord) => void; onDelete: (id: string) => void; onComplete: (trip: TripRecord) => void; onCheckpoint: (trip: TripRecord) => void; onTogglePin: (trip: TripRecord) => void
 }) {
     const [expanded, setExpanded] = useState(false)
-    const typeConfig = TRIP_TYPES[trip.trip_type as TripTypeKey] ?? TRIP_TYPES.other
     const inProgress = isInProgress(trip)
     const { startedAt, completedAt, mins } = getTripDuration(trip)
     const userNotes = getTripCleanNotes(stripMeta(trip.notes))
-    const hasExtra = !!(userNotes || trip.notes)
-
-    const accentColor = inProgress
-        ? 'border-l-amber-400'
-        : 'border-l-blue-400'
+    const uxStatus = getTripUXStatus(trip)
+    const tags = getTripTags(trip)
+    const meta = parseMeta(trip.notes)
+    const isPinned = meta.pinned === 'true'
 
     return (
-        <div className={`overflow-hidden rounded-2xl bg-white shadow-md border border-slate-100 border-l-4 ${accentColor} transition-all hover:shadow-md`}>
-            {/* In-progress banner */}
-            {inProgress && (
-                <div className="flex items-center gap-2 bg-amber-50 border-b border-amber-100 px-4 py-2">
-                    <div className="h-2 w-2 rounded-full bg-amber-500 animate-pulse" />
-                    <span className="text-xs font-bold text-amber-700">Đang di chuyển</span>
-                    {startedAt && (
-                        <span className="ml-auto text-xs text-amber-600">
-                            <Timer className="h-3 w-3 inline mr-0.5" />
-                            Bắt đầu lúc {fmtTime(startedAt)}
-                        </span>
-                    )}
-                </div>
-            )}
-
+        <div className={`overflow-hidden rounded-2xl bg-white shadow-sm border-l-4 ${isPinned ? 'border-l-yellow-400 border-t border-t-yellow-100' : uxStatus.border} transition-all hover:shadow-md`}>
             <div className="p-4">
-                {/* Header */}
                 <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-                            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${typeConfig.bg} ${typeConfig.text}`}>
-                                <span className={`h-1.5 w-1.5 rounded-full ${typeConfig.dot}`} />
-                                {typeConfig.label}
+                    <div className="flex-1 min-w-0 pr-2">
+                        <div className="flex items-center gap-2 mb-2 flex-wrap">
+                            {isPinned && <Star className="h-3.5 w-3.5 text-yellow-500 fill-yellow-500 mt-0.5" />}
+                            <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-[10px] font-bold border ${uxStatus.badgeCls}`}>
+                                <span className={`h-1.5 w-1.5 rounded-full ${uxStatus.dot}`} />
+                                {uxStatus.label}
                             </span>
-                            <span className="flex items-center gap-1 text-xs text-slate-400">
-                                <Calendar className="h-3 w-3" />
-                                {new Date(trip.trip_date).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })}
-                                {trip.trip_time && (
-                                    <span className="flex items-center gap-0.5 ml-0.5">
-                                        <Clock className="h-3 w-3" />
-                                        {trip.trip_time.slice(0, 5)}
-                                    </span>
-                                )}
-                            </span>
+                            <div className="flex flex-wrap gap-1.5">
+                                {tags.map(tag => {
+                                    const cfg = getTripTagConfig(tag)
+                                    return (
+                                        <span key={tag} className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold ${cfg.bg} ${cfg.text}`}>
+                                            <span className={`h-1.5 w-1.5 rounded-full ${cfg.dot}`} />
+                                            {tag}
+                                        </span>
+                                    )
+                                })}
+                            </div>
                         </div>
 
                         {(trip.start_location || trip.end_location) && (
-                            <div className="flex items-center gap-1.5 text-xs text-slate-600 mt-1">
-                                <MapPin className="h-3 w-3 text-green-500 shrink-0" />
-                                <span className="truncate max-w-[90px]">{trip.start_location || '?'}</span>
+                            <div className="flex items-center gap-1.5 text-[11px] text-slate-600 font-medium">
+                                <Navigation className="h-3 w-3 text-blue-500 shrink-0" />
+                                <span className="truncate max-w-[110px]">{trip.start_location || '?'}</span>
                                 <ArrowRight className="h-3 w-3 text-slate-300 shrink-0" />
-                                <MapPin className="h-3 w-3 text-red-400 shrink-0" />
-                                <span className="truncate max-w-[90px]">{trip.end_location || (inProgress ? '...' : '?')}</span>
+                                <Flag className="h-3 w-3 text-emerald-500 shrink-0" />
+                                <span className="truncate max-w-[110px]">{trip.end_location || (inProgress ? '...' : '?')}</span>
+                            </div>
+                        )}
+                        <div className="flex items-center gap-1 text-[10px] font-bold text-slate-400 mt-1.5">
+                            <Calendar className="h-3 w-3 ml-0.5" />
+                            {new Date(trip.trip_date).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })}
+                            {trip.trip_time && (
+                                <span className="flex items-center gap-0.5 ml-1.5">
+                                    <Clock className="h-3 w-3" />
+                                    {trip.trip_time.slice(0, 5)}
+                                </span>
+                            )}
+                        </div>
+                    </div>
+
+                    <div className="flex flex-col gap-1.5 shrink-0 items-end">
+                        <div className="flex gap-1">
+                            <button onClick={() => onTogglePin(trip)} className={`rounded-xl p-1.5 transition-colors ${isPinned ? 'text-yellow-500 bg-yellow-50 hover:bg-yellow-100' : 'text-slate-400 bg-slate-50 hover:bg-slate-100 hover:text-yellow-500'}`}>
+                                <Star className={`h-4 w-4 ${isPinned ? 'fill-current' : ''}`} />
+                            </button>
+                            <button onClick={() => onEdit(trip)} className="rounded-xl p-1.5 text-blue-500 bg-blue-50 hover:bg-blue-100 transition-colors">
+                                <Edit className="h-4 w-4" />
+                            </button>
+                            <button onClick={() => onDelete(trip.id)} className="rounded-xl p-1.5 text-red-500 bg-red-50 hover:bg-red-100 transition-colors">
+                                <Trash2 className="h-4 w-4" />
+                            </button>
+                        </div>
+                        {inProgress && (
+                            <div className="flex gap-1.5 mt-1">
+                                {isTour(trip) && (
+                                    <button onClick={() => onCheckpoint(trip)} className="flex items-center gap-1 rounded-lg bg-cyan-50 px-2 py-1.5 text-[10px] font-bold text-cyan-700 border border-cyan-100 hover:bg-cyan-100 transition-colors shadow-sm">
+                                        <MapPin className="h-3 w-3" /> Thêm điểm dừng
+                                    </button>
+                                )}
+                                <button onClick={() => onComplete(trip)} className="flex items-center gap-1 rounded-lg bg-amber-50 px-2 py-1.5 text-[10px] font-bold text-amber-700 border border-amber-100 hover:bg-amber-100 transition-colors shadow-sm">
+                                    <Flag className="h-3 w-3" /> Hoàn tất
+                                </button>
                             </div>
                         )}
                     </div>
-
-                    <div className="flex gap-1 ml-2 shrink-0">
-                        {inProgress ? (
-                            <>
-                                {isTour(trip) && (
-                                    <button
-                                        onClick={() => onCheckpoint(trip)}
-                                        className="flex items-center gap-1 rounded-xl bg-cyan-500 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-cyan-600 transition-colors"
-                                    >
-                                        <MapPin className="h-3.5 w-3.5" />
-                                        Ghé
-                                    </button>
-                                )}
-                                <button
-                                    onClick={() => onComplete(trip)}
-                                    className="flex items-center gap-1 rounded-xl bg-amber-500 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-amber-600 transition-colors"
-                                >
-                                    <Flag className="h-3.5 w-3.5" />
-                                    Hoàn tất
-                                </button>
-                            </>
-                        ) : (
-                            <button onClick={() => onEdit(trip)} className="rounded-xl p-1.5 text-blue-500 hover:bg-blue-50 transition-colors">
-                                <Edit className="h-4 w-4" />
-                            </button>
-                        )}
-                        <button onClick={() => onDelete(trip.id)} className="rounded-xl p-1.5 text-red-400 hover:bg-red-50 transition-colors">
-                            <Trash2 className="h-4 w-4" />
-                        </button>
-                    </div>
                 </div>
 
-                {/* Distance / status row */}
-                {inProgress ? (
-                    <div className="flex items-center gap-2 rounded-xl bg-amber-50 border border-amber-100 px-3 py-2.5">
-                        <Navigation className="h-3.5 w-3.5 text-amber-500" />
-                        <span className="text-xs text-amber-700">
-                            Odo bắt đầu: <span className="font-bold">{trip.start_km.toLocaleString()} km</span>
-                        </span>
-                        <span className="ml-auto text-xs text-amber-500">Odo kết thúc chưa cập nhật</span>
+                {/* Distance summary row */}
+                <div className="flex items-center justify-between rounded-xl bg-slate-50 border border-slate-100 px-3 py-2 mt-2">
+                    <div className="flex items-center gap-2 text-[11px] text-slate-500">
+                        <Gauge className="h-3.5 w-3.5 text-slate-400" />
+                        <span className="font-semibold text-slate-700">{trip.start_km.toLocaleString()}</span>
+                        <span className="text-slate-300">→</span>
+                        <span className="font-semibold text-slate-700">{trip.end_km.toLocaleString()}</span>
                     </div>
-                ) : (
-                    <div className="flex items-center justify-between rounded-xl bg-slate-50 px-3 py-2.5">
-                        <div className="flex items-center gap-2 text-xs text-slate-500">
-                            <Navigation className="h-3.5 w-3.5 text-slate-400" />
-                            <span className="font-semibold text-slate-700">{trip.start_km.toLocaleString()}</span>
-                            <span className="text-slate-300">→</span>
-                            <span className="font-semibold text-slate-700">{trip.end_km.toLocaleString()}</span>
-                            <span>km</span>
-                        </div>
-                        <span className={`text-base font-black text-blue-600`}>
+                    {inProgress ? (
+                        <span className="text-[11px] font-medium text-blue-500 italic">Đang ghi nhận...</span>
+                    ) : (
+                        <span className={`text-[13px] font-black text-blue-600 bg-blue-100/50 px-2 py-0.5 rounded-lg`}>
                             {(trip.distance_km || (trip.end_km - trip.start_km)).toLocaleString()} km
                         </span>
-                    </div>
-                )}
+                    )}
+                </div>
 
-                {/* Duration row (completed trips with metadata) */}
+                {/* Duration row (if completed) */}
                 {!inProgress && mins !== null && (
-                    <div className="mt-2 flex items-center gap-3 rounded-xl bg-emerald-50 border border-emerald-100 px-3 py-2">
-                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
-                        <div className="flex flex-1 items-center gap-3 text-xs text-emerald-700">
-                            {startedAt && <span><Clock className="h-3 w-3 inline mr-0.5" />{fmtTime(startedAt)}</span>}
-                            {completedAt && <><ArrowRight className="h-3 w-3 text-emerald-300" /><span><Flag className="h-3 w-3 inline mr-0.5" />{fmtTime(completedAt)}</span></>}
+                    <div className="mt-2 flex items-center justify-between rounded-xl bg-emerald-50/50 px-3 py-1.5 border border-emerald-100/50">
+                        <div className="flex flex-1 items-center gap-2 text-[11px] text-emerald-700 font-medium">
+                            {startedAt && <span>{fmtTime(startedAt)}</span>}
+                            {completedAt && <><ArrowRight className="h-3 w-3 text-emerald-300" /><span>{fmtTime(completedAt)}</span></>}
                         </div>
-                        <span className="text-xs font-bold text-emerald-700">
-                            <Timer className="h-3 w-3 inline mr-0.5" />
+                        <span className="text-[11px] font-bold text-emerald-700 bg-emerald-100/50 px-2 py-0.5 rounded-md flex items-center gap-1">
+                            <Timer className="h-3 w-3" />
                             {fmtDur(mins)}
                         </span>
                     </div>
                 )}
 
                 {/* Expand toggle */}
-                {hasExtra && (
-                    <button
-                        onClick={() => setExpanded(!expanded)}
-                        className="mt-2 w-full flex items-center justify-center gap-1 text-xs text-slate-400 hover:text-slate-600 transition-colors"
-                    >
-                        <ChevronDown className={`h-3.5 w-3.5 transition-transform ${expanded ? 'rotate-180' : ''}`} />
-                        {expanded ? 'Ẩn bớt' : 'Xem chi tiết'}
-                    </button>
-                )}
+                <button onClick={() => setExpanded(!expanded)} className="mt-3 py-1 w-full flex items-center justify-center gap-1 text-[11px] font-semibold text-slate-400 hover:text-slate-600 transition-colors">
+                    <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-300 ${expanded ? 'rotate-180' : ''}`} />
+                    {expanded ? 'Ẩn Lộ trình' : 'Xem Lộ trình & Ghi chú'}
+                </button>
 
                 {expanded && (
-                    <div className="mt-3 space-y-2 border-t border-slate-100 pt-3">
-                        {trip.notes && <TripGPSDisplay notes={stripMeta(trip.notes)} />}
+                    <div className="mt-3 pt-3 border-t border-slate-100/80 animate-in slide-in-from-top-2 fade-in duration-300">
                         {userNotes && (
-                            <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                                <span className="font-semibold">Ghi chú: </span>{userNotes}
+                            <div className="mb-4 rounded-xl bg-orange-50/70 border border-orange-100 px-3 py-2.5 text-[11px] text-slate-700 shadow-sm">
+                                <div className="flex items-center gap-1.5 mb-1.5 text-orange-800 font-bold uppercase tracking-wide text-[10px]">
+                                    <FileText className="h-3 w-3" /> Ghi chú
+                                </div>
+                                <div className="leading-relaxed whitespace-pre-wrap">{userNotes}</div>
                             </div>
                         )}
+                        <TripGPSDisplay trip={trip} />
                     </div>
                 )}
             </div>
@@ -341,6 +429,20 @@ export default function VehicleTrips() {
     const [filterType, setFilterType] = useState<TripTypeKey | 'all'>('all')
     const [periodOffset, setPeriodOffset] = useState(0) // 0 = this month
     const [showFilter, setShowFilter] = useState(false)
+
+    const handleTogglePin = async (trip: TripRecord) => {
+        try {
+            const meta = parseMeta(trip.notes)
+            const isPinned = meta.pinned === 'true'
+            meta.pinned = isPinned ? 'false' : 'true'
+            const strippedNotes = stripMeta(trip.notes)
+            const newNotes = [buildMeta(meta), strippedNotes].filter(Boolean).join('\n')
+            await updateTrip(trip.id, { notes: newNotes })
+            queryClient.invalidateQueries({ queryKey: vehicleKeys.trips(selectedVehicleId || '') })
+        } catch (e: any) {
+            showError(e.message || 'Không thể thay đổi trạng thái ghim')
+        }
+    }
 
     useEffect(() => {
         if (vehicles.length > 0 && !selectedVehicleId) {
@@ -371,14 +473,26 @@ export default function VehicleTrips() {
     }, [allTrips, periodOffset, filterType])
 
     // ── Group by date ──────────────────────────────────────────────────────
+    const pinnedTrips = useMemo(() => trips.filter(t => parseMeta(t.notes).pinned === 'true'), [trips])
+    const unpinnedTrips = useMemo(() => trips.filter(t => parseMeta(t.notes).pinned !== 'true'), [trips])
+
     const groupedByDate = useMemo(() => {
-        const map: Record<string, TripRecord[]> = {}
-        trips.forEach(t => {
-            if (!map[t.trip_date]) map[t.trip_date] = []
-            map[t.trip_date].push(t)
+        const groups: Record<string, typeof unpinnedTrips> = {}
+        unpinnedTrips.forEach(t => {
+            const date = new Date(t.trip_date).toLocaleDateString('vi-VN', { weekday: 'short', day: '2-digit', month: '2-digit' })
+            if (!groups[date]) groups[date] = []
+            groups[date].push(t)
         })
-        return Object.entries(map).sort((a, b) => b[0].localeCompare(a[0]))
-    }, [trips])
+        return Object.entries(groups).sort((a, b) => new Date(b[1][0].trip_date).getTime() - new Date(a[1][0].trip_date).getTime())
+    }, [unpinnedTrips])
+
+    const todayKey = new Date().toISOString().split('T')[0]
+    const yesterdayKey = new Date(Date.now() - 86400000).toISOString().split('T')[0]
+    function dayLabel(key: string) {
+        if (key === todayKey) return 'Hôm nay'
+        if (key === yesterdayKey) return 'Hôm qua'
+        return new Date(key).toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'numeric' })
+    }
 
     const handleDelete = async () => {
         if (!deleteConfirmId) return
@@ -393,14 +507,6 @@ export default function VehicleTrips() {
         } finally {
             setDeleting(false)
         }
-    }
-
-    const todayKey = new Date().toISOString().split('T')[0]
-    const yesterdayKey = new Date(Date.now() - 86400000).toISOString().split('T')[0]
-    function dayLabel(key: string) {
-        if (key === todayKey) return 'Hôm nay'
-        if (key === yesterdayKey) return 'Hôm qua'
-        return new Date(key).toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'numeric' })
     }
 
     return (
@@ -527,7 +633,36 @@ export default function VehicleTrips() {
                         </p>
                     </div>
                 ) : (
-                    <div className="space-y-5">
+                    <div className="space-y-6">
+                        {pinnedTrips.length > 0 && (
+                            <div>
+                                <div className="mb-2 flex items-center justify-between px-1">
+                                    <div className="flex items-center gap-2">
+                                        <div className="h-2 w-2 rounded-full bg-yellow-400" />
+                                        <span className="text-xs font-bold text-yellow-600 uppercase tracking-wide">
+                                            Lộ trình đã ghim
+                                        </span>
+                                    </div>
+                                    <span className="text-xs font-semibold text-yellow-500/70">
+                                        {pinnedTrips.length} chuyến
+                                    </span>
+                                </div>
+                                <div className="space-y-2 pl-4 border-l-2 border-yellow-100">
+                                    {pinnedTrips.map(trip => (
+                                        <TripCard
+                                            key={trip.id}
+                                            trip={trip}
+                                            onEdit={setEditingTrip}
+                                            onDelete={setDeleteConfirmId}
+                                            onComplete={setCompletingTrip}
+                                            onCheckpoint={setCheckpointTrip}
+                                            onTogglePin={handleTogglePin}
+                                        />
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
                         {groupedByDate.map(([dateKey, dayTrips]) => {
                             const dayDistance = dayTrips.reduce((s, t) => s + (t.distance_km || 0), 0)
                             return (
@@ -553,6 +688,7 @@ export default function VehicleTrips() {
                                                 onDelete={setDeleteConfirmId}
                                                 onComplete={setCompletingTrip}
                                                 onCheckpoint={setCheckpointTrip}
+                                                onTogglePin={handleTogglePin}
                                             />
                                         ))}
                                     </div>
@@ -666,14 +802,24 @@ function TripModal({
         notes: editingTrip ? getTripCleanNotes(editingTrip.notes ?? '') : '',
     })
 
+    const [selectedTags, setSelectedTags] = useState<string[]>(() => {
+        if (editingTrip) return getTripTags(editingTrip)
+        return [TRIP_TYPES.work.label]
+    })
+    const [isImportant, setIsImportant] = useState(() => {
+        return editingTrip ? parseMeta(editingTrip.notes).pinned === 'true' : false
+    })
+
     const [startLocationData, setStartLocationData] = useState<SimpleLocationData | null>(null)
     const [endLocationData, setEndLocationData] = useState<SimpleLocationData | null>(null)
 
     useEffect(() => {
-        if (startLocationData && endLocationData && formData.start_km) {
-            calculateDistanceOSRM(startLocationData.lat, startLocationData.lng, endLocationData.lat, endLocationData.lng)
+        const startLoc = startLocationData || (formData.start_location ? parseManualCoords(formData.start_location) : null)
+        const endLoc = endLocationData || (formData.end_location ? parseManualCoords(formData.end_location) : null)
+        if (startLoc && endLoc && formData.start_km) {
+            calculateDistanceOSRM(startLoc.lat, startLoc.lng, endLoc.lat, endLoc.lng)
                 .then(distanceKm => {
-                    if (distanceKm > 0) {
+                    if (distanceKm >= 0) {
                         const expectedEndKm = Math.round(Number(formData.start_km) + distanceKm)
                         setFormData(prev => ({ ...prev, end_km: expectedEndKm.toString() }))
                         success(`Đã tự động tính quãng đường: ${distanceKm.toFixed(1)} km`)
@@ -681,35 +827,57 @@ function TripModal({
                 })
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [startLocationData, endLocationData])
+    }, [startLocationData, endLocationData, formData.start_location, formData.end_location])
 
-    const calcDist = Number(formData.end_km) - Number(formData.start_km)
-    const validDist = Number(formData.start_km) > 0 && Number(formData.end_km) > Number(formData.start_km)
+    const parsedEndKm = formData.end_km === '' ? Number(formData.start_km) : Number(formData.end_km)
+    const calcDist = parsedEndKm - Number(formData.start_km)
+    const validDist = Number(formData.start_km) > 0 && parsedEndKm >= Number(formData.start_km)
 
     const accentBg = 'bg-blue-600'
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (Number(formData.end_km) < Number(formData.start_km)) {
-            showError('Odo kết thúc phải lớn hơn odo bắt đầu')
+        if (parsedEndKm < Number(formData.start_km)) {
+            showError('Odo kết thúc phải lớn hơn hoặc bằng odo bắt đầu')
             return
         }
         setLoading(true)
         try {
-            const tripData: any = { ...formData, start_km: Number(formData.start_km), end_km: Number(formData.end_km) }
+            const tripData: any = { ...formData, start_km: Number(formData.start_km) || vehicle.current_odometer, end_km: parsedEndKm || vehicle.current_odometer }
 
             // Append GPS coordinates to notes
-            if (startLocationData || endLocationData) {
+            const finalStartLoc = startLocationData || parseManualCoords(formData.start_location)
+            const finalEndLoc = endLocationData || parseManualCoords(formData.end_location)
+
+            // Preserve meta if editing
+            let originalMetaLine = ''
+            if (isEdit && editingTrip?.notes) {
+                const metaMatch = editingTrip.notes.match(/^\[TRIPMETA:([^\]]+)\]/)
+                if (metaMatch) {
+                    originalMetaLine = metaMatch[0]
+                }
+            }
+
+            // Build new meta
+            const newMeta: Record<string, string> = { ...parseMeta(originalMetaLine) }
+            newMeta.tags = selectedTags.join('|')
+            newMeta.pinned = isImportant ? 'true' : 'false'
+            const newMetaLine = buildMeta(newMeta)
+
+            if (finalStartLoc || finalEndLoc) {
                 const gpsLines: string[] = []
-                if (startLocationData) {
-                    gpsLines.push(`[Start] ${startLocationData.lat.toFixed(6)}, ${startLocationData.lng.toFixed(6)}`)
-                    gpsLines.push(`https://www.google.com/maps?q=${startLocationData.lat},${startLocationData.lng}`)
+                const nowIso = new Date().toISOString()
+                if (finalStartLoc) {
+                    gpsLines.push(`[Start] ${finalStartLoc.lat.toFixed(6)}, ${finalStartLoc.lng.toFixed(6)} | Odo: ${tripData.start_km} | Time: ${tripData.trip_date}T${tripData.trip_time}:00.000Z`)
+                    gpsLines.push(`https://www.google.com/maps?q=${finalStartLoc.lat},${finalStartLoc.lng}`)
                 }
-                if (endLocationData) {
-                    gpsLines.push(`[End] ${endLocationData.lat.toFixed(6)}, ${endLocationData.lng.toFixed(6)}`)
-                    gpsLines.push(`https://www.google.com/maps?q=${endLocationData.lat},${endLocationData.lng}`)
+                if (finalEndLoc) {
+                    gpsLines.push(`[End] ${finalEndLoc.lat.toFixed(6)}, ${finalEndLoc.lng.toFixed(6)} | Odo: ${tripData.end_km} | Time: ${nowIso}`)
+                    gpsLines.push(`https://www.google.com/maps?q=${finalEndLoc.lat},${finalEndLoc.lng}`)
                 }
-                tripData.notes = [formData.notes, ...gpsLines].filter(Boolean).join('\n')
+                tripData.notes = [newMetaLine, formData.notes, ...gpsLines].filter(Boolean).join('\n')
+            } else {
+                tripData.notes = [newMetaLine, formData.notes].filter(Boolean).join('\n')
             }
 
             if (isEdit && editingTrip) {
@@ -777,24 +945,15 @@ function TripModal({
 
                         {/* Trip Type */}
                         <div>
-                            <label className={labelCls}>
-                                <Tag className="h-3.5 w-3.5" /> Loại lộ trình
-                            </label>
-                            <div className="flex gap-2 flex-wrap">
-                                {(Object.entries(TRIP_TYPES) as [TripTypeKey, typeof TRIP_TYPES[TripTypeKey]][]).map(([key, cfg]) => (
-                                    <button
-                                        key={key}
-                                        type="button"
-                                        onClick={() => setFormData({ ...formData, trip_type: key })}
-                                        className={`flex items-center gap-1.5 rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${formData.trip_type === key
-                                            ? `${cfg.dot} text-white shadow-md`
-                                            : `${cfg.bg} ${cfg.text}`
-                                            }`}
-                                    >
-                                        {cfg.label}
-                                    </button>
-                                ))}
+                            <div className="flex items-center justify-between mb-1.5">
+                                <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                    <Tag className="h-3.5 w-3.5" /> Thẻ lộ trình
+                                </label>
+                                <button type="button" onClick={() => setIsImportant(!isImportant)} className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold transition-colors ${isImportant ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                                    <Star className={`h-3 w-3 ${isImportant ? 'fill-current' : ''}`} /> Quan trọng
+                                </button>
                             </div>
+                            <TripTypeSelector selectedTags={selectedTags} onChange={setSelectedTags} />
                         </div>
 
                         {/* Odometer */}
@@ -805,16 +964,16 @@ function TripModal({
                             <div className="grid grid-cols-2 gap-3">
                                 <div>
                                     <p className="text-xs text-slate-500 mb-1">Bắt đầu</p>
-                                    <input type="number" required min={0} value={formData.start_km}
+                                    <input type="number" min={0} value={formData.start_km}
                                         onChange={e => setFormData({ ...formData, start_km: e.target.value })}
-                                        placeholder="Odo đầu"
+                                        placeholder={`(Tùy chọn) = ${vehicle.current_odometer}`}
                                         className={inputCls} />
                                 </div>
                                 <div>
                                     <p className="text-xs text-slate-500 mb-1">Kết thúc</p>
-                                    <input type="number" required min={0} value={formData.end_km}
+                                    <input type="number" min={formData.start_km} value={formData.end_km}
                                         onChange={e => setFormData({ ...formData, end_km: e.target.value })}
-                                        placeholder="Odo cuối"
+                                        placeholder={`(Tùy chọn) = ${formData.start_km}`}
                                         className={inputCls} />
                                 </div>
                             </div>
@@ -923,6 +1082,8 @@ function StartTripModal({ vehicle, isTourMode, onClose, onSuccess }: {
         start_location: '',
         notes: '',
     })
+    const [selectedTags, setSelectedTags] = useState<string[]>([TRIP_TYPES.work.label])
+    const [isImportant, setIsImportant] = useState(false)
     const accentBg = isTourMode ? 'bg-cyan-600' : 'bg-blue-600'
     const inputCls = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all'
     const labelCls = 'mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide'
@@ -930,25 +1091,42 @@ function StartTripModal({ vehicle, isTourMode, onClose, onSuccess }: {
     const handleSave = async (e: React.FormEvent) => {
         e.preventDefault()
         setLoading(true)
+
         try {
-            const startedAt = new Date().toISOString()
-            const metaStr = buildMeta({ status: 'in_progress', started_at: startedAt, ...(isTourMode ? { tour: 'true' } : {}) })
-            const gpsNote = startLocData
-                ? `\n[Start] ${startLocData.lat.toFixed(6)}, ${startLocData.lng.toFixed(6)}\nhttps://www.google.com/maps?q=${startLocData.lat},${startLocData.lng}`
-                : ''
-            const notes = `${metaStr}\n${form.notes}${gpsNote}`.trim()
+            const startLoc = startLocData || parseManualCoords(form.start_location)
+
+            const newMeta: Record<string, string> = {
+                status: 'in_progress',
+                started_at: new Date().toISOString(),
+                tour: isTourMode ? 'true' : 'false',
+                tags: selectedTags.join('|'),
+                pinned: isImportant ? 'true' : 'false'
+            }
+
+            const metaLine = buildMeta(newMeta)
+
+            let finalNotes = form.notes
+            if (startLoc) {
+                const navNote = [
+                    `[Start] ${startLoc.lat.toFixed(6)}, ${startLoc.lng.toFixed(6)} | Odo: ${form.start_km || vehicle.current_odometer} | Time: ${new Date().toISOString()}`,
+                    `https://www.google.com/maps?q=${startLoc.lat},${startLoc.lng}`
+                ].join('\n')
+                finalNotes = [form.notes, navNote].filter(Boolean).join('\n')
+            }
+
+            finalNotes = [metaLine, finalNotes].filter(Boolean).join('\n')
             await createTrip({
                 vehicle_id: vehicle.id,
                 trip_date: form.trip_date,
                 trip_time: form.trip_time,
                 trip_type: form.trip_type as TripRecord['trip_type'],
-                start_km: Number(form.start_km),
-                end_km: Number(form.start_km),
+                start_km: form.start_km === '' ? vehicle.current_odometer : Number(form.start_km),
+                end_km: form.start_km === '' ? vehicle.current_odometer : Number(form.start_km),
                 start_location: form.start_location,
                 end_location: isTourMode ? form.start_location : undefined, // initial end is start for tour
-                notes,
+                notes: finalNotes,
             })
-            success(isTourMode ? 'Đã bắt đầu Tour! Bạn có thể ghé thêm điểm.' : 'Đã bắt đầu lộ trình! Nhấn "Hoàn tất" khi đến nơi.')
+            success(isTourMode ? 'Đã bắt đầu Tour! Bạn có thể dừng thêm điểm.' : 'Đã bắt đầu lộ trình! Nhấn "Hoàn tất" khi đến nơi.')
             onSuccess()
         } catch (err) {
             showError(err instanceof Error ? err.message : 'Không thể tạo lộ trình')
@@ -986,22 +1164,23 @@ function StartTripModal({ vehicle, isTourMode, onClose, onSuccess }: {
                                     onChange={e => setForm({ ...form, trip_time: e.target.value })} className={inputCls} />
                             </div>
                         </div>
+                        {/* Trip Type Options */}
                         <div>
-                            <label className={labelCls}><Tag className="h-3.5 w-3.5" /> Loại lộ trình</label>
-                            <div className="flex gap-2 flex-wrap">
-                                {(Object.entries(TRIP_TYPES) as [TripTypeKey, typeof TRIP_TYPES[TripTypeKey]][]).map(([key, cfg]) => (
-                                    <button key={key} type="button"
-                                        onClick={() => setForm({ ...form, trip_type: key })}
-                                        className={`rounded-xl px-3 py-1.5 text-xs font-semibold transition-all ${form.trip_type === key ? `${cfg.dot} text-white` : `${cfg.bg} ${cfg.text}`}`}>
-                                        {cfg.label}
-                                    </button>
-                                ))}
+                            <div className="flex items-center justify-between mb-1.5">
+                                <label className="flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">
+                                    <Tag className="h-3.5 w-3.5" /> Thẻ lộ trình
+                                </label>
+                                <button type="button" onClick={() => setIsImportant(!isImportant)} className={`flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-bold transition-colors ${isImportant ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}>
+                                    <Star className={`h-3 w-3 ${isImportant ? 'fill-current' : ''}`} /> Quan trọng
+                                </button>
                             </div>
+                            <TripTypeSelector selectedTags={selectedTags} onChange={setSelectedTags} />
                         </div>
                         <div>
                             <label className={labelCls}><Gauge className="h-3.5 w-3.5" /> Odo bắt đầu (km)</label>
-                            <input type="number" required min={0} value={form.start_km}
-                                onChange={e => setForm({ ...form, start_km: e.target.value })} className={inputCls} />
+                            <input type="number" min={0} value={form.start_km}
+                                onChange={e => setForm({ ...form, start_km: e.target.value })}
+                                placeholder={`(Tùy chọn) Bỏ trống = ${vehicle.current_odometer.toLocaleString()} km`} className={inputCls} />
                         </div>
                         <div>
                             <label className={labelCls}><MapPin className="h-3.5 w-3.5" /> Điểm xuất phát</label>
@@ -1082,10 +1261,10 @@ function CheckpointTripModal({ vehicle: _vehicle, trip, onClose, onSuccess }: {
             if (lastLat && lastLng) {
                 calculateDistanceOSRM(lastLat, lastLng, waypointLocData.lat, waypointLocData.lng)
                     .then(distanceKm => {
-                        if (distanceKm > 0) {
+                        if (distanceKm >= 0) {
                             const expectedEndKm = Math.round((trip.end_km || trip.start_km) + distanceKm)
                             setForm(prev => ({ ...prev, end_km: expectedEndKm.toString() }))
-                            success(`Đã tự động tính quãng đường ghé: ${distanceKm.toFixed(1)} km`)
+                            success(`Đã tự động tính quãng đường dừng: ${distanceKm.toFixed(1)} km`)
                         }
                     })
             }
@@ -1104,9 +1283,11 @@ function CheckpointTripModal({ vehicle: _vehicle, trip, onClose, onSuccess }: {
         if (!validDist) { showError('Odo phải lớn hơn hoặc bằng odo hiện tại'); return }
         setLoading(true)
         try {
-            const gpsNote = waypointLocData
-                ? `\n[Waypoint] ${waypointLocData.lat.toFixed(6)}, ${waypointLocData.lng.toFixed(6)}\nhttps://www.google.com/maps?q=${waypointLocData.lat},${waypointLocData.lng}\nĐịa điểm ghé: ${form.end_location}`
-                : `\n[Waypoint] ${form.end_location}`
+            const nowIso = new Date().toISOString()
+            const wpLoc = waypointLocData || parseManualCoords(form.end_location)
+            const gpsNote = wpLoc
+                ? `\n[Waypoint] ${wpLoc.lat.toFixed(6)}, ${wpLoc.lng.toFixed(6)} | Odo: ${parsedEndKm} | Time: ${nowIso}\nhttps://www.google.com/maps?q=${wpLoc.lat},${wpLoc.lng}\nĐịa điểm dừng: ${form.end_location}`
+                : `\n[Waypoint] None | Odo: ${parsedEndKm} | Time: ${nowIso}\nĐịa điểm dừng: ${form.end_location}`
 
             let notes = trip.notes || ''
             if (form.notes) notes += `\n${form.notes}`
@@ -1117,7 +1298,7 @@ function CheckpointTripModal({ vehicle: _vehicle, trip, onClose, onSuccess }: {
                 end_location: form.end_location,
                 notes
             })
-            success(`Đã lưu điểm ghé! Odo mới: ${parsedEndKm} km`)
+            success(`Đã lưu điểm dừng! Odo mới: ${parsedEndKm} km`)
             onSuccess()
         } catch (err) {
             showError(err instanceof Error ? err.message : 'Không thể cập nhật')
@@ -1133,7 +1314,7 @@ function CheckpointTripModal({ vehicle: _vehicle, trip, onClose, onSuccess }: {
                     <div className="flex items-center justify-between mb-2">
                         <div className="flex items-center gap-2">
                             <div className="rounded-xl bg-white/20 p-1.5"><MapPin className="h-4 w-4" /></div>
-                            <h3 className="text-base font-bold">Ghé điểm mới (Tour)</h3>
+                            <h3 className="text-base font-bold">dừng điểm mới (Tour)</h3>
                         </div>
                         <button onClick={onClose} className="rounded-full bg-white/20 p-1.5 hover:bg-white/30"><X className="h-4 w-4" /></button>
                     </div>
@@ -1153,13 +1334,13 @@ function CheckpointTripModal({ vehicle: _vehicle, trip, onClose, onSuccess }: {
                     </div>
                     <form id="checkpoint-form" onSubmit={handleSave} className="space-y-4">
                         <div>
-                            <label className={labelCls}><MapPin className="h-3.5 w-3.5" /> Điểm ghé tiếp theo</label>
+                            <label className={labelCls}><MapPin className="h-3.5 w-3.5" /> Điểm dừng tiếp theo</label>
                             <SimpleLocationInput label="" value={form.end_location} locationData={waypointLocData}
                                 onChange={(addr, loc) => { setForm({ ...form, end_location: addr }); setWaypointLocData(loc || null) }}
-                                placeholder="Nhập địa điểm ghé..." />
+                                placeholder="Nhập địa điểm dừng..." />
                         </div>
                         <div>
-                            <label className={labelCls}><Gauge className="h-3.5 w-3.5" /> Odo khi tới điểm ghé (km)</label>
+                            <label className={labelCls}><Gauge className="h-3.5 w-3.5" /> Odo khi tới điểm dừng (km)</label>
                             <input type="number" value={form.end_km}
                                 onChange={e => setForm({ ...form, end_km: e.target.value })}
                                 placeholder={`(Tùy chọn) Bỏ trống = ${(trip.end_km || trip.start_km).toLocaleString()} km`} className={inputCls} />
@@ -1168,7 +1349,7 @@ function CheckpointTripModal({ vehicle: _vehicle, trip, onClose, onSuccess }: {
                                     Khoảng cách: +{calcDist.toLocaleString()} km
                                 </div>
                             )}
-                            {waypointLocData && !(trip.notes || '').match(/\[(?:Start|Waypoint|End)\]/) && (
+                            {(waypointLocData || parseManualCoords(form.end_location)) && !(trip.notes || '').match(/\[(?:Start|Waypoint|End)\]/) && (
                                 <div className="mt-2 text-xs text-orange-600 bg-orange-50 p-2 rounded-xl text-center">
                                     Điểm đi không có tọa độ GPS, vui lòng nhập Odo thủ công.
                                 </div>
@@ -1177,7 +1358,7 @@ function CheckpointTripModal({ vehicle: _vehicle, trip, onClose, onSuccess }: {
                         <div>
                             <label className={labelCls}><FileText className="h-3.5 w-3.5" /> Ghi chú chặng</label>
                             <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
-                                rows={2} placeholder="Chi phí, ghi chú điểm ghé..." className={inputCls + ' resize-none'} />
+                                rows={2} placeholder="Chi phí, ghi chú điểm dừng..." className={inputCls + ' resize-none'} />
                         </div>
                     </form>
                 </div>
@@ -1187,7 +1368,7 @@ function CheckpointTripModal({ vehicle: _vehicle, trip, onClose, onSuccess }: {
                     <button type="submit" form="checkpoint-form" disabled={loading}
                         className="flex-[2] flex items-center justify-center gap-2 rounded-xl bg-cyan-500 py-3 text-sm font-bold text-white shadow-lg hover:bg-cyan-600 disabled:opacity-50 active:scale-95 transition-all">
                         <MapPin className="h-4 w-4" />
-                        {loading ? 'Đang lưu...' : 'Lưu điểm ghé'}
+                        {loading ? 'Đang lưu...' : 'Lưu điểm dừng'}
                     </button>
                 </div>
             </div>
@@ -1215,7 +1396,8 @@ function CompleteTripModal({ vehicle: _vehicle, trip, onClose, onSuccess }: {
     })
 
     useEffect(() => {
-        if (endLocData && trip.start_km !== undefined) {
+        const endLoc = endLocData || parseManualCoords(form.end_location)
+        if (endLoc && trip.start_km !== undefined) {
             // Check for last waypoint or start point
             let lastLat = 0, lastLng = 0
             const matches = [...(trip.notes || '').matchAll(/\[(?:Start|Waypoint|End)\]\s*([\d.-]+),\s*([\d.-]+)/g)]
@@ -1225,9 +1407,9 @@ function CompleteTripModal({ vehicle: _vehicle, trip, onClose, onSuccess }: {
                 lastLng = parseFloat(last[2])
             }
             if (lastLat && lastLng) {
-                calculateDistanceOSRM(lastLat, lastLng, endLocData.lat, endLocData.lng)
+                calculateDistanceOSRM(lastLat, lastLng, endLoc.lat, endLoc.lng)
                     .then(distanceKm => {
-                        if (distanceKm > 0) {
+                        if (distanceKm >= 0) {
                             const expectedEndKm = Math.round((trip.end_km || trip.start_km) + distanceKm)
                             setForm(prev => ({ ...prev, end_km: expectedEndKm.toString() }))
                             success(`Đã tự động tính quãng đường: ${distanceKm.toFixed(1)} km`)
@@ -1236,26 +1418,29 @@ function CompleteTripModal({ vehicle: _vehicle, trip, onClose, onSuccess }: {
             }
         }
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [endLocData])
+    }, [endLocData, form.end_location])
 
-    const calcDist = Number(form.end_km) - trip.start_km
-    const validDist = Number(form.end_km) >= (trip.end_km || trip.start_km)
+    const parsedEndKm = form.end_km === '' ? (trip.end_km || trip.start_km) : Number(form.end_km)
+    const calcDist = parsedEndKm - trip.start_km
+    const validDist = parsedEndKm >= (trip.end_km || trip.start_km)
     const inputCls = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all'
     const labelCls = 'mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide'
 
     const handleComplete = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!validDist) { showError('Odo kết thúc phải lớn hơn odo bắt đầu'); return }
+        if (!validDist) { showError('Odo kết thúc phải lớn hơn hoặc bằng odo hiện tại'); return }
         setLoading(true)
         try {
             const completedAt = new Date().toISOString()
             const oldMeta = parseMeta(trip.notes)
             const newMeta = buildMeta({ ...oldMeta, status: 'completed', completed_at: completedAt })
-            const gpsNote = endLocData
-                ? `\n[End] ${endLocData.lat.toFixed(6)}, ${endLocData.lng.toFixed(6)}\nhttps://www.google.com/maps?q=${endLocData.lat},${endLocData.lng}`
-                : ''
+
+            const endLoc = endLocData || parseManualCoords(form.end_location)
+            const gpsNote = endLoc
+                ? `\n[End] ${endLoc.lat.toFixed(6)}, ${endLoc.lng.toFixed(6)} | Odo: ${parsedEndKm} | Time: ${completedAt}\nhttps://www.google.com/maps?q=${endLoc.lat},${endLoc.lng}`
+                : `\n[End] None | Odo: ${parsedEndKm} | Time: ${completedAt}`
             const notes = `${newMeta}\n${form.notes}${gpsNote}`.trim()
-            await updateTrip(trip.id, { end_km: Number(form.end_km), end_location: form.end_location, notes })
+            await updateTrip(trip.id, { end_km: parsedEndKm, end_location: form.end_location, notes })
             success(`Lộ trình hoàn tất! ${calcDist.toLocaleString()} km${elapsedMins ? ' · ' + fmtDur(elapsedMins) : ''}`)
             onSuccess()
         } catch (err) {
@@ -1304,9 +1489,9 @@ function CompleteTripModal({ vehicle: _vehicle, trip, onClose, onSuccess }: {
                     <form id="complete-trip-form" onSubmit={handleComplete} className="space-y-4">
                         <div>
                             <label className={labelCls}><Gauge className="h-3.5 w-3.5" /> Odo kết thúc (km)</label>
-                            <input type="number" required min={trip.start_km + 1} value={form.end_km}
+                            <input type="number" min={trip.end_km || trip.start_km} value={form.end_km}
                                 onChange={e => setForm({ ...form, end_km: e.target.value })}
-                                placeholder={`Lớn hơn ${trip.start_km.toLocaleString()}`} className={inputCls} />
+                                placeholder={`(Tùy chọn) Bỏ trống = ${(trip.end_km || trip.start_km).toLocaleString()}`} className={inputCls} />
                             {validDist && (
                                 <div className="mt-2 flex items-center justify-between rounded-xl bg-emerald-50 border border-emerald-200 px-3 py-2">
                                     <span className="text-xs font-medium text-emerald-700">Quãng đường di chuyển</span>
