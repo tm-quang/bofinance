@@ -1,7 +1,7 @@
 import { ExternalLink, MapPin } from 'lucide-react'
 
 type TripGPSLocation = {
-    type: 'start' | 'end'
+    type: 'start' | 'end' | 'waypoint'
     label: string
     lat: number
     lng: number
@@ -30,25 +30,36 @@ function parseTripGPSFromNotes(notes: string): TripGPSLocation[] {
     for (let i = 0; i < lines.length; i++) {
         const line = lines[i]
 
-        // Match start location: 📍 Điểm đi: 10.123456, 105.123456
-        const startMatch = line.match(/📍\s*Điểm đi:\s*([-\d.]+),\s*([-\d.]+)/)
+        // Match start location: [Start] 10.123456, 105.123456
+        const startMatch = line.match(/\[Start\]\s*([-\d.]+),\s*([-\d.]+)/)
         if (startMatch) {
             currentLocation = {
                 type: 'start',
-                label: 'Điểm đi',
+                label: 'Điểm khởi hành',
                 lat: parseFloat(startMatch[1]),
                 lng: parseFloat(startMatch[2]),
             }
         }
 
-        // Match end location: 📍 Điểm đến: 10.123456, 105.123456
-        const endMatch = line.match(/📍\s*Điểm đến:\s*([-\d.]+),\s*([-\d.]+)/)
+        // Match end location: [End] 10.123456, 105.123456
+        const endMatch = line.match(/\[End\]\s*([-\d.]+),\s*([-\d.]+)/)
         if (endMatch) {
             currentLocation = {
                 type: 'end',
-                label: 'Điểm đến',
+                label: 'Điểm kết thúc',
                 lat: parseFloat(endMatch[1]),
                 lng: parseFloat(endMatch[2]),
+            }
+        }
+
+        // Match waypoint: [Waypoint] 10.123456, 105.123456
+        const wpMatch = line.match(/\[Waypoint\]\s*([-\d.]+),\s*([-\d.]+)/)
+        if (wpMatch) {
+            currentLocation = {
+                type: 'waypoint',
+                label: 'Điểm ghé',
+                lat: parseFloat(wpMatch[1]),
+                lng: parseFloat(wpMatch[2]),
             }
         }
 
@@ -80,25 +91,31 @@ export function TripGPSDisplay({ notes }: TripGPSDisplayProps) {
             {locations.map((location, index) => (
                 <div
                     key={index}
-                    className={`rounded-lg border p-3 space-y-2 ${location.type === 'start'
-                            ? 'bg-green-50 border-green-200'
-                            : 'bg-red-50 border-red-200'
+                    className={`rounded-lg border p-3 space-y-2 ${location.type === 'start' ? 'bg-green-50 border-green-200' :
+                        location.type === 'end' ? 'bg-red-50 border-red-200' :
+                            'bg-cyan-50 border-cyan-200'
                         }`}
                 >
                     <div className="flex items-start gap-2">
                         <MapPin
-                            className={`h-4 w-4 mt-0.5 flex-shrink-0 ${location.type === 'start' ? 'text-green-600' : 'text-red-600'
+                            className={`h-4 w-4 mt-0.5 flex-shrink-0 ${location.type === 'start' ? 'text-green-600' :
+                                location.type === 'end' ? 'text-red-600' :
+                                    'text-cyan-600'
                                 }`}
                         />
                         <div className="flex-1 min-w-0">
                             <p
-                                className={`text-xs font-medium ${location.type === 'start' ? 'text-green-800' : 'text-red-800'
+                                className={`text-xs font-medium ${location.type === 'start' ? 'text-green-800' :
+                                    location.type === 'end' ? 'text-red-800' :
+                                        'text-cyan-800'
                                     }`}
                             >
                                 {location.label}
                             </p>
                             <p
-                                className={`text-xs font-mono ${location.type === 'start' ? 'text-green-700' : 'text-red-700'
+                                className={`text-xs font-mono ${location.type === 'start' ? 'text-green-700' :
+                                    location.type === 'end' ? 'text-red-700' :
+                                        'text-cyan-700'
                                     }`}
                             >
                                 {location.lat.toFixed(6)}, {location.lng.toFixed(6)}
@@ -129,10 +146,8 @@ export function getTripCleanNotes(notes: string): string {
 
     const lines = notes.split('\n')
     const cleanLines = lines.filter(line => {
-        // Remove GPS coordinate lines for trips
-        if (line.match(/📍\s*(?:Điểm đi|Điểm đến):/)) return false
-        // Remove Google Maps URL lines
-        if (line.match(/🔗\s*https:\/\/www\.google\.com\/maps/)) return false
+        if (line.match(/\[(Start|End|Waypoint)\]/)) return false
+        if (line.match(/https:\/\/www\.google\.com\/maps/)) return false
         return true
     })
 

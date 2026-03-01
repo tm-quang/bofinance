@@ -2,7 +2,7 @@ import { useState, useEffect, useMemo } from 'react'
 import {
     Route, Plus, MapPin, Calendar, Trash2, Edit, Car, Bike,
     ChevronDown, Clock, Navigation, TrendingUp, BarChart3,
-    X, ArrowRight, Filter,
+    X, ArrowRight, Filter, Map,
     ChevronLeft, ChevronRight, Gauge, FileText, Tag, Save,
     Timer, PlayCircle, Flag, CheckCircle2
 } from 'lucide-react'
@@ -55,6 +55,10 @@ function isInProgress(trip: TripRecord): boolean {
     return parseMeta(trip.notes).status === 'in_progress'
 }
 
+function isTour(trip: TripRecord): boolean {
+    return parseMeta(trip.notes).tour === 'true'
+}
+
 function getTripDuration(trip: TripRecord): { startedAt: Date | null; completedAt: Date | null; mins: number | null } {
     const m = parseMeta(trip.notes)
     const startedAt = m.started_at ? new Date(m.started_at) : null
@@ -73,6 +77,20 @@ function fmtDur(mins: number): string {
 
 function fmtTime(d: Date): string {
     return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })
+}
+
+// ─── OSRM Helper ──────────────────────────────────────────────────────────────
+async function calculateDistanceOSRM(lat1: number, lng1: number, lat2: number, lng2: number): Promise<number> {
+    try {
+        const res = await fetch(`https://router.project-osrm.org/route/v1/driving/${lng1},${lat1};${lng2},${lat2}?overview=false`)
+        const data = await res.json()
+        if (data.code === 'Ok' && data.routes.length > 0) {
+            return data.routes[0].distance / 1000
+        }
+    } catch (err) {
+        console.error('OSRM API Error:', err)
+    }
+    return 0
 }
 
 // ─── Vehicle Type Icon ────────────────────────────────────────────────────────
@@ -142,11 +160,13 @@ function TripCard({
     onEdit,
     onDelete,
     onComplete,
+    onCheckpoint,
 }: {
     trip: TripRecord
     onEdit: (trip: TripRecord) => void
     onDelete: (id: string) => void
     onComplete: (trip: TripRecord) => void
+    onCheckpoint: (trip: TripRecord) => void
 }) {
     const [expanded, setExpanded] = useState(false)
     const typeConfig = TRIP_TYPES[trip.trip_type as TripTypeKey] ?? TRIP_TYPES.other
@@ -209,13 +229,24 @@ function TripCard({
 
                     <div className="flex gap-1 ml-2 shrink-0">
                         {inProgress ? (
-                            <button
-                                onClick={() => onComplete(trip)}
-                                className="flex items-center gap-1 rounded-xl bg-amber-500 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-amber-600 transition-colors"
-                            >
-                                <Flag className="h-3.5 w-3.5" />
-                                Hoàn tất
-                            </button>
+                            <>
+                                {isTour(trip) && (
+                                    <button
+                                        onClick={() => onCheckpoint(trip)}
+                                        className="flex items-center gap-1 rounded-xl bg-cyan-500 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-cyan-600 transition-colors"
+                                    >
+                                        <MapPin className="h-3.5 w-3.5" />
+                                        Ghé
+                                    </button>
+                                )}
+                                <button
+                                    onClick={() => onComplete(trip)}
+                                    className="flex items-center gap-1 rounded-xl bg-amber-500 px-2.5 py-1.5 text-xs font-bold text-white hover:bg-amber-600 transition-colors"
+                                >
+                                    <Flag className="h-3.5 w-3.5" />
+                                    Hoàn tất
+                                </button>
+                            </>
                         ) : (
                             <button onClick={() => onEdit(trip)} className="rounded-xl p-1.5 text-blue-500 hover:bg-blue-50 transition-colors">
                                 <Edit className="h-4 w-4" />
@@ -301,8 +332,10 @@ export default function VehicleTrips() {
     const { selectedVehicleId, setSelectedVehicleId } = useVehicleStore()
     const [showAddModal, setShowAddModal] = useState(false)
     const [showStartModal, setShowStartModal] = useState(false)
+    const [isTourMode, setIsTourMode] = useState(false)
     const [editingTrip, setEditingTrip] = useState<TripRecord | null>(null)
     const [completingTrip, setCompletingTrip] = useState<TripRecord | null>(null)
+    const [checkpointTrip, setCheckpointTrip] = useState<TripRecord | null>(null)
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
     const [deleting, setDeleting] = useState(false)
     const [filterType, setFilterType] = useState<TripTypeKey | 'all'>('all')
@@ -370,8 +403,6 @@ export default function VehicleTrips() {
         return new Date(key).toLocaleDateString('vi-VN', { weekday: 'long', day: 'numeric', month: 'numeric' })
     }
 
-    const accentClass = 'from-blue-600 to-indigo-600'
-
     return (
         <div className="flex h-screen flex-col overflow-hidden bg-[#F7F9FC]">
             <HeaderBar variant="page" title="Quản Lý Lộ Trình" />
@@ -384,20 +415,27 @@ export default function VehicleTrips() {
                 )}
 
                 {/* ── Action Buttons ────────────────────────────────────────── */}
-                <div className="mb-4 grid grid-cols-2 gap-2.5">
+                <div className="mb-4 grid grid-cols-3 gap-2">
                     <button
-                        onClick={() => setShowStartModal(true)}
-                        className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 px-4 py-3.5 font-bold text-white shadow-lg shadow-amber-200 transition-all hover:scale-[1.02] active:scale-95"
+                        onClick={() => { setShowStartModal(true); setIsTourMode(false) }}
+                        className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-amber-500 to-orange-500 py-3 text-white shadow-lg shadow-amber-200 transition-all hover:scale-[1.02] active:scale-95"
                     >
                         <PlayCircle className="h-5 w-5" />
-                        Bắt đầu
+                        <span className="text-xs font-bold text-center">Bắt đầu</span>
+                    </button>
+                    <button
+                        onClick={() => { setShowStartModal(true); setIsTourMode(true) }}
+                        className="flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-cyan-500 to-cyan-400 py-3 text-white shadow-lg shadow-cyan-200 transition-all hover:scale-[1.02] active:scale-95"
+                    >
+                        <Map className="h-5 w-5" />
+                        <span className="text-xs font-bold text-center">Thêm Tour</span>
                     </button>
                     <button
                         onClick={() => setShowAddModal(true)}
-                        className={`flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r ${accentClass} px-4 py-3.5 font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95`}
+                        className={`flex flex-col items-center justify-center gap-1.5 rounded-2xl bg-gradient-to-r from-blue-500 to-cyan-500 py-3 text-white shadow-lg shadow-blue-200 transition-all hover:scale-[1.02] active:scale-95`}
                     >
                         <Plus className="h-5 w-5" />
-                        Thêm đầy đủ
+                        <span className="text-xs font-bold text-center">Đầy đủ</span>
                     </button>
                 </div>
 
@@ -514,6 +552,7 @@ export default function VehicleTrips() {
                                                 onEdit={setEditingTrip}
                                                 onDelete={setDeleteConfirmId}
                                                 onComplete={setCompletingTrip}
+                                                onCheckpoint={setCheckpointTrip}
                                             />
                                         ))}
                                     </div>
@@ -527,7 +566,7 @@ export default function VehicleTrips() {
 
             {/* Footer Nav */}
             <VehicleFooterNav
-                onAddClick={() => setShowStartModal(true)}
+                onAddClick={() => { setShowStartModal(true); setIsTourMode(false) }}
                 addLabel="Bắt đầu lộ trình"
             />
 
@@ -549,6 +588,7 @@ export default function VehicleTrips() {
             {showStartModal && selectedVehicle && (
                 <StartTripModal
                     vehicle={selectedVehicle}
+                    isTourMode={isTourMode}
                     onClose={() => setShowStartModal(false)}
                     onSuccess={() => {
                         setShowStartModal(false)
@@ -565,6 +605,19 @@ export default function VehicleTrips() {
                     onClose={() => setCompletingTrip(null)}
                     onSuccess={() => {
                         setCompletingTrip(null)
+                        queryClient.invalidateQueries({ queryKey: vehicleKeys.trips(selectedVehicleId || '') })
+                    }}
+                />
+            )}
+
+            {/* Checkpoint Trip Modal */}
+            {checkpointTrip && selectedVehicle && (
+                <CheckpointTripModal
+                    vehicle={selectedVehicle}
+                    trip={checkpointTrip}
+                    onClose={() => setCheckpointTrip(null)}
+                    onSuccess={() => {
+                        setCheckpointTrip(null)
                         queryClient.invalidateQueries({ queryKey: vehicleKeys.trips(selectedVehicleId || '') })
                     }}
                 />
@@ -615,6 +668,20 @@ function TripModal({
 
     const [startLocationData, setStartLocationData] = useState<SimpleLocationData | null>(null)
     const [endLocationData, setEndLocationData] = useState<SimpleLocationData | null>(null)
+
+    useEffect(() => {
+        if (startLocationData && endLocationData && formData.start_km) {
+            calculateDistanceOSRM(startLocationData.lat, startLocationData.lng, endLocationData.lat, endLocationData.lng)
+                .then(distanceKm => {
+                    if (distanceKm > 0) {
+                        const expectedEndKm = Math.round(Number(formData.start_km) + distanceKm)
+                        setFormData(prev => ({ ...prev, end_km: expectedEndKm.toString() }))
+                        success(`Đã tự động tính quãng đường: ${distanceKm.toFixed(1)} km`)
+                    }
+                })
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [startLocationData, endLocationData])
 
     const calcDist = Number(formData.end_km) - Number(formData.start_km)
     const validDist = Number(formData.start_km) > 0 && Number(formData.end_km) > Number(formData.start_km)
@@ -838,8 +905,9 @@ function TripModal({
 }
 
 // ─── Start Trip Modal ─────────────────────────────────────────────────────────
-function StartTripModal({ vehicle, onClose, onSuccess }: {
+function StartTripModal({ vehicle, isTourMode, onClose, onSuccess }: {
     vehicle: VehicleRecord
+    isTourMode: boolean
     onClose: () => void
     onSuccess: () => void
 }) {
@@ -855,7 +923,7 @@ function StartTripModal({ vehicle, onClose, onSuccess }: {
         start_location: '',
         notes: '',
     })
-    const accentBg = 'bg-blue-600'
+    const accentBg = isTourMode ? 'bg-cyan-600' : 'bg-blue-600'
     const inputCls = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all'
     const labelCls = 'mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide'
 
@@ -864,7 +932,7 @@ function StartTripModal({ vehicle, onClose, onSuccess }: {
         setLoading(true)
         try {
             const startedAt = new Date().toISOString()
-            const metaStr = buildMeta({ status: 'in_progress', started_at: startedAt })
+            const metaStr = buildMeta({ status: 'in_progress', started_at: startedAt, ...(isTourMode ? { tour: 'true' } : {}) })
             const gpsNote = startLocData
                 ? `\n[Start] ${startLocData.lat.toFixed(6)}, ${startLocData.lng.toFixed(6)}\nhttps://www.google.com/maps?q=${startLocData.lat},${startLocData.lng}`
                 : ''
@@ -877,9 +945,10 @@ function StartTripModal({ vehicle, onClose, onSuccess }: {
                 start_km: Number(form.start_km),
                 end_km: Number(form.start_km),
                 start_location: form.start_location,
+                end_location: isTourMode ? form.start_location : undefined, // initial end is start for tour
                 notes,
             })
-            success('Đã bắt đầu lộ trình! Nhấn "Hoàn tất" khi đến nơi.')
+            success(isTourMode ? 'Đã bắt đầu Tour! Bạn có thể ghé thêm điểm.' : 'Đã bắt đầu lộ trình! Nhấn "Hoàn tất" khi đến nơi.')
             onSuccess()
         } catch (err) {
             showError(err instanceof Error ? err.message : 'Không thể tạo lộ trình')
@@ -894,8 +963,10 @@ function StartTripModal({ vehicle, onClose, onSuccess }: {
                 <div className={`${accentBg} rounded-t-3xl px-5 pt-5 pb-4 text-white`}>
                     <div className="flex items-center justify-between mb-1">
                         <div className="flex items-center gap-2">
-                            <div className="rounded-xl bg-white/20 p-1.5"><PlayCircle className="h-4 w-4" /></div>
-                            <h3 className="text-base font-bold">Bắt đầu lộ trình</h3>
+                            <div className="rounded-xl bg-white/20 p-1.5">
+                                {isTourMode ? <Map className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}
+                            </div>
+                            <h3 className="text-base font-bold">{isTourMode ? 'Bắt đầu Tour' : 'Bắt đầu lộ trình'}</h3>
                         </div>
                         <button onClick={onClose} className="rounded-full bg-white/20 p-1.5 hover:bg-white/30"><X className="h-4 w-4" /></button>
                     </div>
@@ -949,9 +1020,174 @@ function StartTripModal({ vehicle, onClose, onSuccess }: {
                     <button type="button" onClick={onClose}
                         className="flex-1 rounded-xl border border-slate-200 bg-slate-50 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-100">Hủy</button>
                     <button type="submit" form="start-trip-form" disabled={loading}
-                        className="flex-[2] flex items-center justify-center gap-2 rounded-xl bg-amber-500 py-3 text-sm font-bold text-white shadow-lg hover:bg-amber-600 disabled:opacity-50 active:scale-95 transition-all">
-                        <PlayCircle className="h-4 w-4" />
-                        {loading ? 'Đang lưu...' : 'Bắt đầu lộ trình'}
+                        className={`flex-[2] flex items-center justify-center gap-2 rounded-xl text-white shadow-lg disabled:opacity-50 active:scale-95 transition-all py-3 text-sm font-bold ${isTourMode ? 'bg-cyan-500 hover:bg-cyan-600' : 'bg-amber-500 hover:bg-amber-600'}`}>
+                        {isTourMode ? <Map className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}
+                        {loading ? 'Đang lưu...' : (isTourMode ? 'Bắt đầu Tour' : 'Bắt đầu lộ trình')}
+                    </button>
+                </div>
+            </div>
+        </div>
+    )
+}
+
+// ─── Checkpoint Tour Modal ────────────────────────────────────────────────────
+function CheckpointTripModal({ vehicle: _vehicle, trip, onClose, onSuccess }: {
+    vehicle: VehicleRecord
+    trip: TripRecord
+    onClose: () => void
+    onSuccess: () => void
+}) {
+    const { success, error: showError } = useNotification()
+    const [loading, setLoading] = useState(false)
+    const [waypointLocData, setWaypointLocData] = useState<SimpleLocationData | null>(null)
+    const [form, setForm] = useState({
+        end_km: '',
+        end_location: '',
+        notes: '',
+    })
+
+    // Auto location fetch on open
+    useEffect(() => {
+        if (!navigator.geolocation) return
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                const { latitude, longitude } = pos.coords
+                setWaypointLocData({ lat: latitude, lng: longitude, address: '' })
+                try {
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`)
+                    const data = await res.json()
+                    if (data && data.display_name) {
+                        setForm(prev => ({ ...prev, end_location: data.display_name }))
+                    }
+                } catch (e) {
+                    // Ignore
+                }
+            },
+            () => { /* ignore */ },
+            { enableHighAccuracy: true }
+        )
+    }, [])
+
+    // Auto-calculate distance for waypoint
+    useEffect(() => {
+        if (waypointLocData) {
+            // Find last point from notes, or fallback to start point
+            let lastLat = 0, lastLng = 0
+            const matches = [...(trip.notes || '').matchAll(/\[(?:Start|Waypoint|End)\]\s*([\d.-]+),\s*([\d.-]+)/g)]
+            if (matches.length > 0) {
+                const last = matches[matches.length - 1]
+                lastLat = parseFloat(last[1])
+                lastLng = parseFloat(last[2])
+            }
+            if (lastLat && lastLng) {
+                calculateDistanceOSRM(lastLat, lastLng, waypointLocData.lat, waypointLocData.lng)
+                    .then(distanceKm => {
+                        if (distanceKm > 0) {
+                            const expectedEndKm = Math.round((trip.end_km || trip.start_km) + distanceKm)
+                            setForm(prev => ({ ...prev, end_km: expectedEndKm.toString() }))
+                            success(`Đã tự động tính quãng đường ghé: ${distanceKm.toFixed(1)} km`)
+                        }
+                    })
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [waypointLocData])
+
+    const parsedEndKm = form.end_km === '' ? (trip.end_km || trip.start_km) : Number(form.end_km)
+    const calcDist = parsedEndKm - (trip.end_km || trip.start_km)
+    const validDist = parsedEndKm >= (trip.end_km || trip.start_km)
+    const inputCls = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all'
+    const labelCls = 'mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide'
+
+    const handleSave = async (e: React.FormEvent) => {
+        e.preventDefault()
+        if (!validDist) { showError('Odo phải lớn hơn hoặc bằng odo hiện tại'); return }
+        setLoading(true)
+        try {
+            const gpsNote = waypointLocData
+                ? `\n[Waypoint] ${waypointLocData.lat.toFixed(6)}, ${waypointLocData.lng.toFixed(6)}\nhttps://www.google.com/maps?q=${waypointLocData.lat},${waypointLocData.lng}\nĐịa điểm ghé: ${form.end_location}`
+                : `\n[Waypoint] ${form.end_location}`
+
+            let notes = trip.notes || ''
+            if (form.notes) notes += `\n${form.notes}`
+            notes += gpsNote
+
+            await updateTrip(trip.id, {
+                end_km: parsedEndKm,
+                end_location: form.end_location,
+                notes
+            })
+            success(`Đã lưu điểm ghé! Odo mới: ${parsedEndKm} km`)
+            onSuccess()
+        } catch (err) {
+            showError(err instanceof Error ? err.message : 'Không thể cập nhật')
+        } finally {
+            setLoading(false)
+        }
+    }
+
+    return (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-[3px]">
+            <div className="w-full rounded-t-3xl bg-white shadow-2xl max-h-[88vh] flex flex-col">
+                <div className="bg-cyan-500 rounded-t-3xl px-5 pt-5 pb-4 text-white">
+                    <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center gap-2">
+                            <div className="rounded-xl bg-white/20 p-1.5"><MapPin className="h-4 w-4" /></div>
+                            <h3 className="text-base font-bold">Ghé điểm mới (Tour)</h3>
+                        </div>
+                        <button onClick={onClose} className="rounded-full bg-white/20 p-1.5 hover:bg-white/30"><X className="h-4 w-4" /></button>
+                    </div>
+                </div>
+                <div className="flex-1 overflow-y-auto px-5 py-4">
+                    <div className="mb-4 rounded-xl bg-slate-50 border border-slate-200 px-4 py-3 text-sm">
+                        <div className="flex justify-between w-full">
+                            <div>
+                                <p className="text-xs text-slate-400">Odo hiện tại</p>
+                                <p className="font-bold text-slate-700">{(trip.end_km || trip.start_km).toLocaleString()} km</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-xs text-slate-400">Vị trí hiện tại</p>
+                                <p className="font-bold text-slate-700 truncate max-w-[150px]">{trip.end_location || trip.start_location}</p>
+                            </div>
+                        </div>
+                    </div>
+                    <form id="checkpoint-form" onSubmit={handleSave} className="space-y-4">
+                        <div>
+                            <label className={labelCls}><MapPin className="h-3.5 w-3.5" /> Điểm ghé tiếp theo</label>
+                            <SimpleLocationInput label="" value={form.end_location} locationData={waypointLocData}
+                                onChange={(addr, loc) => { setForm({ ...form, end_location: addr }); setWaypointLocData(loc || null) }}
+                                placeholder="Nhập địa điểm ghé..." />
+                        </div>
+                        <div>
+                            <label className={labelCls}><Gauge className="h-3.5 w-3.5" /> Odo khi tới điểm ghé (km)</label>
+                            <input type="number" value={form.end_km}
+                                onChange={e => setForm({ ...form, end_km: e.target.value })}
+                                placeholder={`(Tùy chọn) Bỏ trống = ${(trip.end_km || trip.start_km).toLocaleString()} km`} className={inputCls} />
+                            {validDist && calcDist > 0 && (
+                                <div className="mt-2 text-xs font-semibold text-cyan-600 bg-cyan-50 p-2 rounded-xl text-center">
+                                    Khoảng cách: +{calcDist.toLocaleString()} km
+                                </div>
+                            )}
+                            {waypointLocData && !(trip.notes || '').match(/\[(?:Start|Waypoint|End)\]/) && (
+                                <div className="mt-2 text-xs text-orange-600 bg-orange-50 p-2 rounded-xl text-center">
+                                    Điểm đi không có tọa độ GPS, vui lòng nhập Odo thủ công.
+                                </div>
+                            )}
+                        </div>
+                        <div>
+                            <label className={labelCls}><FileText className="h-3.5 w-3.5" /> Ghi chú chặng</label>
+                            <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
+                                rows={2} placeholder="Chi phí, ghi chú điểm ghé..." className={inputCls + ' resize-none'} />
+                        </div>
+                    </form>
+                </div>
+                <div className="px-5 py-4 border-t border-slate-100 flex gap-3">
+                    <button type="button" onClick={onClose}
+                        className="flex-1 rounded-xl border border-slate-200 bg-slate-50 py-3 text-sm font-semibold text-slate-600 hover:bg-slate-100">Hủy</button>
+                    <button type="submit" form="checkpoint-form" disabled={loading}
+                        className="flex-[2] flex items-center justify-center gap-2 rounded-xl bg-cyan-500 py-3 text-sm font-bold text-white shadow-lg hover:bg-cyan-600 disabled:opacity-50 active:scale-95 transition-all">
+                        <MapPin className="h-4 w-4" />
+                        {loading ? 'Đang lưu...' : 'Lưu điểm ghé'}
                     </button>
                 </div>
             </div>
@@ -977,8 +1213,33 @@ function CompleteTripModal({ vehicle: _vehicle, trip, onClose, onSuccess }: {
         end_location: '',
         notes: getTripCleanNotes(stripMeta(trip.notes)),
     })
+
+    useEffect(() => {
+        if (endLocData && trip.start_km !== undefined) {
+            // Check for last waypoint or start point
+            let lastLat = 0, lastLng = 0
+            const matches = [...(trip.notes || '').matchAll(/\[(?:Start|Waypoint|End)\]\s*([\d.-]+),\s*([\d.-]+)/g)]
+            if (matches.length > 0) {
+                const last = matches[matches.length - 1]
+                lastLat = parseFloat(last[1])
+                lastLng = parseFloat(last[2])
+            }
+            if (lastLat && lastLng) {
+                calculateDistanceOSRM(lastLat, lastLng, endLocData.lat, endLocData.lng)
+                    .then(distanceKm => {
+                        if (distanceKm > 0) {
+                            const expectedEndKm = Math.round((trip.end_km || trip.start_km) + distanceKm)
+                            setForm(prev => ({ ...prev, end_km: expectedEndKm.toString() }))
+                            success(`Đã tự động tính quãng đường: ${distanceKm.toFixed(1)} km`)
+                        }
+                    })
+            }
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [endLocData])
+
     const calcDist = Number(form.end_km) - trip.start_km
-    const validDist = Number(form.end_km) > trip.start_km
+    const validDist = Number(form.end_km) >= (trip.end_km || trip.start_km)
     const inputCls = 'w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-blue-400 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-100 transition-all'
     const labelCls = 'mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide'
 
