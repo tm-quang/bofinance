@@ -1,5 +1,5 @@
 import { useEffect, useState, useEffectEvent } from 'react'
-import { FaInfoCircle, FaChevronDown, FaPaperPlane, FaPlus, FaFolder, FaTasks, FaHandHoldingHeart, FaCog, FaShoppingCart, FaMicrophone } from 'react-icons/fa'
+import { FaInfoCircle, FaChevronDown, FaPaperPlane, FaPlus, FaFolder, FaTasks, FaHandHoldingHeart, FaCog, FaShoppingCart, FaMicrophone, FaPiggyBank } from 'react-icons/fa'
 import HeaderBar from '../layout/HeaderBar'
 
 type QuickAction = {
@@ -71,6 +71,18 @@ const ACTION_INFO: Record<string, { icon: typeof FaPaperPlane; description: stri
     color: 'text-purple-600',
     bgGradient: 'from-purple-50 to-pink-50',
   },
+  'spending-jars': {
+    icon: FaPiggyBank,
+    description: 'Quản lý hũ chi tiêu cá nhân theo phương pháp 6 hũ — phân bổ ngân sách theo từng mục tiêu',
+    color: 'text-violet-600',
+    bgGradient: 'from-violet-50 to-purple-50',
+  },
+  'debts': {
+    icon: FaFolder,
+    description: 'Theo dõi các khoản nợ cho vay và đi vay, không bỏ sót bất kỳ khoản nào',
+    color: 'text-rose-600',
+    bgGradient: 'from-rose-50 to-red-50',
+  },
   'settings': {
     icon: FaCog,
     description: 'Truy cập các cài đặt và tùy chọn',
@@ -120,10 +132,10 @@ export const QuickActionsSettings = ({
         return prev.map((action) => (action.id === id ? { ...action, enabled: false } : action))
       }
 
-      // Nếu đang tắt, chỉ cho phép bật nếu chưa đủ 4 tiện ích
+      // Nếu đang tắt, chỉ cho phép bật nếu chưa đủ 6 tiện ích
       const enabledCount = prev.filter((a) => a.enabled).length
-      if (enabledCount >= 4) {
-        return prev // Không cho phép bật thêm nếu đã đủ 4
+      if (enabledCount >= 6) {
+        return prev // Không cho phép bật thêm nếu đã đủ 6
       }
 
       return prev.map((action) => (action.id === id ? { ...action, enabled: true } : action))
@@ -138,7 +150,7 @@ export const QuickActionsSettings = ({
   const handleReset = () => {
     const defaultActions = actions.map((action, index) => ({
       ...action,
-      // Mặc định: chỉ 4 chức năng đầu tiên (Settings là chức năng thứ 5, mặc định tắt)
+      // Mặc định: chỉ 4 chức năng đầu tiên (Settings là chức năng cuối, mặc định tắt)
       enabled: index < 4 && action.id !== 'settings',
     }))
     setLocalActions(defaultActions)
@@ -161,7 +173,7 @@ export const QuickActionsSettings = ({
           {/* Subtitle */}
           <div className="px-1 mb-1">
             <p className="text-sm text-slate-600">
-              Chọn các chức năng hiển thị trên Dashboard ({enabledCount}/4 đã chọn)
+              Chọn các chức năng ghim trên Dashboard ({enabledCount}/6 đã chọn)
             </p>
           </div>
 
@@ -283,14 +295,14 @@ export const QuickActionsSettings = ({
               </div>
             </div>
           )}
-          {enabledCount >= 4 && (
+          {enabledCount >= 6 && (
             <div className="mt-2 rounded-xl bg-blue-50 border-2 border-blue-200 p-3">
               <div className="flex items-start gap-3">
                 <div className="flex-shrink-0">
                   <FaInfoCircle className="h-4 w-4 text-blue-600" />
                 </div>
                 <p className="text-sm font-medium text-blue-800">
-                  Đã đạt giới hạn tối đa 4 tiện ích. Vui lòng tắt một tiện ích khác để bật tiện ích mới.
+                  Đã đạt giới hạn tối đa 6 tiện ích. Vui lòng tắt một tiện ích khác để bật tiện ích mới.
                 </p>
               </div>
             </div>

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import { useDataPreloader } from '../hooks/useDataPreloader'
-import { FaPlus, FaPaperPlane, FaCog, FaFolder, FaArrowRight, FaClock, FaTasks, FaShoppingCart, FaMicrophone } from 'react-icons/fa'
+import { FaPlus, FaPaperPlane, FaCog, FaFolder, FaArrowRight, FaClock, FaTasks, FaShoppingCart, FaMicrophone, FaPiggyBank, FaChevronRight } from 'react-icons/fa'
 
 import FooterNav from '../components/layout/FooterNav'
 import HeaderBar from '../components/layout/HeaderBar'
@@ -43,14 +43,16 @@ const formatCurrency = (value: number) =>
     maximumFractionDigits: 0,
   }).format(value)
 
-// Component for Quick Action Button with image support
+// Component for Quick Action Button
 const QuickActionButton = ({
   action,
   Icon,
+  isNew,
   onNavigate
 }: {
   action: { id: string; label: string; icon: React.ComponentType<{ className?: string }>; image?: string; color: string; bgColor: string; textColor: string }
   Icon: React.ComponentType<{ className?: string }>
+  isNew?: boolean
   onNavigate: (id: string) => void
 }) => {
   const [imageError, setImageError] = useState(false)
@@ -59,29 +61,32 @@ const QuickActionButton = ({
     <button
       type="button"
       onClick={() => onNavigate(action.id)}
-      className="group relative flex flex-col items-center gap-2.5 rounded-2xl bg-white p-3 text-center border border-slate-100 shadow-md transition-all hover:scale-105 hover:shadow-xl active:scale-95 sm:p-4"
+      className="group relative flex flex-col items-center gap-2 rounded-2xl bg-white p-3 text-center border border-slate-50 shadow-md transition-all hover:shadow-xl hover:scale-[1.05] active:scale-95 ring-1 ring-slate-100/50"
     >
-      <span
-        className={`flex h-22 w-22 items-center justify-center rounded-2xl bg-transparent transition-all group-hover:scale-110 sm:h-16 sm:w-16 overflow-hidden`}
-      >
+      {isNew && (
+        <span className="absolute -top-1.5 -right-1.5 z-10 rounded-full bg-gradient-to-r from-rose-500 to-pink-500 px-1.5 py-0.5 text-[9px] font-bold text-white shadow-sm">
+          MỚI
+        </span>
+      )}
+      <span className="flex h-14 w-14 items-center justify-center rounded-2xl overflow-hidden transition-transform group-hover:scale-110">
         {action.image && !imageError ? (
           <img
             src={action.image}
             alt={action.label}
-            className="h-full w-full object-contain scale-120"
+            className="h-full w-full object-contain"
             onError={() => setImageError(true)}
           />
         ) : (
-          <Icon className="h-6 w-6 sm:h-7 sm:w-7" />
+          <Icon className="h-7 w-7" />
         )}
       </span>
-      <span className={`text-[10px] font-semibold leading-tight ${action.textColor} sm:text-xs min-h-[2.5rem] flex items-center justify-center text-center px-1`}>
+      <span className={`text-[10px] font-semibold leading-tight ${action.textColor} line-clamp-2 min-h-[2rem] flex items-center justify-center text-center w-full`}>
         {action.label}
       </span>
-      <div className={`absolute inset-0 rounded-2xl ${action.bgColor} opacity-0 transition-opacity group-hover:opacity-20 -z-10`} />
     </button>
   )
 }
+
 
 const ALL_QUICK_ACTIONS = [
   {
@@ -140,18 +145,36 @@ const ALL_QUICK_ACTIONS = [
   },
   {
     id: 'voice-to-text',
-    label: 'Chuyển giọng nói thành văn bản',
+    label: 'Giọng nói',
     icon: FaMicrophone,
-    image: '/images/heoBO/heo5.png', // Thêm link ảnh ở đây (tùy chọn)
+    image: '/images/heoBO/heo5.png',
     color: 'from-sky-500 to-blue-600',
     bgColor: 'bg-sky-50',
     textColor: 'text-sky-700',
   },
   {
+    id: 'spending-jars',
+    label: 'Hũ chi tiêu',
+    icon: FaPiggyBank,
+    image: '/images/heoBO/heo2.png',
+    color: 'from-violet-500 to-purple-600',
+    bgColor: 'bg-violet-50',
+    textColor: 'text-violet-700',
+  },
+  {
+    id: 'debts',
+    label: 'Sổ nợ',
+    icon: FaFolder,
+    image: '/images/heoBO/heo4.png',
+    color: 'from-rose-500 to-red-600',
+    bgColor: 'bg-rose-50',
+    textColor: 'text-rose-700',
+  },
+  {
     id: 'settings',
     label: 'Cài đặt',
     icon: FaCog,
-    image: '/images/quick-actions/settings.png', // Thêm link ảnh ở đây (tùy chọn)
+    image: '/images/quick-actions/settings.png',
     color: 'from-sky-500 to-blue-600',
     bgColor: 'bg-sky-50',
     textColor: 'text-sky-700',
@@ -211,6 +234,7 @@ export const DashboardPage = () => {
   const [unreadNotificationCount, setUnreadNotificationCount] = useState(0)
   const [isReloading, setIsReloading] = useState(false)
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [isAllUtilitiesExpanded, setIsAllUtilitiesExpanded] = useState(false)
 
   // Long press handler refs
   const longPressTimerRef = useRef<number | null>(null)
@@ -326,11 +350,11 @@ export const DashboardPage = () => {
     const enabledCount = updatedActions.filter((a) => a.enabled).length
     let finalActions = updatedActions
 
-    if (enabledCount > 4) {
+    if (enabledCount > 6) {
       // Nếu có lỗi, giới hạn lại
       finalActions = updatedActions.map((action, index) => ({
         ...action,
-        enabled: action.enabled && index < 4
+        enabled: action.enabled && index < 6
       }))
     }
 
@@ -1079,64 +1103,124 @@ export const DashboardPage = () => {
             refreshTrigger={refreshTrigger}
           />
 
-          <section className="rounded-3xl bg-gradient-to-br from-white via-slate-50/50 to-white p-5 shadow-lg border border-slate-100">
-            <div className="flex items-center justify-between mb-6">
-              <div>
-                <h3 className="text-md font-bold uppercase tracking-wider text-slate-700">Tiện ích khác</h3>
-                <p className="mt-1 text-xs text-slate-500">Truy cập nhanh các tiện ích thường dùng</p>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsSettingsOpen(true)}
-                className="flex items-center gap-1.5 text-xs font-semibold text-sky-600 transition hover:text-sky-700 hover:underline"
-              >
-                <FaCog className="h-3.5 w-3.5" />
-                <span>Cài đặt</span>
-              </button>
-            </div>
-            <div className={`grid gap-2.5 sm:gap-3 ${enabledQuickActions.length === 1 ? 'grid-cols-1' :
-              enabledQuickActions.length === 2 ? 'grid-cols-2' :
-                enabledQuickActions.length === 3 ? 'grid-cols-3' :
-                  enabledQuickActions.length === 4 ? 'grid-cols-4' :
-                    enabledQuickActions.length === 5 ? 'grid-cols-5' :
-                      'grid-cols-6'
-              }`}>
-              {enabledQuickActions.map((action) => {
-                const Icon = action.icon
-                return (
-                  <QuickActionButton
-                    key={action.id}
-                    action={action}
-                    Icon={Icon}
-                    onNavigate={(id) => {
-                      if (id === 'add-transaction') {
-                        navigate('/add-transaction')
-                      } else if (id === 'settings') {
-                        setIsSettingsOpen(true)
-                      } else if (id === 'categories') {
-                        navigate('/categories')
-                      } else if (id === 'notes-plans') {
-                        navigate('/notes-plans')
-                      } else if (id === 'budgets') {
-                        navigate('/budgets')
-                      } else if (id === 'shopping-list') {
-                        navigate('/shopping-list')
-                      } else if (id === 'voice-to-text') {
-                        navigate('/voice-to-text')
-                      } else if (id === 'reminder') {
-                        // Giữ tương thích ngược cho người dùng cũ có thể đã lưu cài đặt cũ
-                        navigate('/notes-plans')
-                      } else if (id === 'tasks') {
-                        // Giữ tương thích ngược cho người dùng cũ có thể đã lưu cài đặt cũ
-                        navigate('/notes-plans')
-                      }
-                      // Các chức năng khác sẽ được implement sau
-                    }}
-                  />
-                )
-              })}
-            </div>
-          </section>
+          {/* ───── Tiện ích khác ───── */}
+          {(() => {
+            // IDs that are recently added (show "MỚI" badge)
+            const newIds = new Set(['spending-jars'])
+            // All non-settings actions
+            const allActions = ALL_QUICK_ACTIONS.filter(a => a.id !== 'settings')
+            // Pinned = user-enabled
+            const pinnedIds = new Set(enabledQuickActions.map(a => a.id))
+            const unpinnedActions = allActions.filter(a => !pinnedIds.has(a.id))
+
+            const handleNav = (id: string) => {
+              if (id === 'add-transaction') navigate('/add-transaction')
+              else if (id === 'settings') setIsSettingsOpen(true)
+              else if (id === 'categories') navigate('/categories')
+              else if (id === 'notes-plans') navigate('/notes-plans')
+              else if (id === 'budgets') navigate('/budgets')
+              else if (id === 'shopping-list') navigate('/shopping-list')
+              else if (id === 'voice-to-text') navigate('/voice-to-text')
+              else if (id === 'spending-jars') navigate('/spending-jars')
+              else if (id === 'debts') navigate('/debts')
+              else if (id === 'reminder' || id === 'tasks') navigate('/notes-plans')
+            }
+
+            return (
+              <section className="overflow-hidden rounded-3xl bg-white shadow-xl border border-slate-50">
+                {/* Header */}
+                <div className="flex items-center justify-between px-5 pt-5 pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-sky-600 text-white shadow-lg shadow-blue-200">
+                      <FaCog className="h-4 w-4" />
+                    </div>
+                    <div>
+                      <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">Tiện ích</h3>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setIsSettingsOpen(true)}
+                      className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-50 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 active:scale-90"
+                      title="Cài đặt tiện ích"
+                    >
+                      <FaCog className="h-4 w-4" />
+                    </button>
+                    {unpinnedActions.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setIsAllUtilitiesExpanded(!isAllUtilitiesExpanded)}
+                        className={`flex h-9 items-center gap-2 rounded-xl px-3 text-xs font-bold transition-all active:scale-95 ${isAllUtilitiesExpanded
+                            ? 'bg-sky-500 text-white shadow-lg shadow-sky-200'
+                            : 'bg-sky-50 text-sky-600 hover:bg-sky-100'
+                          }`}
+                      >
+                        {isAllUtilitiesExpanded ? 'Thu gọn' : 'Thêm'}
+                        <FaChevronRight className={`h-2.5 w-2.5 transition-transform duration-300 ${isAllUtilitiesExpanded ? 'rotate-90' : ''}`} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Divider with label */}
+                <div className="relative mx-5 mb-4 flex items-center">
+                  <span className="flex-shrink mr-3 text-[9px] font-black text-slate-400 uppercase tracking-tighter">Đã ghim</span>
+                  <div className="flex-grow border-t border-slate-100"></div>
+                </div>
+
+                {/* Pinned (enabled) grid */}
+                <div className="px-4 pb-5">
+                  <div className="grid grid-cols-4 gap-3.5">
+                    {enabledQuickActions.length > 0 ? (
+                      enabledQuickActions.map((action) => (
+                        <QuickActionButton
+                          key={action.id}
+                          action={action}
+                          Icon={action.icon}
+                          isNew={newIds.has(action.id)}
+                          onNavigate={handleNav}
+                        />
+                      ))
+                    ) : (
+                      <div className="col-span-4 py-4 text-center">
+                        <p className="text-[11px] text-slate-400 italic">Chưa có tiện ích nào được ghim</p>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* All other (unpinned) actions - Expandable */}
+                <div
+                  className={`overflow-hidden transition-all duration-500 ease-in-out bg-slate-50/50 ${isAllUtilitiesExpanded ? 'max-h-[500px] opacity-100' : 'max-h-0 opacity-0'
+                    }`}
+                >
+                  <div className="p-4">
+                    <div className="relative mb-4 flex items-center">
+                      <span className="flex-shrink mr-3 text-[9px] font-black text-slate-400 uppercase tracking-tighter">Tất cả tiện ích</span>
+                      <div className="flex-grow border-t border-slate-200"></div>
+                    </div>
+                    <div className="grid grid-cols-4 gap-3.5">
+                      {unpinnedActions.map((action) => (
+                        <QuickActionButton
+                          key={action.id}
+                          action={{ ...action, textColor: 'text-slate-500' }}
+                          Icon={action.icon}
+                          isNew={newIds.has(action.id)}
+                          onNavigate={handleNav}
+                        />
+                      ))}
+                    </div>
+                    <div className="mt-4 text-center">
+                      <p className="text-[10px] text-slate-400 italic">Bạn có thể ghim các mục này trong phần Tùy chỉnh</p>
+                    </div>
+                  </div>
+                </div>
+              </section>
+            )
+          })()}
+
+
 
           {/* Budget Alerts Section */}
           <BudgetAlertsSection />

@@ -44,6 +44,8 @@ const VehicleReportsPage = lazy(() => import('./pages/vehicles/VehicleReports'))
 const VehicleChargingHistoryPage = lazy(() => import('./pages/vehicles/VehicleChargingHistory'))
 const EVCalculatorPage = lazy(() => import('./pages/vehicles/EVCalculator'))
 const ArchiveDashboardPage = lazy(() => import('./pages/Archive2025'))
+const SpendingJarsPage = lazy(() => import('./pages/SpendingJars'))
+const SpendingJarsReportPage = lazy(() => import('./pages/SpendingJarsReport'))
 
 const PageFallback = () => {
   const { value: splashLogo } = useSystemSetting('app_splash_logo', '/logo-nontext.png')
@@ -373,6 +375,22 @@ function AppContent() {
               element={
                 <ProtectedRoute>
                   <EVCalculatorPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/spending-jars"
+              element={
+                <ProtectedRoute>
+                  <SpendingJarsPage />
+                </ProtectedRoute>
+              }
+            />
+            <Route
+              path="/spending-jars/report"
+              element={
+                <ProtectedRoute>
+                  <SpendingJarsReportPage />
                 </ProtectedRoute>
               }
             />

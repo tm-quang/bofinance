@@ -15,6 +15,7 @@ export type TransactionRecord = {
   category_id: string
   type: TransactionType
   amount: number
+  jar_id?: string | null
   description: string | null
   transaction_date: string
   notes: string | null
@@ -36,6 +37,7 @@ export type TransactionInsert = {
   category_id: string
   type: TransactionType
   amount: number
+  jar_id?: string | null
   description?: string
   transaction_date?: string
   notes?: string
@@ -56,6 +58,7 @@ export type TransactionUpdate = Partial<
   wallet_id?: string
   category_id?: string
   type?: TransactionType
+  jar_id?: string | null
 }
 
 export type TransactionFilters = {

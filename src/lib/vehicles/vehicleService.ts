@@ -524,6 +524,7 @@ export interface VehicleStats {
     totalOtherExpenses: number
     averageFuelConsumption: number // L/100km or kWh/100km
     costPerKm: number
+    totalKwh?: number
 }
 
 export async function getVehicleStats(vehicleId: string, startDate?: string, endDate?: string): Promise<VehicleStats> {
@@ -571,6 +572,7 @@ export async function getVehicleStats(vehicleId: string, startDate?: string, end
         totalOtherExpenses,
         averageFuelConsumption,
         costPerKm,
+        totalKwh,
     }
 }
 
