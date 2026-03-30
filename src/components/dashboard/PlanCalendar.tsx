@@ -243,12 +243,13 @@ export const PlanCalendar = ({
       // Convert to Monday-first: if Sunday (0), go back 6 days; otherwise go back (day - 1) days
       const daysFromMonday = currentDay === 0 ? 6 : currentDay - 1
 
-      const components = getDateComponentsUTC7(currentDate)
-      const startOfWeek = createDateUTC7(components.year, components.month, components.day - daysFromMonday)
+      const startOfWeekTime = currentDate.getTime() - daysFromMonday * 24 * 60 * 60 * 1000
 
       for (let i = 0; i < 7; i++) {
-        const components = getDateComponentsUTC7(startOfWeek)
-        const day = createDateUTC7(components.year, components.month, components.day + i)
+        const dayTime = startOfWeekTime + i * 24 * 60 * 60 * 1000
+        const dayDate = new Date(dayTime)
+        const components = getDateComponentsUTC7(dayDate)
+        const day = createDateUTC7(components.year, components.month, components.day)
         days.push(day)
       }
     }

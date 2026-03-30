@@ -53,12 +53,14 @@ const getDateRange = (rangeType: DateRangeType, customStart?: string, customEnd?
       const vnDay = getDayOfWeekUTC7(now)
       const diff = vnDay === 0 ? -6 : 1 - vnDay // Monday is 1
 
-      const monday = createDateUTC7(components.year, components.month, components.day + diff, 0, 0, 0, 0)
-      const mondayComponents = getDateComponentsUTC7(monday)
+      const mondayTime = now.getTime() + diff * 24 * 60 * 60 * 1000
+      const mondayDate = new Date(mondayTime)
+      const mondayComponents = getDateComponentsUTC7(mondayDate)
       startDate = createDateUTC7(mondayComponents.year, mondayComponents.month, mondayComponents.day, 0, 0, 0, 0)
 
-      const sunday = createDateUTC7(mondayComponents.year, mondayComponents.month, mondayComponents.day + 6, 23, 59, 59, 999)
-      const sundayComponents = getDateComponentsUTC7(sunday)
+      const sundayTime = mondayTime + 6 * 24 * 60 * 60 * 1000
+      const sundayDate = new Date(sundayTime)
+      const sundayComponents = getDateComponentsUTC7(sundayDate)
       endDate = createDateUTC7(sundayComponents.year, sundayComponents.month, sundayComponents.day, 23, 59, 59, 999)
       break
     }

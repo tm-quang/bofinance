@@ -275,15 +275,19 @@ export const AddBudgetPage = () => {
   // Get Monday of a given date in UTC+7 (week starts on Monday)
   const getMonday = (date: Date): Date => {
     const vnDay = getDayOfWeekUTC7(date)
-    const components = getDateComponentsUTC7(date)
     const diff = vnDay === 0 ? -6 : 1 - vnDay // Monday is 1
-    return createDateUTC7(components.year, components.month, components.day + diff, 0, 0, 0, 0)
+    const mondayTime = date.getTime() + diff * 24 * 60 * 60 * 1000
+    const mondayDate = new Date(mondayTime)
+    const components = getDateComponentsUTC7(mondayDate)
+    return createDateUTC7(components.year, components.month, components.day, 0, 0, 0, 0)
   }
 
   // Get Sunday of a given week in UTC+7 (week ends on Sunday)
   const getSunday = (monday: Date): Date => {
-    const components = getDateComponentsUTC7(monday)
-    return createDateUTC7(components.year, components.month, components.day + 6, 23, 59, 59, 999)
+    const sundayTime = monday.getTime() + 6 * 24 * 60 * 60 * 1000
+    const sundayDate = new Date(sundayTime)
+    const components = getDateComponentsUTC7(sundayDate)
+    return createDateUTC7(components.year, components.month, components.day, 23, 59, 59, 999)
   }
 
   // Format week range for display

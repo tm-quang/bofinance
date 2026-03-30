@@ -66,23 +66,28 @@ export const DashboardTasksSection = ({
   // Calculate date range based on view period
   const dateRange = useMemo(() => {
     const now = getNowUTC7()
-    const components = getDateComponentsUTC7(now)
 
     if (viewPeriod === 'week') {
       // Get Monday of current week in UTC+7
       const dayOfWeek = getDayOfWeekUTC7(now)
       const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek // Monday is 1
 
-      const monday = createDateUTC7(components.year, components.month, components.day + diff, 0, 0, 0, 0)
-      const mondayComponents = getDateComponentsUTC7(monday)
+      const mondayTime = now.getTime() + diff * 24 * 60 * 60 * 1000
+      const mondayDate = new Date(mondayTime)
+      const mondayComponents = getDateComponentsUTC7(mondayDate)
+      const mondayStart = createDateUTC7(mondayComponents.year, mondayComponents.month, mondayComponents.day, 0, 0, 0, 0)
 
-      const sunday = createDateUTC7(mondayComponents.year, mondayComponents.month, mondayComponents.day + 6, 23, 59, 59, 999)
+      const sundayTime = mondayTime + 6 * 24 * 60 * 60 * 1000
+      const sundayDate = new Date(sundayTime)
+      const sundayComponents = getDateComponentsUTC7(sundayDate)
+      const sundayEnd = createDateUTC7(sundayComponents.year, sundayComponents.month, sundayComponents.day, 23, 59, 59, 999)
 
       return {
-        start: formatDateUTC7(monday),
-        end: formatDateUTC7(sunday)
+        start: formatDateUTC7(mondayStart),
+        end: formatDateUTC7(sundayEnd)
       }
     } else if (viewPeriod === 'month') {
+      const components = getDateComponentsUTC7(now)
       // First and last day of current month
       const firstDay = getFirstDayOfMonthUTC7(components.year, components.month)
       const lastDay = getLastDayOfMonthUTC7(components.year, components.month)
@@ -102,14 +107,20 @@ export const DashboardTasksSection = ({
       // Fallback to current week if custom dates not set
       const dayOfWeek = getDayOfWeekUTC7(now)
       const diff = dayOfWeek === 0 ? -6 : 1 - dayOfWeek
-      const monday = createDateUTC7(components.year, components.month, components.day + diff, 0, 0, 0, 0)
-      const mondayComponents = getDateComponentsUTC7(monday)
+      
+      const mondayTime = now.getTime() + diff * 24 * 60 * 60 * 1000
+      const mondayDate = new Date(mondayTime)
+      const mondayComponents = getDateComponentsUTC7(mondayDate)
+      const mondayStart = createDateUTC7(mondayComponents.year, mondayComponents.month, mondayComponents.day, 0, 0, 0, 0)
 
-      const sunday = createDateUTC7(mondayComponents.year, mondayComponents.month, mondayComponents.day + 6, 23, 59, 59, 999)
+      const sundayTime = mondayTime + 6 * 24 * 60 * 60 * 1000
+      const sundayDate = new Date(sundayTime)
+      const sundayComponents = getDateComponentsUTC7(sundayDate)
+      const sundayEnd = createDateUTC7(sundayComponents.year, sundayComponents.month, sundayComponents.day, 23, 59, 59, 999)
 
       return {
-        start: formatDateUTC7(monday),
-        end: formatDateUTC7(sunday)
+        start: formatDateUTC7(mondayStart),
+        end: formatDateUTC7(sundayEnd)
       }
     }
   }, [viewPeriod, customStartDate, customEndDate])
