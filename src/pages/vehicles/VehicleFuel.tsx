@@ -8,6 +8,7 @@ import {
     ChevronLeft, ChevronRight, Edit, Search
 } from 'lucide-react'
 import { createFuelLog, deleteFuelLog, updateFuelLog, type VehicleRecord, type FuelLogRecord } from '../../lib/vehicles/vehicleService'
+import { DateRangePickerModal } from '../../components/ui/DateRangePickerModal'
 import { useVehicles, useVehicleFuel, vehicleKeys } from '../../lib/vehicles/useVehicleQueries'
 import { useQueryClient } from '@tanstack/react-query'
 import { useNotification } from '../../contexts/notificationContext.helpers'
@@ -198,12 +199,50 @@ function ChargeLogCard({
 
     const durationMins = (() => {
         let mins = log.charge_duration_minutes || 0
+        let parsedEndTime = ''
+
         if (log.notes) {
-            const match = log.notes.match(/Thời gian sạc:\s*(\d+)/)
-            if (match) mins = parseInt(match[1], 10)
+            const lines = log.notes.split('\n')
+            for (const line of lines) {
+                if (line.includes('Kết thúc:')) {
+                    const match = line.match(/Kết thúc:\s*([0-9:]+)/)
+                    if (match) parsedEndTime = match[1].trim()
+                }
+                if (line.includes('Thời gian sạc:')) {
+                    const hMatch = line.match(/(\d+)\s*(g|h|giờ|hour)/i)
+                    const mMatch = line.match(/(\d+)\s*(p|ph|m|phút|minute)/i)
+                    let totalMins = 0
+                    if (hMatch) totalMins += parseInt(hMatch[1], 10) * 60
+                    if (mMatch) totalMins += parseInt(mMatch[1], 10)
+                    if (!hMatch && !mMatch) {
+                        const simpleMatch = line.match(/(\d+)/)
+                        if (simpleMatch) totalMins = parseInt(simpleMatch[1], 10)
+                    }
+                    if (totalMins > 0) mins = totalMins
+                }
+            }
         }
+
+        // Prioritize calculation from START and END if both exist
+        const startTime = log.refuel_time?.slice(0, 5)
+        if (startTime && parsedEndTime) {
+            const [sh, sm] = startTime.split(':').map(Number)
+            const [eh, em] = parsedEndTime.split(':').map(Number)
+            let calcMins = (eh * 60 + em) - (sh * 60 + sm)
+            if (calcMins < 0) calcMins += 24 * 60
+            if (calcMins > 0) mins = calcMins
+        }
+
         return mins
     })()
+
+    const formatDuration = (mins: number) => {
+        if (!mins || mins <= 0) return '--'
+        const h = Math.floor(mins / 60)
+        const m = mins % 60
+        if (h > 0) return `${h} giờ ${m} phút`
+        return `${m} phút`
+    }
 
     const formatCurrency = (v: number) =>
         new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(v)
@@ -268,7 +307,7 @@ function ChargeLogCard({
                     </div>
                     <div className="rounded-xl bg-amber-50 p-2.5 text-center">
                         <p className="text-base font-black text-amber-700">
-                            {durationMins > 0 ? `${durationMins}m` : '--'}
+                            {formatDuration(durationMins)}
                         </p>
                         <p className="text-[10px] text-amber-600 font-medium">thời gian sạc</p>
                     </div>
@@ -416,9 +455,12 @@ export default function VehicleFuel() {
     const { selectedVehicleId, setSelectedVehicleId } = useVehicleStore()
 
     // ── Time-period filter ──────────────────────────────────
-    type FilterPeriod = 'day' | 'week' | 'month' | 'quarter' | 'all'
+    type FilterPeriod = 'day' | 'week' | 'month' | 'quarter' | 'all' | 'custom'
     const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>('month')
     const [periodOffset, setPeriodOffset] = useState(0) // 0 = current, -1 = prev, ...
+    const [isPeriodPickerOpen, setIsPeriodPickerOpen] = useState(false)
+    const [isRangePickerOpen, setIsRangePickerOpen] = useState(false)
+    const [customRange, setCustomRange] = useState({ start: '', end: '' })
 
     const { data: vehicles = [] } = useVehicles()
     const { data: allLogs = [], isLoading: loading } = useVehicleFuel(selectedVehicleId || undefined)
@@ -503,8 +545,47 @@ export default function VehicleFuel() {
             const qLabel = `Q${actualQ + 1}/${actualYear}`
             return { start: s, end: e, label: offset === 0 ? `Quý này (${qLabel})` : qLabel }
         }
+        if (period === 'custom' && customRange.start && customRange.end) {
+            const s = new Date(customRange.start); s.setHours(0, 0, 0, 0)
+            const e = new Date(customRange.end); e.setHours(23, 59, 59, 999)
+            const label = s.getTime() === e.getTime() ? s.toLocaleDateString('vi-VN') : `${s.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })} – ${e.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+            return { start: s, end: e, label }
+        }
+        if (period === 'custom') return { start: new Date(), end: new Date(), label: 'Chọn khoảng thời gian' }
         // 'all'
         return { start: new Date(0), end: new Date(9999, 0), label: 'Tất cả' }
+    }
+
+    const handlePeriodDateSelect = (dateStr: string) => {
+        const selectedDate = new Date(dateStr)
+        const today = new Date()
+        today.setHours(0, 0, 0, 0)
+        selectedDate.setHours(0, 0, 0, 0)
+
+        if (filterPeriod === 'day') {
+            const diffTime = selectedDate.getTime() - today.getTime()
+            const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24))
+            setPeriodOffset(diffDays)
+        } else if (filterPeriod === 'week') {
+            // Monday of this week
+            const dayOfWeek = today.getDay() === 0 ? 6 : today.getDay() - 1
+            const thisMon = new Date(today); thisMon.setDate(today.getDate() - dayOfWeek)
+            // Monday of selected week
+            const selDayOfWeek = selectedDate.getDay() === 0 ? 6 : selectedDate.getDay() - 1
+            const selMon = new Date(selectedDate); selMon.setDate(selectedDate.getDate() - selDayOfWeek)
+
+            const diffTime = selMon.getTime() - thisMon.getTime()
+            const diffWeeks = Math.round(diffTime / (1000 * 60 * 60 * 24 * 7))
+            setPeriodOffset(diffWeeks)
+        } else if (filterPeriod === 'month') {
+            const diffMonths = (selectedDate.getFullYear() - today.getFullYear()) * 12 + (selectedDate.getMonth() - today.getMonth())
+            setPeriodOffset(diffMonths)
+        } else if (filterPeriod === 'quarter') {
+            const thisQ = Math.floor(today.getMonth() / 3)
+            const selQ = Math.floor(selectedDate.getMonth() / 3)
+            const diffQuarters = (selectedDate.getFullYear() - today.getFullYear()) * 4 + (selQ - thisQ)
+            setPeriodOffset(diffQuarters)
+        }
     }
 
     const periodRange = getPeriodRange(filterPeriod, periodOffset)
@@ -649,8 +730,8 @@ export default function VehicleFuel() {
                     <button
                         onClick={() => setShowAddModal(true)}
                         className={`flex-1 flex items-center justify-center gap-2.5 rounded-2xl px-4 py-3.5 font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95 ${activeTab === 'electric'
-                            ? 'bg-green-500 shadow-green-200'
-                            : 'bg-slate-600 shadow-slate-200'
+                            ? 'bg-green-500 shadow-md'
+                            : 'bg-slate-600 shadow-md'
                             }`}
                     >
                         <Plus className="h-5 w-5" />
@@ -660,7 +741,7 @@ export default function VehicleFuel() {
                     {activeTab === 'electric' && logs.length > 0 && (
                         <button
                             onClick={() => setShowBulkDiscount(true)}
-                            className="flex items-center justify-center rounded-2xl px-4 py-3.5 font-bold text-white shadow-lg transition-all hover:scale-[1.02] active:scale-95 bg-red-500 shadow-red-200"
+                            className="flex items-center justify-center rounded-2xl px-4 py-3.5 font-bold text-white shadow-md transition-all hover:scale-[1.02] active:scale-95 bg-red-500 shadow-md"
                             title="Áp khuyến mãi hàng loạt"
                         >
                             <Gift className="h-5 w-5" />
@@ -671,10 +752,14 @@ export default function VehicleFuel() {
                 {/* ── FILTER BAR ── */}
                 <div className="mb-3 space-y-2">
                     {/* Period type tabs */}
-                    <div className="flex rounded-xl bg-slate-100 p-1 gap-0.5">
+                    <div className="flex rounded-xl bg-gray-200 p-1 gap-0.5 shadow-inner">
                         {PERIOD_TABS.map(tab => (
                             <button key={tab.id} type="button"
-                                onClick={() => { setFilterPeriod(tab.id); setPeriodOffset(0) }}
+                                onClick={() => {
+                                    setFilterPeriod(tab.id)
+                                    setPeriodOffset(0)
+                                    if (tab.id === 'custom') setIsRangePickerOpen(true)
+                                }}
                                 className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all ${filterPeriod === tab.id
                                     ? activeTab === 'electric'
                                         ? 'bg-green-500 text-white shadow-md'
@@ -691,17 +776,20 @@ export default function VehicleFuel() {
                         <div className="flex items-center gap-2">
                             <button type="button"
                                 onClick={() => setPeriodOffset(o => o - 1)}
-                                className="rounded-xl border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 active:scale-95 transition-all">
+                                className="rounded-xl border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 active:scale-95 transition-all">
                                 <ChevronLeft className="h-4 w-4" />
                             </button>
-                            <div className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-center">
-                                <p className={`text-sm font-bold ${activeTab === 'electric' ? 'text-green-700' : 'text-slate-700'}`}
+                            <div
+                                onClick={() => setIsRangePickerOpen(true)}
+                                className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-center cursor-pointer hover:bg-slate-50 transition-colors"
+                            >
+                                <p className={`text-md font-bold ${activeTab === 'electric' ? 'text-green-700' : 'text-slate-700'}`}
                                 >  {periodRange.label}</p>
                             </div>
                             <button type="button"
                                 onClick={() => setPeriodOffset(o => Math.min(0, o + 1))}
                                 disabled={periodOffset >= 0}
-                                className="rounded-xl border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 disabled:opacity-30 active:scale-95 transition-all">
+                                className="rounded-xl border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 disabled:opacity-30 active:scale-95 transition-all">
                                 <ChevronRight className="h-4 w-4" />
                             </button>
                         </div>
@@ -734,21 +822,21 @@ export default function VehicleFuel() {
                             ))}
                         </div>
                     ) : filteredLogs.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center py-16 text-center">
-                            <div className={`mb-4 rounded-3xl p-6 ${activeTab === 'electric' ? 'bg-green-100' : 'bg-slate-100'}`}>
+                        <div className="flex flex-col items-center justify-center py-16 text-center rounded-3xl bg-white border border-slate-100 py-14 shadow-sm">
+                            <div className={`mb-4 rounded-3xl p-6 shadow-md ${activeTab === 'electric' ? 'bg-green-100' : 'bg-slate-100'}`}>
                                 {activeTab === 'electric'
-                                    ? <BatteryCharging className="h-12 w-12 text-green-400" />
-                                    : <Droplet className="h-12 w-12 text-slate-400" />
+                                    ? <BatteryCharging className="h-12 w-12 text-green-600" />
+                                    : <Droplet className="h-12 w-12 text-slate-600" />
                                 }
                             </div>
                             <p className="font-semibold text-slate-600">
                                 {filterPeriod === 'all'
                                     ? (activeTab === 'electric' ? 'Chưa có nhật ký sạc điện' : 'Chưa có nhật ký đổ xăng')
-                                    : `Không có dữ liệu trong ${periodRange.label.toLowerCase()}`
+                                    : `Không có dữ liệu trong ${periodRange.label}`
                                 }
                             </p>
                             <p className="mt-1 text-sm text-slate-400">
-                                {filterPeriod !== 'all' ? 'Thử chọn khung thời gian khác' :
+                                {filterPeriod !== 'all' ? 'Thử chọn thời gian khác' :
                                     activeTab === 'electric'
                                         ? 'Bắt đầu ghi chép việc sạc xe để theo dõi chi phí'
                                         : 'Bắt đầu ghi lại các lần đổ xăng của bạn'
@@ -855,6 +943,25 @@ export default function VehicleFuel() {
                 confirmText="Xóa"
                 cancelText="Hủy"
                 isLoading={deleting}
+            />
+
+            {/* Period Picker Modal */}
+            <DateTimePickerModal
+                isOpen={isPeriodPickerOpen}
+                onClose={() => setIsPeriodPickerOpen(false)}
+                onConfirm={handlePeriodDateSelect}
+                initialDate={new Date().toISOString().split('T')[0]}
+                showTime={false}
+            />
+
+            {/* Range Picker Modal */}
+            <DateRangePickerModal
+                isOpen={isRangePickerOpen}
+                onClose={() => setIsRangePickerOpen(false)}
+                onConfirm={(s, e) => {
+                    setCustomRange({ start: s, end: e })
+                    setFilterPeriod('custom')
+                }}
             />
 
             {/* View Details Modal */}
@@ -1008,7 +1115,8 @@ function AddChargeModal({
         if (mins <= 0) return null
         const h = Math.floor(mins / 60)
         const m = mins % 60
-        return h > 0 ? `${h}g ${m}ph` : `${m} phút`
+        if (h > 0) return `${h} giờ ${m} phút`
+        return `${m} phút`
     }, [formData.start_time, formData.end_time])
 
 
@@ -1694,10 +1802,37 @@ function ChargeDetailModal({
         const match = log.notes.match(/Kết thúc:\s*(\d{2}:\d{2})/)
         if (match) endObj = match[1]
     }
-    const duration = log.charge_duration_minutes || (() => {
-        const m = log.notes?.match(/Thời gian sạc:\s*(\d+)/)
-        return m ? parseInt(m[1], 10) : 0
-    })()
+    const durationMins = useMemo(() => {
+        if (startObj && endObj) {
+            const [sh, sm] = startObj.split(':').map(Number)
+            const [eh, em] = endObj.split(':').map(Number)
+            let mins = (eh * 60 + em) - (sh * 60 + sm)
+            if (mins < 0) mins += 24 * 60
+            if (mins > 0) return mins
+        }
+        let mins = log.charge_duration_minutes || 0
+        if (log.notes) {
+            const hMatch = log.notes.match(/(\d+)\s*(g|h|giờ|hour)/i)
+            const mMatch = log.notes.match(/(\d+)\s*(p|ph|m|phút|minute)/i)
+            let totalMins = 0
+            if (hMatch) totalMins += parseInt(hMatch[1], 10) * 60
+            if (mMatch) totalMins += parseInt(mMatch[1], 10)
+            if (!hMatch && !mMatch) {
+                const simpleMatch = log.notes.match(/Thời gian sạc:\s*(\d+)/)
+                if (simpleMatch) totalMins = parseInt(simpleMatch[1], 10)
+            }
+            if (totalMins > 0) mins = totalMins
+        }
+        return mins
+    }, [startObj, endObj, log.charge_duration_minutes, log.notes])
+
+    const formatDurationDetailed = (mins: number) => {
+        if (!mins || mins <= 0) return '--'
+        const h = Math.floor(mins / 60)
+        const m = mins % 60
+        if (h > 0) return `${h} giờ ${m} phút`
+        return `${m} phút`
+    }
 
     // battery capacity = 37.23, percentage approx:
     const batteryPct = Math.round(Math.min(100, Math.max(0, (kwh / 37.23) * 100)))
@@ -1754,7 +1889,7 @@ function ChargeDetailModal({
                         </div>
                         <div>
                             <p className="text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Thời lượng sạc</p>
-                            <p className="text-sm font-bold text-slate-800">{duration > 0 ? `${duration} phút` : '--'}</p>
+                            <p className="text-sm font-bold text-slate-800">{formatDurationDetailed(durationMins)}</p>
                         </div>
 
                         <div className="col-span-2">

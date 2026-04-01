@@ -12,6 +12,7 @@ import { useQueryClient } from '@tanstack/react-query'
 import { useVehicleStore } from '../../store/useVehicleStore'
 import { useNotification } from '../../contexts/notificationContext.helpers'
 import { DateTimePickerModal } from '../../components/ui/DateTimePickerModal'
+import { DateRangePickerModal } from '../../components/ui/DateRangePickerModal'
 import { LoadingOverlay } from '../../components/ui/LoadingOverlay'
 import { getTripPricePerKm } from '../../lib/vehicles/tripPriceService'
 import { TripPriceModal } from '../../components/vehicles/TripPriceModal'
@@ -477,8 +478,12 @@ export default function VehicleTrips() {
     const [checkpointTrip, setCheckpointTrip] = useState<TripRecord | null>(null)
     const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
     const [deleting, setDeleting] = useState(false)
+    type FilterPeriod = 'day' | 'week' | 'month' | 'quarter' | 'all' | 'custom'
+    const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>('month')
+    const [periodOffset, setPeriodOffset] = useState(0) // 0 = current, -1 = prev, ...
+    const [isRangePickerOpen, setIsRangePickerOpen] = useState(false)
+    const [customRange, setCustomRange] = useState({ start: '', end: '' })
     const [filterType, setFilterType] = useState<TripTypeKey | 'all'>('all')
-    const [periodOffset, setPeriodOffset] = useState(0) // 0 = this month
     const [showFilter, setShowFilter] = useState(false)
 
     const handleTogglePin = async (trip: TripRecord) => {
@@ -495,6 +500,64 @@ export default function VehicleTrips() {
         }
     }
 
+    // ── Period Calculation ──────────────────────────────────────────────────
+    const getPeriodRange = (period: FilterPeriod, offset: number) => {
+        const now = new Date()
+        if (period === 'day') {
+            const s = new Date(now); s.setDate(now.getDate() + offset); s.setHours(0, 0, 0, 0)
+            const e = new Date(s); e.setHours(23, 59, 59, 999)
+            return {
+                start: s, end: e,
+                label: offset === 0 ? 'Hôm nay' : offset === -1 ? 'Hôm qua' : s.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })
+            }
+        }
+        if (period === 'week') {
+            const d = new Date(now); d.setDate(now.getDate() + offset * 7)
+            const day = d.getDay() === 0 ? 6 : d.getDay() - 1
+            const s = new Date(d); s.setDate(d.getDate() - day); s.setHours(0, 0, 0, 0)
+            const e = new Date(s); e.setDate(s.getDate() + 6); e.setHours(23, 59, 59, 999)
+            return {
+                start: s, end: e,
+                label: offset === 0 ? 'Tuần này' : `T${s.getDate()}/${s.getMonth() + 1} - ${e.getDate()}/${e.getMonth() + 1}`
+            }
+        }
+        if (period === 'month') {
+            const s = new Date(now.getFullYear(), now.getMonth() + offset, 1)
+            const e = new Date(s.getFullYear(), s.getMonth() + 1, 0, 23, 59, 59, 999)
+            return {
+                start: s, end: e,
+                label: offset === 0 ? 'Tháng này' : s.toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })
+            }
+        }
+        if (period === 'quarter') {
+            const q = Math.floor(now.getMonth() / 3) + offset
+            const actualYear = now.getFullYear() + Math.floor(q / 4)
+            const actualQ = ((q % 4) + 4) % 4
+            const s = new Date(actualYear, actualQ * 3, 1)
+            const e = new Date(actualYear, actualQ * 3 + 3, 0, 23, 59, 59, 999)
+            const qLabel = `Q${actualQ + 1}/${actualYear}`
+            return { start: s, end: e, label: offset === 0 ? `Quý này (${qLabel})` : qLabel }
+        }
+        if (period === 'custom' && customRange.start && customRange.end) {
+            const s = new Date(customRange.start); s.setHours(0, 0, 0, 0)
+            const e = new Date(customRange.end); e.setHours(23, 59, 59, 999)
+            const label = s.getTime() === e.getTime() ? s.toLocaleDateString('vi-VN') : `${s.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })} – ${e.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+            return { start: s, end: e, label }
+        }
+        if (period === 'custom') return { start: new Date(), end: new Date(), label: 'Chọn khoảng thời gian' }
+        return { start: new Date(0), end: new Date(9999, 0), label: 'Tất cả' }
+    }
+
+    const periodRange = getPeriodRange(filterPeriod, periodOffset)
+
+    const PERIOD_TABS: { id: FilterPeriod, label: string }[] = [
+        { id: 'day', label: 'Ngày' },
+        { id: 'week', label: 'Tuần' },
+        { id: 'month', label: 'Tháng' },
+        { id: 'quarter', label: 'Quý' },
+        { id: 'all', label: 'Tất cả' },
+    ]
+
     useEffect(() => {
         if (vehicles.length > 0 && !selectedVehicleId) {
             const def = vehicles.find(v => v.is_default) || vehicles[0]
@@ -505,23 +568,15 @@ export default function VehicleTrips() {
     const { data: allTrips = [], isLoading: loading } = useVehicleTrips(selectedVehicleId || undefined)
     const selectedVehicle = vehicles.find(v => v.id === selectedVehicleId)
 
-    // ── Period Filter ──────────────────────────────────────────────────────
-    const now = new Date()
-    const periodStart = new Date(now.getFullYear(), now.getMonth() + periodOffset, 1)
-    const periodEnd = new Date(periodStart.getFullYear(), periodStart.getMonth() + 1, 0, 23, 59, 59)
-    const periodLabel = periodOffset === 0
-        ? 'Tháng này'
-        : periodStart.toLocaleDateString('vi-VN', { month: 'long', year: 'numeric' })
-
     // ── Combined Filter ────────────────────────────────────────────────────
     const trips = useMemo(() => {
         return allTrips.filter(t => {
             const d = new Date(t.trip_date)
-            const inPeriod = d >= periodStart && d <= periodEnd
+            const inPeriod = filterPeriod === 'all' || (d >= periodRange.start && d <= periodRange.end)
             const typeMatch = filterType === 'all' || t.trip_type === filterType
             return inPeriod && typeMatch
         })
-    }, [allTrips, periodOffset, filterType])
+    }, [allTrips, periodRange, filterType, filterPeriod])
 
     // ── Group by date ──────────────────────────────────────────────────────
     const pinnedTrips = useMemo(() => trips.filter(t => parseMeta(t.notes).pinned === 'true'), [trips])
@@ -592,33 +647,55 @@ export default function VehicleTrips() {
                     </button>
                 </div>
 
-                {/* ── Period + Filter Bar ──────────────────────────────── */}
+                {/* ── FILTER BAR ── */}
                 <div className="mb-3 space-y-2">
-                    {/* Month navigator */}
-                    <div className="flex items-center gap-2">
-                        <button
-                            onClick={() => setPeriodOffset(o => o - 1)}
-                            className="rounded-xl border border-slate-200 bg-white p-1.5 text-slate-500 hover:bg-slate-50 transition-all"
-                        >
-                            <ChevronLeft className="h-4 w-4" />
-                        </button>
-                        <div className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-center">
-                            <p className="text-sm font-bold text-slate-700">{periodLabel}</p>
-                        </div>
-                        <button
-                            onClick={() => setPeriodOffset(o => Math.min(0, o + 1))}
-                            disabled={periodOffset >= 0}
-                            className="rounded-xl border border-slate-200 bg-white p-1.5 text-slate-500 hover:bg-slate-50 disabled:opacity-30 transition-all"
-                        >
-                            <ChevronRight className="h-4 w-4" />
-                        </button>
-                        <button
-                            onClick={() => setShowFilter(!showFilter)}
-                            className={`rounded-xl border p-1.5 transition-all ${showFilter ? 'border-blue-400 bg-blue-50 text-blue-600' : 'border-slate-200 bg-white text-slate-400'}`}
-                        >
-                            <Filter className="h-4 w-4" />
-                        </button>
+                    {/* Period type tabs */}
+                    <div className="flex rounded-xl bg-gray-200 p-1 gap-0.5 shadow-inner">
+                        {PERIOD_TABS.map(tab => (
+                            <button key={tab.id} type="button"
+                                onClick={() => {
+                                    setFilterPeriod(tab.id)
+                                    setPeriodOffset(0)
+                                }}
+                                className={`flex-1 rounded-lg py-1.5 text-xs font-semibold transition-all ${filterPeriod === tab.id
+                                    ? 'bg-slate-600 text-white shadow-md'
+                                    : 'text-slate-500 hover:text-slate-700'
+                                    }`}>
+                                {tab.label}
+                            </button>
+                        ))}
                     </div>
+
+                    {/* Period navigator */}
+                    {filterPeriod !== 'all' && (
+                        <div className="flex items-center gap-2">
+                            <button
+                                onClick={() => setPeriodOffset(o => o - 1)}
+                                className="rounded-xl border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 active:scale-95 transition-all"
+                            >
+                                <ChevronLeft className="h-4 w-4" />
+                            </button>
+                            <div
+                                onClick={() => setIsRangePickerOpen(true)}
+                                className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-center cursor-pointer hover:bg-slate-50 transition-colors"
+                            >
+                                <p className="text-md font-bold text-slate-700">{periodRange.label}</p>
+                            </div>
+                            <button
+                                onClick={() => setPeriodOffset(o => Math.min(0, o + 1))}
+                                disabled={periodOffset >= 0 && filterPeriod !== 'custom'}
+                                className="rounded-xl border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 active:scale-95 transition-all"
+                            >
+                                <ChevronRight className="h-4 w-4" />
+                            </button>
+                            <button
+                                onClick={() => setShowFilter(!showFilter)}
+                                className={`rounded-xl border p-1.5 transition-all ${showFilter ? 'border-blue-400 bg-blue-50 text-blue-600' : 'border-slate-200 bg-white text-slate-400'}`}
+                            >
+                                <Filter className="h-4 w-4" />
+                            </button>
+                        </div>
+                    )}
 
                     {/* Trip type filter chips */}
                     {showFilter && (
@@ -668,14 +745,14 @@ export default function VehicleTrips() {
                         ))}
                     </div>
                 ) : trips.length === 0 ? (
-                    <div className="flex flex-col items-center justify-center py-16 text-center">
-                        <div className={`mb-4 rounded-3xl p-6 bg-blue-50`}>
-                            <Route className={`h-14 w-14 text-blue-300`} />
+                    <div className="flex flex-col items-center justify-center py-16 text-center rounded-3xl bg-white border border-slate-100 py-14 shadow-sm">
+                        <div className={`mb-4 rounded-3xl p-6 bg-blue-100 shadow-md`}>
+                            <Route className={`h-14 w-14 text-blue-600`} />
                         </div>
                         <p className="font-semibold text-slate-600">Chưa có lộ trình nào</p>
                         <p className="mt-1 text-sm text-slate-400">
                             {filterType !== 'all'
-                                ? `Không có lộ trình "${TRIP_TYPES[filterType].label}" trong tháng này`
+                                ? `Không có lộ trình "${TRIP_TYPES[filterType].label}" trong ${periodRange.label.toLowerCase()}`
                                 : 'Bắt đầu ghi lại lộ trình của bạn'}
                         </p>
                     </div>
@@ -796,6 +873,16 @@ export default function VehicleTrips() {
                     }}
                 />
             )}
+
+            {/* Range Picker Modal */}
+            <DateRangePickerModal
+                isOpen={isRangePickerOpen}
+                onClose={() => setIsRangePickerOpen(false)}
+                onConfirm={(s, e) => {
+                    setCustomRange({ start: s, end: e })
+                    setFilterPeriod('custom')
+                }}
+            />
 
             {/* Delete Confirm */}
             <ConfirmDialog

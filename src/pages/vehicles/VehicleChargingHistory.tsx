@@ -61,10 +61,15 @@ export default function VehicleChargingHistory() {
 
                 const parseTimeCell = (cell: any) => {
                     if (!cell) return ''
+                    // If it's a Date object, it's likely a Time-formatted cell in Excel
                     if (cell.value instanceof Date) {
-                        return `${cell.value.getUTCHours().toString().padStart(2, '0')}:${cell.value.getUTCMinutes().toString().padStart(2, '0')}`
+                        // Use getHours/getMinutes for local time representation from ExcelJS
+                        const h = cell.value.getHours()
+                        const m = cell.value.getMinutes()
+                        return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`
                     }
                     if (typeof cell.value === 'number') {
+                        // Excel stores time as a fraction of a 24-hour day
                         const totalMinutes = Math.round(cell.value * 24 * 60)
                         const h = Math.floor(totalMinutes / 60)
                         const m = totalMinutes % 60
@@ -127,14 +132,23 @@ export default function VehicleChargingHistory() {
                     if (startParts.length >= 2 && endParts.length >= 2) {
                         const startTotal = parseInt(startParts[0], 10) * 60 + parseInt(startParts[1], 10)
                         let endTotal = parseInt(endParts[0], 10) * 60 + parseInt(endParts[1], 10)
+                        
+                        // Handle overnight charging or simply chronological end > start
                         if (endTotal < startTotal) {
-                            endTotal += 24 * 60 // Sạc qua đêm
+                            endTotal += 24 * 60 
                         }
                         durationMins = endTotal - startTotal
                     }
-                } else if (durationStr) {
+                }
+                
+                // If duration column is available and we didn't calculate from start/end (or calculation resulted in 0)
+                if (durationMins <= 0 && durationStr) {
                     const durParts = durationStr.split(':')
-                    if (durParts.length >= 2) durationMins = parseInt(durParts[0], 10) * 60 + parseInt(durParts[1], 10)
+                    if (durParts.length >= 2) {
+                        durationMins = parseInt(durParts[0], 10) * 60 + parseInt(durParts[1], 10)
+                    } else if (!isNaN(parseInt(durationStr, 10))) {
+                        durationMins = parseInt(durationStr, 10)
+                    }
                 }
 
                 let finalNotes = notesStr
@@ -144,7 +158,12 @@ export default function VehicleChargingHistory() {
                         finalNotes += ` \nKết thúc: ${endMatch[1].padStart(5, '0')}`
                     }
                 }
-                if (durationMins > 0) finalNotes += ` \nThời gian sạc: ${durationMins} phút`
+                if (durationMins > 0) {
+                    const h_final = Math.floor(durationMins / 60)
+                    const m_final = durationMins % 60
+                    const durStrNote = h_final > 0 ? `${h_final} giờ ${m_final} phút` : `${m_final} phút`
+                    finalNotes += ` \nThời gian sạc: ${durStrNote}`
+                }
                 if (unitPrice === 3858) {
                     // Mốc giá 3.858đ là điểm sạc có VAT. total_amount (gốc) mình sẽ tính từ kwh * 3.858, phần còn lại cost (thực tế trả qua excel)
                     const expectedTotal = Math.round(kwh * unitPrice)
@@ -281,7 +300,7 @@ export default function VehicleChargingHistory() {
     }, 0)
     const pluggedHours = Math.floor(totalDurationMins / 60)
     const pluggedMins = totalDurationMins % 60
-    const pluggedDisplay = pluggedHours > 0 ? `${pluggedHours}h ${pluggedMins}m` : `${pluggedMins}m`
+    const pluggedDisplay = pluggedHours > 0 ? `${pluggedHours} giờ ${pluggedMins} phút` : `${pluggedMins} phút`
     const totalCost = filteredLogs.reduce((sum, log) => sum + (log.total_cost ?? log.total_amount ?? 0), 0)
 
     // Calculate saved amount (total_amount - total_cost)
@@ -296,9 +315,18 @@ export default function VehicleChargingHistory() {
         if (!startTimeStr || !durationMins) return ''
         const [hours, minutes] = startTimeStr.split(':').map(Number)
         const d = new Date()
-        d.setHours(hours, minutes, 0)
+        d.setHours(hours, minutes, 0, 0)
         d.setMinutes(d.getMinutes() + durationMins)
-        return d.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit', hour12: false })
+        return `${d.getHours().toString().padStart(2, '0')}:${d.getMinutes().toString().padStart(2, '0')}`
+    }
+
+    const formatDuration = (mins: number, isShort = false) => {
+        if (!mins || mins <= 0) return isShort ? '--' : '0 phút'
+        const h = Math.floor(mins / 60)
+        const m = mins % 60
+        // Standardize to full words for everything as requested
+        if (h > 0) return `${h} giờ ${m} phút`
+        return `${m} phút`
     }
 
     if (isLoading) {
@@ -464,8 +492,16 @@ export default function VehicleChargingHistory() {
                                         if (match) parsedEndTime = match[1].trim()
                                     }
                                     if (line.includes('Thời gian sạc:')) {
-                                        const match = line.match(/Thời gian sạc:\s*(\d+)/)
-                                        if (match) parsedDurationMins = parseInt(match[1], 10)
+                                        const hMatch = line.match(/(\d+)\s*(g|h|giờ|hour)/i)
+                                        const mMatch = line.match(/(\d+)\s*(p|ph|m|phút|minute)/i)
+                                        let totalMins = 0
+                                        if (hMatch) totalMins += parseInt(hMatch[1], 10) * 60
+                                        if (mMatch) totalMins += parseInt(mMatch[1], 10)
+                                        if (!hMatch && !mMatch) {
+                                            const simpleMatch = line.match(/(\d+)/)
+                                            if (simpleMatch) totalMins = parseInt(simpleMatch[1], 10)
+                                        }
+                                        if (totalMins > 0) parsedDurationMins = totalMins
                                     }
                                 }
 
@@ -476,6 +512,16 @@ export default function VehicleChargingHistory() {
                             const dateObj = new Date(log.refuel_date)
                             const dateStr = dateObj.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })
                             const startTime = log.refuel_time?.slice(0, 5) || '--:--'
+                            
+                            // Prioritize calculation from START and END if both exist
+                            if (startTime !== '--:--' && parsedEndTime) {
+                                const [sh, sm] = startTime.split(':').map(Number)
+                                const [eh, em] = parsedEndTime.split(':').map(Number)
+                                let calcMins = (eh * 60 + em) - (sh * 60 + sm)
+                                if (calcMins < 0) calcMins += 24 * 60
+                                if (calcMins > 0) parsedDurationMins = calcMins
+                            }
+
                             const endTime = parsedEndTime || calculateEndTime(startTime, parsedDurationMins) || '--:--'
                             const price = log.unit_price || 0
                             const locationParts = [log.station_name, log.location].filter(Boolean)
@@ -505,7 +551,7 @@ export default function VehicleChargingHistory() {
                                             </div>
                                             <div className="flex items-center gap-1.5">
                                                 <Clock className="h-4 w-4 text-blue-500" />
-                                                <span className="text-[13px] font-semibold text-slate-600">{parsedDurationMins}m</span>
+                                                <span className="text-[13px] font-semibold text-slate-600">{formatDuration(parsedDurationMins, true)}</span>
                                             </div>
                                         </div>
                                         <div className="text-right">
@@ -585,8 +631,19 @@ export default function VehicleChargingHistory() {
                                             if (match) parsedEndTimeModal = match[1].trim()
                                         }
                                         if (line.includes('Thời gian sạc:')) {
-                                            const match = line.match(/Thời gian sạc:\s*(\d+)/)
-                                            if (match) parsedDurationMinsModal = parseInt(match[1], 10)
+                                            const hMatch = line.match(/(\d+)\s*(g|h|giờ|hour)/i)
+                                            const mMatch = line.match(/(\d+)\s*(p|ph|m|phút|minute)/i)
+                                            
+                                            let totalMins = 0
+                                            if (hMatch) totalMins += parseInt(hMatch[1], 10) * 60
+                                            if (mMatch) totalMins += parseInt(mMatch[1], 10)
+                                            
+                                            if (!hMatch && !mMatch) {
+                                                const simpleMatch = line.match(/(\d+)/)
+                                                if (simpleMatch) totalMins = parseInt(simpleMatch[1], 10)
+                                            }
+                                            
+                                            if (totalMins > 0) parsedDurationMinsModal = totalMins
                                         }
                                         if (line.includes('Khuyến mãi:')) {
                                             const match = line.match(/Khuyến mãi:\s*([^\n]+)/)
@@ -598,8 +655,18 @@ export default function VehicleChargingHistory() {
                                 }
 
                                 const startTimeModal = editingLog.refuel_time?.slice(0, 5) || '--:--'
+                                
+                                // RE-CALCULATE duration from START and END if available
+                                if (startTimeModal !== '--:--' && parsedEndTimeModal) {
+                                     const [sh, sm] = startTimeModal.split(':').map(Number)
+                                     const [eh, em] = parsedEndTimeModal.split(':').map(Number)
+                                     let calcMins = (eh * 60 + em) - (sh * 60 + sm)
+                                     if (calcMins < 0) calcMins += 24 * 60
+                                     if (calcMins > 0) parsedDurationMinsModal = calcMins
+                                }
+
                                 const endTimeModal = parsedEndTimeModal || calculateEndTime(startTimeModal, parsedDurationMinsModal) || '--:--'
-                                const durationModal = parsedDurationMinsModal > 0 ? `${parsedDurationMinsModal} phút` : '-- phút'
+                                const durationModal = formatDuration(parsedDurationMinsModal)
                                 const percentModal = Math.round(Math.min(100, Math.max(0, ((editingLog.kwh || 0) / 37.23) * 100)))
                                 const actualCostModal = editingLog.total_cost !== undefined && editingLog.total_cost !== null ? editingLog.total_cost : (editingLog.total_amount || 0)
                                 const originalCostModal = (editingLog.kwh || 0) * (editingLog.unit_price || 3858)

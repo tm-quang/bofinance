@@ -14,6 +14,7 @@ import { ConfirmDialog } from '../../components/ui/ConfirmDialog'
 import { VehicleFooterNav } from '../../components/vehicles/VehicleFooterNav'
 import { useVehicleStore } from '../../store/useVehicleStore'
 import { LoadingOverlay } from '../../components/ui/LoadingOverlay'
+import { DateRangePickerModal } from '../../components/ui/DateRangePickerModal'
 
 const fmt = (v: number) =>
     new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND', maximumFractionDigits: 0 }).format(v)
@@ -35,7 +36,7 @@ const SERVICE_PRESETS = [
     'Bơm lốp', 'Thay lốp', 'Vệ sinh kim phun',
 ]
 
-type FilterPeriod = 'day' | 'week' | 'month' | 'quarter' | 'all'
+type FilterPeriod = 'day' | 'week' | 'month' | 'quarter' | 'all' | 'custom'
 const PERIOD_TABS: { id: FilterPeriod; label: string }[] = [
     { id: 'day', label: 'Ngày' },
     { id: 'week', label: 'Tuần' },
@@ -44,7 +45,7 @@ const PERIOD_TABS: { id: FilterPeriod; label: string }[] = [
     { id: 'all', label: 'Tất cả' },
 ]
 
-function getPeriodRange(period: FilterPeriod, offset: number): { start: Date; end: Date; label: string } {
+function getPeriodRange(period: FilterPeriod, offset: number, customRange?: { start: string, end: string }): { start: Date; end: Date; label: string } {
     const now = new Date()
     const d = new Date(now)
     if (period === 'day') {
@@ -82,6 +83,13 @@ function getPeriodRange(period: FilterPeriod, offset: number): { start: Date; en
         const qLabel = `Q${actualQ + 1}/${actualYear}`
         return { start: s, end: e, label: offset === 0 ? `Quý này (${qLabel})` : qLabel }
     }
+    if (period === 'custom' && customRange?.start && customRange?.end) {
+        const s = new Date(customRange.start); s.setHours(0, 0, 0, 0)
+        const e = new Date(customRange.end); e.setHours(23, 59, 59, 999)
+        const label = s.getTime() === e.getTime() ? s.toLocaleDateString('vi-VN') : `${s.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })} – ${e.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+        return { start: s, end: e, label }
+    }
+    if (period === 'custom') return { start: new Date(), end: new Date(), label: 'Chọn khoảng thời gian' }
     return { start: new Date(0), end: new Date(9999, 0), label: 'Tất cả' }
 }
 
@@ -98,6 +106,8 @@ export default function VehicleMaintenance() {
     const [expandedId, setExpandedId] = useState<string | null>(null)
     const [filterPeriod, setFilterPeriod] = useState<FilterPeriod>('month')
     const [periodOffset, setPeriodOffset] = useState(0)
+    const [isRangePickerOpen, setIsRangePickerOpen] = useState(false)
+    const [customRange, setCustomRange] = useState({ start: '', end: '' })
 
     const effectiveId = selectedVehicleId || vehicles.find(v => v.is_default)?.id || vehicles[0]?.id || ''
     const { data: logs = [], isLoading: loading } = useVehicleMaintenance(effectiveId || undefined)
@@ -118,7 +128,7 @@ export default function VehicleMaintenance() {
     const thisMonthCost = useMemo(() => thisMonthLogs.reduce((s, l) => s + (l.total_cost || 0), 0), [thisMonthLogs])
 
     // Period filter
-    const periodRange = getPeriodRange(filterPeriod, periodOffset)
+    const periodRange = getPeriodRange(filterPeriod, periodOffset, customRange)
     const filteredLogs = useMemo(() => {
         if (filterPeriod === 'all') return logs
         return logs.filter(l => {
@@ -177,8 +187,6 @@ export default function VehicleMaintenance() {
             />
 
             <main className="flex-1 overflow-y-auto overflow-x-hidden w-full max-w-md mx-auto px-4 pb-4 pt-4">
-
-
 
                 {/* ── Hero Stats Card ───────────────────────────────────── */}
                 {selectedVehicle && (
@@ -277,7 +285,7 @@ export default function VehicleMaintenance() {
 
                 {/* ── Filter Bar ───────────────────────────────────────── */}
                 <div className="mb-3 space-y-2">
-                    <div className="flex rounded-xl bg-slate-100 p-1 gap-0.5">
+                    <div className="flex rounded-xl bg-gray-200 p-1 gap-0.5 shadow-inner">
                         {PERIOD_TABS.map(tab => (
                             <button key={tab.id} type="button"
                                 onClick={() => { setFilterPeriod(tab.id); setPeriodOffset(0) }}
@@ -294,16 +302,19 @@ export default function VehicleMaintenance() {
                         <div className="flex items-center gap-2">
                             <button type="button"
                                 onClick={() => setPeriodOffset(o => o - 1)}
-                                className="rounded-xl border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 active:scale-95 transition-all">
+                                className="rounded-xl border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 active:scale-95 transition-all">
                                 <ChevronLeft className="h-4 w-4" />
                             </button>
-                            <div className="flex-1 rounded-xl border border-slate-200 bg-white px-3 py-2 text-center">
-                                <p className="text-sm font-bold text-gray-700">{periodRange.label}</p>
+                            <div
+                                onClick={() => setIsRangePickerOpen(true)}
+                                className="flex-1 rounded-xl border border-slate-300 bg-white px-3 py-2 text-center cursor-pointer hover:bg-slate-50 transition-colors"
+                            >
+                                <p className="text-md font-bold text-gray-700">{periodRange.label}</p>
                             </div>
                             <button type="button"
                                 onClick={() => setPeriodOffset(o => Math.min(0, o + 1))}
-                                disabled={periodOffset >= 0}
-                                className="rounded-xl border border-slate-200 bg-white p-1.5 text-slate-600 hover:bg-slate-50 disabled:opacity-30 active:scale-95 transition-all">
+                                disabled={periodOffset >= 0 && filterPeriod !== 'custom'}
+                                className="rounded-xl border border-slate-300 bg-white p-1.5 text-slate-600 hover:bg-slate-100 active:scale-95 transition-all">
                                 <ChevronRight className="h-4 w-4" />
                             </button>
                         </div>
@@ -331,8 +342,8 @@ export default function VehicleMaintenance() {
                     </div>
                 ) : filteredLogs.length === 0 ? (
                     <div className="flex flex-col items-center justify-center rounded-3xl bg-white border border-slate-100 py-14 shadow-sm">
-                        <div className="mb-4 rounded-3xl bg-gray-100 p-6">
-                            <Wrench className="h-12 w-12 text-gray-400" />
+                        <div className="mb-4 rounded-3xl bg-gray-200 p-6 shadow-md">
+                            <Wrench className="h-12 w-12 text-gray-600" />
                         </div>
                         <p className="font-semibold text-slate-600">
                             {filterPeriod === 'all' ? 'Chưa có nhật ký bảo dưỡng' : `Không có dữ liệu trong ${periodRange.label.toLowerCase()}`}
@@ -364,7 +375,7 @@ export default function VehicleMaintenance() {
                                     </div>
                                     <div className="space-y-2 pl-4 border-l-2 border-gray-100">
                                         {dayLogs.map(log => {
-                                            const type = MAINT_TYPES[log.maintenance_type] || MAINT_TYPES.scheduled
+                                            const type = MAINT_TYPES[log.maintenance_type as keyof typeof MAINT_TYPES] || MAINT_TYPES.scheduled
                                             const TypeIcon = type.icon
                                             const isExpanded = expandedId === log.id
                                             const parts = log.parts_cost || 0
@@ -382,7 +393,7 @@ export default function VehicleMaintenance() {
                                                         >
                                                             <div>
                                                                 <div className="flex items-center gap-2 mb-0.5">
-                                                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${BADGE[type.accent]}`}>
+                                                                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${BADGE[type.accent as keyof typeof BADGE]}`}>
                                                                         {type.label}
                                                                     </span>
                                                                     <span className="text-xs text-slate-400">{log.odometer.toLocaleString()} km</span>
@@ -406,7 +417,7 @@ export default function VehicleMaintenance() {
                                                         </button>
 
                                                         {/* Service items quick view */}
-                                                        {log.service_items?.length > 0 && !isExpanded && (
+                                                        {log.service_items && log.service_items.length > 0 && !isExpanded && (
                                                             <div className="mt-2.5 flex flex-wrap gap-1">
                                                                 {log.service_items.slice(0, 3).map((item, i) => (
                                                                     <span key={i} className="rounded-lg bg-slate-100 px-2 py-0.5 text-[10px] text-slate-600">{item}</span>
@@ -421,7 +432,7 @@ export default function VehicleMaintenance() {
                                                         {isExpanded && (
                                                             <div className="mt-3 space-y-3 border-t border-slate-100 pt-3">
                                                                 {/* Service items */}
-                                                                {log.service_items?.length > 0 && (
+                                                                {log.service_items && log.service_items.length > 0 && (
                                                                     <div>
                                                                         <p className="mb-1.5 text-xs font-semibold text-slate-500 uppercase tracking-wide">Hạng mục thực hiện</p>
                                                                         <div className="flex flex-wrap gap-1.5">
@@ -515,11 +526,20 @@ export default function VehicleMaintenance() {
                 cancelText="Hủy"
                 isLoading={deleting}
             />
+
+            {/* Range Picker Modal */}
+            <DateRangePickerModal
+                isOpen={isRangePickerOpen}
+                onClose={() => setIsRangePickerOpen(false)}
+                onConfirm={(s, e) => {
+                    setCustomRange({ start: s, end: e })
+                    setFilterPeriod('custom')
+                }}
+            />
         </div>
     )
 }
 
-// ─── Add Maintenance Modal ──────────────────────────────────────────────────
 function AddMaintenanceModal({ vehicle, onClose, onSuccess }: {
     vehicle: VehicleRecord
     onClose: () => void
@@ -561,7 +581,6 @@ function AddMaintenanceModal({ vehicle, onClose, onSuccess }: {
             d.setMonth(d.getMonth() + vehicle.maintenance_interval_months)
             dDate = d.toISOString().split('T')[0]
         } else {
-            // Default 3/6 months if not set
             const d = new Date(form.maintenance_date || new Date())
             d.setMonth(d.getMonth() + (vehicle.vehicle_type === 'motorcycle' ? 3 : 6))
             dDate = d.toISOString().split('T')[0]
@@ -604,9 +623,7 @@ function AddMaintenanceModal({ vehicle, onClose, onSuccess }: {
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-[3px] pointer-events-none">
             <div className="w-full max-w-md max-h-[92vh] flex flex-col rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl pointer-events-auto mt-12 sm:mt-0 safe-area-bottom overflow-hidden">
-                {/* Header */}
                 <div className="sticky top-0 z-10 bg-gray-500 px-5 pt-3 pb-4 text-white">
-                    {/* Mobile Handle */}
                     <div className="flex w-full justify-center pb-3 flex-shrink-0 sm:hidden scroll-none pointer-events-none sticky top-0 z-10">
                         <div className="h-1.5 w-12 rounded-full bg-white/40" />
                     </div>
@@ -623,7 +640,6 @@ function AddMaintenanceModal({ vehicle, onClose, onSuccess }: {
                 </div>
 
                 <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
-                    {/* Date + ODO */}
                     <div className="grid grid-cols-2 gap-3">
                         <div>
                             <label className="mb-1.5 block text-xs font-bold text-slate-500 uppercase tracking-wide">Ngày</label>
@@ -639,7 +655,6 @@ function AddMaintenanceModal({ vehicle, onClose, onSuccess }: {
                         </div>
                     </div>
 
-                    {/* Type selector */}
                     <div>
                         <label className="mb-1.5 block text-xs font-bold text-slate-500 uppercase tracking-wide">Loại bảo dưỡng</label>
                         <div className="flex gap-2">
@@ -654,7 +669,6 @@ function AddMaintenanceModal({ vehicle, onClose, onSuccess }: {
                         </div>
                     </div>
 
-                    {/* Quick-pick service items */}
                     <div>
                         <label className="mb-2 block text-xs font-bold text-slate-500 uppercase tracking-wide">
                             Hạng mục thực hiện {selectedItems.length > 0 && <span className="text-gray-600">({selectedItems.length})</span>}
@@ -681,7 +695,6 @@ function AddMaintenanceModal({ vehicle, onClose, onSuccess }: {
                         </div>
                     </div>
 
-                    {/* Costs */}
                     <div>
                         <label className="mb-1.5 block text-xs font-bold text-slate-500 uppercase tracking-wide">Chi phí</label>
                         <div className="grid grid-cols-2 gap-3">
@@ -708,7 +721,6 @@ function AddMaintenanceModal({ vehicle, onClose, onSuccess }: {
                         )}
                     </div>
 
-                    {/* Provider */}
                     <div>
                         <label className="mb-1.5 block text-xs font-bold text-slate-500 uppercase tracking-wide">Nơi thực hiện</label>
                         <div className="relative">
@@ -720,7 +732,6 @@ function AddMaintenanceModal({ vehicle, onClose, onSuccess }: {
                         </div>
                     </div>
 
-                    {/* Next reminder */}
                     <div className="rounded-2xl border border-gray-200 bg-gray-50 p-4">
                         <div className="flex items-center justify-between mb-3">
                             <div className="flex items-center gap-2">
@@ -748,7 +759,6 @@ function AddMaintenanceModal({ vehicle, onClose, onSuccess }: {
                         </div>
                     </div>
 
-                    {/* Notes */}
                     <div>
                         <label className="mb-1.5 block text-xs font-bold text-slate-500 uppercase tracking-wide">Ghi chú</label>
                         <textarea value={form.notes} onChange={e => setForm({ ...form, notes: e.target.value })}
@@ -756,7 +766,6 @@ function AddMaintenanceModal({ vehicle, onClose, onSuccess }: {
                             className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-sm focus:border-gray-400 focus:bg-white focus:outline-none resize-none" />
                     </div>
 
-                    {/* Actions */}
                     <div className="flex gap-3 pb-2">
                         <button onClick={onClose}
                             className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 py-3.5 text-sm font-semibold text-slate-600 hover:bg-slate-100">
@@ -774,7 +783,6 @@ function AddMaintenanceModal({ vehicle, onClose, onSuccess }: {
     )
 }
 
-// ─── Maintenance Settings Modal ─────────────────────────────────────────────
 function MaintenanceSettingsModal({ vehicle, onClose, onSuccess }: {
     vehicle: VehicleRecord
     onClose: () => void
@@ -803,59 +811,59 @@ function MaintenanceSettingsModal({ vehicle, onClose, onSuccess }: {
 
     return (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-[3px] pointer-events-none">
-            <div className="w-full max-w-md max-h-[90vh] flex flex-col rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl pointer-events-auto mt-12 sm:mt-0 safe-area-bottom overflow-hidden">
-                {/* Header */}
-                <div className="sticky top-0 z-10 flex flex-col border-b border-slate-100 bg-white">
-                    {/* Mobile Handle */}
-                    <div className="flex w-full justify-center pt-3 flex-shrink-0 sm:hidden scroll-none pointer-events-none sticky top-0 z-10">
-                        <div className="h-1.5 w-12 rounded-full bg-slate-300" />
+            <div className="w-full max-w-md flex flex-col rounded-t-3xl sm:rounded-3xl bg-white shadow-2xl pointer-events-auto mt-12 sm:mt-0 safe-area-bottom overflow-hidden">
+                <div className="sticky top-0 z-10 bg-slate-800 px-5 pt-3 pb-4 text-white">
+                    <div className="flex w-full justify-center pb-3 flex-shrink-0 sm:hidden scroll-none pointer-events-none sticky top-0 z-10">
+                        <div className="h-1.5 w-12 rounded-full bg-white/40" />
                     </div>
-                    <div className="flex items-center justify-between px-5 py-4">
-                        <div className="flex items-center gap-3">
-                            <div className="rounded-xl bg-gray-100 p-2 text-gray-600">
-                                <Settings className="h-5 w-5" />
-                            </div>
-                            <div>
-                                <h3 className="text-base font-bold text-slate-800">Cài đặt chu kỳ xe</h3>
-                                <p className="text-xs font-medium text-slate-500">
-                                    {vehicle.license_plate} · {vehicle.vehicle_type === 'motorcycle' ? 'Xe máy' : 'Ô tô'}
-                                </p>
-                            </div>
+                    <div className="flex items-center justify-between mt-1">
+                        <div className="flex items-center gap-2">
+                            <div className="rounded-xl bg-white/20 p-1.5"><Settings className="h-4 w-4" /></div>
+                            <h3 className="text-base font-bold">Cài đặt chu kỳ bảo dưỡng</h3>
                         </div>
-                        <button onClick={onClose} className="rounded-full bg-slate-100 p-2 text-slate-500 hover:bg-slate-200">
-                            <X className="h-5 w-5" />
+                        <button onClick={onClose} className="rounded-full bg-white/20 p-1.5 hover:bg-white/30">
+                            <X className="h-4 w-4" />
                         </button>
                     </div>
+                    <p className="text-xs opacity-70 mt-1 ml-10">Thiết lập mốc gợi ý cho {vehicle.license_plate}</p>
                 </div>
 
-                <div className="flex-1 overflow-y-auto px-5 py-5 space-y-5">
-                    <div className="rounded-2xl bg-gray-50 p-3 border border-gray-100 flex gap-2">
-                        <AlertTriangle className="h-4 w-4 text-gray-600 shrink-0 mt-0.5" />
-                        <p className="text-xs text-gray-700 leading-snug">
-                            Lưu cấu hình mốc bảo dưỡng định kỳ (Km hoặc Tháng). Hệ thống sẽ dùng số liệu này để giúp bạn định trước kỳ tới mỗi khi bảo dưỡng.
-                        </p>
-                    </div>
+                <div className="px-5 py-6 space-y-6">
                     <div>
-                        <label className="mb-2 block text-xs font-bold text-slate-500 uppercase tracking-wide">Chu kỳ ODO (Ví dụ: Định kỳ mỗi 3000 km)</label>
-                        <input type="number" value={intervalKm} onChange={e => setIntervalKm(e.target.value)}
-                            placeholder={vehicle.vehicle_type === 'motorcycle' ? "2000" : "5000"}
-                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium focus:border-gray-400 focus:bg-white focus:outline-none" />
-                    </div>
-                    <div>
-                        <label className="mb-2 block text-xs font-bold text-slate-500 uppercase tracking-wide">Chu kỳ Thời gian (Tháng)</label>
-                        <input type="number" value={intervalMonths} onChange={e => setIntervalMonths(e.target.value)}
-                            placeholder={vehicle.vehicle_type === 'motorcycle' ? "3" : "6"}
-                            className="w-full rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium focus:border-gray-400 focus:bg-white focus:outline-none" />
+                        <label className="mb-2 block text-xs font-bold text-slate-500 uppercase tracking-wide">Chu kỳ theo số km (ODO)</label>
+                        <div className="relative">
+                            <Gauge className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <input type="number" value={intervalKm} onChange={e => setIntervalKm(e.target.value)}
+                                placeholder="Ví dụ: 5000"
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-3 text-sm font-bold focus:border-slate-400 focus:bg-white focus:outline-none" />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">km</span>
+                        </div>
                     </div>
 
-                    <button onClick={handleSave} disabled={loading}
-                        className="w-full mt-2 rounded-2xl bg-gray-600 py-3.5 text-sm font-bold text-white shadow-lg shadow-gray-200 hover:bg-gray-700 disabled:opacity-50 transition-all">
-                        Lưu thiết lập
-                    </button>
+                    <div>
+                        <label className="mb-2 block text-xs font-bold text-slate-500 uppercase tracking-wide">Chu kỳ theo thời gian (tháng)</label>
+                        <div className="relative">
+                            <Clock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                            <input type="number" value={intervalMonths} onChange={e => setIntervalMonths(e.target.value)}
+                                placeholder="Ví dụ: 6"
+                                className="w-full rounded-xl border border-slate-200 bg-slate-50 pl-9 pr-3 py-3 text-sm font-bold focus:border-slate-400 focus:bg-white focus:outline-none" />
+                            <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400">tháng</span>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-3 pt-2">
+                        <button onClick={onClose}
+                            className="flex-1 rounded-2xl border border-slate-200 bg-slate-50 py-4 text-sm font-semibold text-slate-600 hover:bg-slate-100">
+                            Hủy
+                        </button>
+                        <button onClick={handleSave} disabled={loading}
+                            className="flex-[2] flex items-center justify-center gap-2 rounded-2xl bg-slate-800 py-4 text-sm font-bold text-white shadow-lg shadow-slate-200 hover:bg-slate-900 icon-white disabled:opacity-50 active:scale-95 transition-all">
+                            <Save className="h-4 w-4" /> Lưu cài đặt
+                        </button>
+                    </div>
                 </div>
             </div>
             <LoadingOverlay isOpen={loading} />
         </div>
     )
 }
-
